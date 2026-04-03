@@ -2,10 +2,21 @@
   "name": "my-project",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "backend"
+  ],
   "scripts": {
     "dev": "next dev",
+    "dev:frontend": "next dev",
+    "dev:backend": "npm run start:dev --workspace backend",
+    "dev:all": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "build": "next build",
+    "build:frontend": "next build",
+    "build:backend": "npm run build --workspace backend",
+    "build:all": "npm run build:frontend && npm run build:backend",
     "start": "next start",
+    "start:frontend": "next start",
+    "start:backend": "npm run start --workspace backend",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -64,6 +75,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
     "postcss": "^8.5",
     "tailwindcss": "^4.2.0",
     "tw-animate-css": "1.3.3",
