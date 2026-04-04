@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react'
 import type { ViewName } from '@/shared/types/navigation'
 import { Navigation } from '@/components/navigation'
 import { HomeScreen } from '@/features/home/components/home-screen'
-import { DreamCompanyScreen } from '@/features/dream-company/components/dream-company-screen'
 import { OutreachScreen } from '@/features/outreach/components/outreach-screen'
 import { CvOptimizerScreen } from '@/features/cv-optimizer/components/cv-optimizer-screen'
 import { InterviewPrepScreen } from '@/features/interview-prep/components/interview-prep-screen'
@@ -22,9 +21,6 @@ export default function Home() {
 
       {currentView === 'home' && (
         <HomeScreen onNavigate={handleNavigate} />
-      )}
-      {currentView === 'companies' && (
-        <DreamCompanyScreen />
       )}
       {currentView === 'outreach' && (
         <OutreachScreen />
