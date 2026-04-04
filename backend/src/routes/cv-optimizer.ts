@@ -4,13 +4,13 @@ import {
   getCvAnalysisJob,
   getAnalyzeTemplate,
 } from '../services/cv-optimizer.service.js';
-import type { AnalyzeCvDto } from '../types/cv-optimizer.js';
+import type { AnalyzeCvRequest } from '@advance-academy/contracts/cv-optimizer';
 
 export async function registerCvOptimizerRoutes(app: FastifyInstance) {
   app.get('/api/cv-optimizer/template', async () => getAnalyzeTemplate());
 
-  app.post<{ Body: AnalyzeCvDto }>('/api/cv-optimizer/analyze', async (request, reply) => {
-    const body = request.body as AnalyzeCvDto;
+  app.post<{ Body: AnalyzeCvRequest }>('/api/cv-optimizer/analyze', async (request, reply) => {
+    const body = request.body as AnalyzeCvRequest;
 
     if (!body?.candidateName || !body?.targetRole || !body?.currentCvText) {
       return reply.code(400).send({

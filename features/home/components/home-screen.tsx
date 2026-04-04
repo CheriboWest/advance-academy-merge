@@ -2,7 +2,7 @@
 
 import { ChevronRight, Briefcase, Target, FileText, Brain } from 'lucide-react'
 import { OrnamentalDivider } from '@/components/ornamental-divider'
-import type { ViewName } from '@/lib/types'
+import type { ViewName } from '@/shared/types/navigation'
 
 interface HomeScreenProps {
   onNavigate: (view: ViewName) => void

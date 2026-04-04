@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import type { OutreachFormData, OutreachScript } from '@/lib/types'
+import type { OutreachFormData, OutreachScript } from '@/features/outreach/types'
 import { MOCK_SCRIPTS } from '@/features/outreach/data/mock-scripts'
 
 export function useOutreach() {
