@@ -1,9 +1,27 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import cors from '@fastify/cors';
 import Fastify from 'fastify';
-import { registerSystemRoutes } from './routes/system';
-import { registerCvOptimizerRoutes } from './routes/cv-optimizer';
+import { registerSystemRoutes } from './routes/system.js';
+import { registerCvOptimizerRoutes } from './routes/cv-optimizer.js';
+
+function loadBackendEnvFile() {
+  const candidates = [
+    resolve(process.cwd(), '.env'),
+    resolve(process.cwd(), 'backend/.env'),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      process.loadEnvFile?.(candidate);
+      return;
+    }
+  }
+}
 
 async function bootstrap() {
+  loadBackendEnvFile();
+
   const app = Fastify({
     logger: true,
   });

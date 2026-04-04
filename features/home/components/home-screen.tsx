@@ -4,14 +4,13 @@ import { ChevronRight, Briefcase, Target, FileText, Brain } from 'lucide-react'
 import { OrnamentalDivider } from '@/components/ornamental-divider'
 import type { ViewName } from '@/lib/types'
 
-interface HomeViewProps {
+interface HomeScreenProps {
   onNavigate: (view: ViewName) => void
 }
 
-export function HomeView({ onNavigate }: HomeViewProps) {
+export function HomeScreen({ onNavigate }: HomeScreenProps) {
   return (
     <>
-      {/* Hero */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
         <div className="text-center mb-16">
           <h1 className="text-5xl md:text-6xl font-serif font-bold text-blue-900 mb-6 text-balance">
@@ -24,9 +23,7 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 
         <OrnamentalDivider />
 
-        {/* Feature Cards */}
         <div className="grid md:grid-cols-2 gap-8 mb-16">
-          {/* Dream Company Finder */}
           <div className="bg-gray-50 rounded-xl p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('companies')}>
             <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center mb-4">
               <Briefcase className="w-6 h-6 text-blue-900" />
@@ -38,7 +35,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
             </div>
           </div>
 
-          {/* Recruitment Outreach */}
           <div className="bg-gray-50 rounded-xl p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('outreach')}>
             <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center mb-4">
               <Target className="w-6 h-6 text-blue-900" />
@@ -50,7 +46,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
             </div>
           </div>
 
-          {/* CV Optimizer */}
           <div className="bg-gray-50 rounded-xl p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('cv')}>
             <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center mb-4">
               <FileText className="w-6 h-6 text-blue-900" />
@@ -62,7 +57,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
             </div>
           </div>
 
-          {/* Interview Prep */}
           <div className="bg-gray-50 rounded-xl p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('interview')}>
             <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center mb-4">
               <Brain className="w-6 h-6 text-blue-900" />
@@ -77,7 +71,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
 
         <OrnamentalDivider />
 
-        {/* CTA Section */}
         <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-xl p-12 text-center text-white">
           <h2 className="text-3xl font-serif font-bold mb-4">Ready to advance your career?</h2>
           <p className="text-lg opacity-90 mb-6">Start with finding your dream company or optimizing your CV.</p>
@@ -98,7 +91,6 @@ export function HomeView({ onNavigate }: HomeViewProps) {
         </div>
       </div>
 
-      {/* Footer */}
       <footer className="bg-blue-900 text-white mt-16 py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-sm opacity-75">&copy; 2024 Advance Academy. Your path to career success.</p>

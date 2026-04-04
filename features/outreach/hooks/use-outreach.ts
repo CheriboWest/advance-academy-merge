@@ -1,17 +1,19 @@
-import { useState, useCallback } from 'react'
+'use client'
+
+import { useCallback, useState } from 'react'
 import type { OutreachFormData, OutreachScript } from '@/lib/types'
-import { MOCK_SCRIPTS } from '@/lib/mock-data'
+import { MOCK_SCRIPTS } from '@/features/outreach/data/mock-scripts'
 
 export function useOutreach() {
   const [form, setForm] = useState<OutreachFormData>({
     jobTitle: '',
-    company: ''
+    company: '',
   })
   const [results, setResults] = useState<OutreachScript[] | null>(null)
   const [loading, setLoading] = useState(false)
 
   const updateForm = useCallback((updates: Partial<OutreachFormData>) => {
-    setForm(prev => ({ ...prev, ...updates }))
+    setForm((previous) => ({ ...previous, ...updates }))
   }, [])
 
   const generate = useCallback(() => {
@@ -22,7 +24,7 @@ export function useOutreach() {
         setLoading(false)
       }, 2500)
     }
-  }, [form.jobTitle, form.company])
+  }, [form.company, form.jobTitle])
 
   const reset = useCallback(() => {
     setResults(null)

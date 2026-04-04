@@ -1,0 +1,12 @@
+{
+  "name": "@advance-academy/contracts",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cv-optimizer": "./src/cv-optimizer.ts",
+    "./jobs": "./src/jobs.ts"
+  },
+  "types": "./src/index.ts"
+}

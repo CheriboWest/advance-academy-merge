@@ -1,25 +1,11 @@
 'use client'
 
-import { Loader, CheckCircle2 } from 'lucide-react'
-import type { OutreachFormData, OutreachScript } from '@/lib/types'
+import { CheckCircle2, Loader } from 'lucide-react'
+import { useOutreach } from '@/features/outreach/hooks/use-outreach'
 
-interface OutreachViewProps {
-  form: OutreachFormData
-  updateForm: (updates: Partial<OutreachFormData>) => void
-  results: OutreachScript[] | null
-  clearResults: () => void
-  loading: boolean
-  onGenerate: () => void
-}
+export function OutreachScreen() {
+  const { form, updateForm, results, setResults, loading, generate } = useOutreach()
 
-export function OutreachView({
-  form,
-  updateForm,
-  results,
-  clearResults,
-  loading,
-  onGenerate,
-}: OutreachViewProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-4xl font-serif font-bold text-blue-900 mb-4">Recruitment Outreach Generator</h1>
@@ -27,7 +13,6 @@ export function OutreachView({
 
       {!results ? (
         <div className="grid md:grid-cols-2 gap-8">
-          {/* Form */}
           <div className="bg-gray-50 rounded-xl p-8">
             <h3 className="text-xl font-serif font-semibold text-blue-900 mb-6">Your Target</h3>
             <div className="space-y-4">
@@ -37,7 +22,7 @@ export function OutreachView({
                   type="text"
                   placeholder="e.g., Senior Product Manager"
                   value={form.jobTitle}
-                  onChange={(e) => updateForm({ jobTitle: e.target.value })}
+                  onChange={(event) => updateForm({ jobTitle: event.target.value })}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500"
                 />
               </div>
@@ -47,12 +32,12 @@ export function OutreachView({
                   type="text"
                   placeholder="e.g., TechFlow Systems"
                   value={form.company}
-                  onChange={(e) => updateForm({ company: e.target.value })}
+                  onChange={(event) => updateForm({ company: event.target.value })}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500"
                 />
               </div>
               <button
-                onClick={onGenerate}
+                onClick={generate}
                 disabled={loading || !form.jobTitle || !form.company}
                 className="w-full mt-6 px-6 py-3 bg-yellow-500 text-blue-900 rounded-lg font-semibold hover:bg-yellow-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
@@ -67,7 +52,6 @@ export function OutreachView({
             </div>
           </div>
 
-          {/* Info */}
           <div className="bg-blue-50 rounded-xl p-8">
             <h3 className="text-xl font-serif font-semibold text-blue-900 mb-4">Why Outreach?</h3>
             <ul className="space-y-3 text-gray-700">
@@ -94,7 +78,7 @@ export function OutreachView({
         <div>
           <div className="mb-8">
             <button
-              onClick={clearResults}
+              onClick={() => setResults(null)}
               className="px-4 py-2 text-yellow-600 font-medium hover:bg-yellow-50 rounded-lg"
             >
               &larr; Generate New Scripts
@@ -102,8 +86,8 @@ export function OutreachView({
           </div>
 
           <div className="space-y-6">
-            {results.map((script, idx) => (
-              <div key={idx} className="bg-gray-50 rounded-xl p-8">
+            {results.map((script, index) => (
+              <div key={`${script.type}-${index}`} className="bg-gray-50 rounded-xl p-8">
                 <h3 className="text-xl font-serif font-semibold text-blue-900 mb-4">{script.type}</h3>
                 <div className="bg-white rounded-lg p-6 border border-gray-200 mb-4 font-mono text-sm text-gray-700 whitespace-pre-wrap">
                   {script.content}

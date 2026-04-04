@@ -2,13 +2,15 @@
   "name": "backend",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/main.js",
+    "build": "tsc -p tsconfig.build.json --incremental false",
+    "start": "tsx src/main.ts",
     "start:dev": "tsx watch src/main.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@advance-academy/contracts": "*",
     "@fastify/cors": "^11.1.0",
     "fastify": "^5.2.1"
   },

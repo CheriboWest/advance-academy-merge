@@ -1,29 +1,11 @@
 'use client'
 
 import { Loader } from 'lucide-react'
-import type { CompanyFormData, CompanyResult } from '@/lib/types'
+import { useDreamCompany } from '@/features/dream-company/hooks/use-dream-company'
 
-interface DreamCompanyViewProps {
-  step: number
-  setStep: (step: number) => void
-  form: CompanyFormData
-  updateForm: (updates: Partial<CompanyFormData>) => void
-  results: CompanyResult[] | null
-  loading: boolean
-  onSearch: () => void
-  onReset: () => void
-}
+export function DreamCompanyScreen() {
+  const { step, setStep, form, updateForm, results, loading, search, reset } = useDreamCompany()
 
-export function DreamCompanyView({
-  step,
-  setStep,
-  form,
-  updateForm,
-  results,
-  loading,
-  onSearch,
-  onReset,
-}: DreamCompanyViewProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-4xl font-serif font-bold text-blue-900 mb-4">Dream Company Finder</h1>
@@ -32,19 +14,17 @@ export function DreamCompanyView({
       {!results ? (
         <div className="bg-gray-50 rounded-xl p-8">
           <div className="max-w-2xl">
-            {/* Step Indicator */}
             <div className="flex gap-2 mb-8">
-              {[1, 2, 3].map((s) => (
+              {[1, 2, 3].map((currentStep) => (
                 <div
-                  key={s}
+                  key={currentStep}
                   className={`h-2 flex-1 rounded-full transition-colors ${
-                    s <= step ? 'bg-yellow-500' : 'bg-gray-300'
+                    currentStep <= step ? 'bg-yellow-500' : 'bg-gray-300'
                   }`}
-                ></div>
+                />
               ))}
             </div>
 
-            {/* Step 1: Industry */}
             {step === 1 && (
               <div>
                 <label className="block text-sm font-semibold text-blue-900 mb-4">
@@ -52,7 +32,7 @@ export function DreamCompanyView({
                 </label>
                 <select
                   value={form.industry}
-                  onChange={(e) => updateForm({ industry: e.target.value })}
+                  onChange={(event) => updateForm({ industry: event.target.value })}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white"
                 >
                   <option value="">Select an industry</option>
@@ -72,7 +52,6 @@ export function DreamCompanyView({
               </div>
             )}
 
-            {/* Step 2: Location */}
             {step === 2 && (
               <div>
                 <label className="block text-sm font-semibold text-blue-900 mb-4">
@@ -80,7 +59,7 @@ export function DreamCompanyView({
                 </label>
                 <select
                   value={form.location}
-                  onChange={(e) => updateForm({ location: e.target.value })}
+                  onChange={(event) => updateForm({ location: event.target.value })}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white"
                 >
                   <option value="">Select a location</option>
@@ -108,7 +87,6 @@ export function DreamCompanyView({
               </div>
             )}
 
-            {/* Step 3: Company Size */}
             {step === 3 && (
               <div>
                 <label className="block text-sm font-semibold text-blue-900 mb-4">
@@ -116,7 +94,7 @@ export function DreamCompanyView({
                 </label>
                 <select
                   value={form.companySize}
-                  onChange={(e) => updateForm({ companySize: e.target.value })}
+                  onChange={(event) => updateForm({ companySize: event.target.value })}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 bg-white"
                 >
                   <option value="">Select company size</option>
@@ -133,7 +111,7 @@ export function DreamCompanyView({
                     Back
                   </button>
                   <button
-                    onClick={onSearch}
+                    onClick={search}
                     disabled={loading || !form.companySize}
                     className="flex-1 px-6 py-3 bg-yellow-500 text-blue-900 rounded-lg font-semibold hover:bg-yellow-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
@@ -154,7 +132,7 @@ export function DreamCompanyView({
         <div>
           <div className="mb-8">
             <button
-              onClick={onReset}
+              onClick={reset}
               className="px-4 py-2 text-yellow-600 font-medium hover:bg-yellow-50 rounded-lg"
             >
               &larr; New Search
@@ -162,8 +140,8 @@ export function DreamCompanyView({
           </div>
 
           <div className="grid gap-6">
-            {results.map((company, idx) => (
-              <div key={idx} className="bg-gray-50 rounded-xl p-8 border-l-4 border-yellow-500">
+            {results.map((company, index) => (
+              <div key={`${company.name}-${index}`} className="bg-gray-50 rounded-xl p-8 border-l-4 border-yellow-500">
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h3 className="text-2xl font-serif font-semibold text-blue-900">{company.name}</h3>

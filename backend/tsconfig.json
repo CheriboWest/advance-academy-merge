@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "module": "Node16",
+    "module": "ESNext",
     "declaration": true,
     "removeComments": true,
     "allowSyntheticDefaultImports": true,
@@ -11,7 +11,7 @@
     "incremental": true,
     "strict": true,
     "skipLibCheck": true,
-    "moduleResolution": "node16",
+    "moduleResolution": "bundler",
     "types": [
       "node"
     ]

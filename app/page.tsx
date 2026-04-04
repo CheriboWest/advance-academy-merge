@@ -3,70 +3,37 @@
 import { useState, useCallback } from 'react'
 import type { ViewName } from '@/lib/types'
 import { Navigation } from '@/components/navigation'
-import { HomeView } from '@/components/views/home-view'
-import { DreamCompanyView } from '@/components/views/dream-company-view'
-import { OutreachView } from '@/components/views/outreach-view'
-import { CvOptimizerView } from '@/components/views/cv-optimizer-view'
-import { InterviewPrepView } from '@/components/views/interview-prep-view'
-import { useDreamCompany } from '@/hooks/use-dream-company'
-import { useOutreach } from '@/hooks/use-outreach'
-import { useCvOptimizer } from '@/hooks/use-cv-optimizer'
+import { HomeScreen } from '@/features/home/components/home-screen'
+import { DreamCompanyScreen } from '@/features/dream-company/components/dream-company-screen'
+import { OutreachScreen } from '@/features/outreach/components/outreach-screen'
+import { CvOptimizerScreen } from '@/features/cv-optimizer/components/cv-optimizer-screen'
+import { InterviewPrepScreen } from '@/features/interview-prep/components/interview-prep-screen'
 
 export default function Home() {
   const [currentView, setCurrentView] = useState<ViewName>('home')
 
-  const dreamCompany = useDreamCompany()
-  const outreach = useOutreach()
-  const cvOptimizer = useCvOptimizer()
-
   const handleNavigate = useCallback((view: ViewName) => {
     setCurrentView(view)
-    dreamCompany.reset()
-    outreach.reset()
-    cvOptimizer.reset()
-  }, [dreamCompany.reset, outreach.reset, cvOptimizer.reset])
+  }, [])
 
   return (
     <div className="min-h-screen bg-white">
       <Navigation currentView={currentView} onNavigate={handleNavigate} />
 
       {currentView === 'home' && (
-        <HomeView onNavigate={handleNavigate} />
+        <HomeScreen onNavigate={handleNavigate} />
       )}
       {currentView === 'companies' && (
-        <DreamCompanyView
-          step={dreamCompany.step}
-          setStep={dreamCompany.setStep}
-          form={dreamCompany.form}
-          updateForm={dreamCompany.updateForm}
-          results={dreamCompany.results}
-          loading={dreamCompany.loading}
-          onSearch={dreamCompany.search}
-          onReset={dreamCompany.reset}
-        />
+        <DreamCompanyScreen />
       )}
       {currentView === 'outreach' && (
-        <OutreachView
-          form={outreach.form}
-          updateForm={outreach.updateForm}
-          results={outreach.results}
-          clearResults={() => outreach.setResults(null)}
-          loading={outreach.loading}
-          onGenerate={outreach.generate}
-        />
+        <OutreachScreen />
       )}
       {currentView === 'cv' && (
-        <CvOptimizerView
-          tab={cvOptimizer.tab}
-          setTab={cvOptimizer.setTab}
-          loading={cvOptimizer.loading}
-          results={cvOptimizer.results}
-          clearResults={() => cvOptimizer.setResults(null)}
-          onUpload={cvOptimizer.upload}
-        />
+        <CvOptimizerScreen />
       )}
       {currentView === 'interview' && (
-        <InterviewPrepView onNavigate={handleNavigate} />
+        <InterviewPrepScreen onNavigate={handleNavigate} />
       )}
     </div>
   )

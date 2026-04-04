@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Menu, X, Target } from 'lucide-react'
 import type { ViewName } from '@/lib/types'
-import { NAV_ITEMS } from '@/lib/mock-data'
+import { NAV_ITEMS } from '@/shared/config/navigation'
 
 interface NavigationProps {
   currentView: ViewName

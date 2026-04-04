@@ -14,8 +14,5 @@ next.user-config.*
 node_modules
 .next/
 .DS_Store
-<<<<<<< HEAD
 .claude/
-=======
 backend/dist/
->>>>>>> 41d42e4a515fc76f5b90de9f1a291cd4b2787295

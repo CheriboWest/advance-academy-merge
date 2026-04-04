@@ -6,6 +6,29 @@ This backend uses `Fastify + TypeScript`.
 npm run dev:backend
 test the api http://localhost:4000/api/health and see if the "status" is "ok"
 
+## LLM Config
+
+Backend reads LLM settings from `backend/.env`.
+
+```text
+LLM_PROVIDER=anthropic
+LLM_BASE_URL=https://api.anthropic.com/v1
+LLM_API_KEY=your_api_key
+LLM_ANTHROPIC_API_VERSION=2023-06-01
+LLM_TIMEOUT_MS=30000
+LLM_MODEL_DEFAULT=claude-sonnet-4-20250514
+LLM_MODEL_CV_OPTIMIZER=claude-sonnet-4-20250514
+LLM_MODEL_OUTREACH=claude-sonnet-4-20250514
+LLM_MODEL_DREAM_COMPANY=claude-sonnet-4-20250514
+LLM_MODEL_INTERVIEW_PREP=claude-sonnet-4-20250514
+```
+
+Current behavior:
+
+- `cv-optimizer` uses the configured LLM if `LLM_API_KEY` is present
+- If no API key is configured, it falls back to local heuristic analysis
+- `outreach`, `dream-company`, and `interview-prep` have model config slots ready, but no backend routes yet
+
 ## Folder Layout
 
 ```text
@@ -58,6 +81,10 @@ Then register it in `src/main.ts` --> define endpoints in `src/routes` + simple 
 - Does calculations and data transformation
 - Place for database calls or AI calls
 
+`src/config/`
+
+- Contains shared runtime config such as LLM provider and per-feature model selection
+
 `src/types/`
 - Contains TypeScript types and interfaces
 - Defines the shape of request or response data
@@ -73,4 +100,6 @@ Then register it in `src/main.ts` --> define endpoints in `src/routes` + simple 
 `services/system.service.ts`
 - Returns the health-check response
 
-
+`services/cv-optimizer.service.ts`
+- Analyzes a CV via LLM when configured
+- Falls back to local scoring logic when no LLM is available

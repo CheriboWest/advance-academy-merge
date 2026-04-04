@@ -1,3 +1,5 @@
+import type { AnalyzeCvResult, AnalyzeCvSection } from '@advance-academy/contracts'
+
 export type ViewName = 'home' | 'companies' | 'outreach' | 'cv' | 'interview'
 
 export interface NavItem {
@@ -30,14 +32,6 @@ export interface OutreachScript {
 
 export type CvTabName = 'analysis' | 'expert'
 
-export interface CVSection {
-  title: string
-  score: number
-  feedback: string
-}
+export type CVSection = AnalyzeCvSection
 
-export interface CVReview {
-  overallScore: number
-  sections: CVSection[]
-  expertReview: string
-}
+export type CVReview = AnalyzeCvResult

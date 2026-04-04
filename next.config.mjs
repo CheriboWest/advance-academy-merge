@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: ['@advance-academy/contracts'],
   typescript: {
     ignoreBuildErrors: true,
   },

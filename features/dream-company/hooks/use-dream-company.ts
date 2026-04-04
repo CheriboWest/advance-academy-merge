@@ -1,19 +1,21 @@
-import { useState, useCallback } from 'react'
+'use client'
+
+import { useCallback, useState } from 'react'
 import type { CompanyFormData, CompanyResult } from '@/lib/types'
-import { MOCK_COMPANIES } from '@/lib/mock-data'
+import { MOCK_COMPANIES } from '@/features/dream-company/data/mock-companies'
 
 export function useDreamCompany() {
   const [step, setStep] = useState(1)
   const [form, setForm] = useState<CompanyFormData>({
     industry: '',
     location: '',
-    companySize: ''
+    companySize: '',
   })
   const [results, setResults] = useState<CompanyResult[] | null>(null)
   const [loading, setLoading] = useState(false)
 
   const updateForm = useCallback((updates: Partial<CompanyFormData>) => {
-    setForm(prev => ({ ...prev, ...updates }))
+    setForm((previous) => ({ ...previous, ...updates }))
   }, [])
 
   const search = useCallback(() => {
@@ -24,7 +26,7 @@ export function useDreamCompany() {
         setLoading(false)
       }, 2500)
     }
-  }, [form.industry, form.location, form.companySize])
+  }, [form.companySize, form.industry, form.location])
 
   const reset = useCallback(() => {
     setStep(1)
