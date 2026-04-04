@@ -88,7 +88,7 @@ export function CvOptimizerView({
           <div className="bg-gradient-to-r from-yellow-500 to-yellow-400 rounded-xl p-8 text-blue-900 mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold opacity-90">Overall CV Score</p>
+                <p className="text-sm font-semibold opacity-90">Overall CV score</p>
                 <p className="text-4xl font-bold">{results.overallScore}/100</p>
               </div>
               <div className="text-right">
