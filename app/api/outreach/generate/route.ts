@@ -1,43 +1,25 @@
-import { NextResponse } from 'next/server';
-import type { OutreachRequest } from '@/types/outreach';
-import { generateOutreach } from '@/lib/outreach/generateOutreach';
+import { NextResponse } from 'next/server'
+import { getServerEnv } from '@/shared/env/server'
 
 export async function POST(request: Request) {
-  let body: OutreachRequest;
+  const { backendUrl } = getServerEnv()
+  const bodyText = await request.text()
 
   try {
-    const json = await request.json();
-
-    if (
-      !json.rawProfile ||
-      !json.targetData ||
-      !json.roleData ||
-      !json.recruiterData ||
-      !json.desiredRole
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            'Missing required fields: rawProfile, targetData, roleData, recruiterData, desiredRole',
-        },
-        { status: 400 },
-      );
-    }
-
-    body = json as OutreachRequest;
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON in request body' },
-      { status: 400 },
-    );
-  }
-
-  try {
-    const result = await generateOutreach(body);
-    return NextResponse.json(result);
+    const res = await fetch(`${backendUrl}/api/outreach/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: bodyText,
+    })
+    const text = await res.text()
+    return new NextResponse(text, {
+      status: res.status,
+      headers: {
+        'Content-Type': res.headers.get('Content-Type') ?? 'application/json',
+      },
+    })
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Outreach generation failed';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Outreach proxy error:', error)
+    return NextResponse.json({ error: 'Failed to reach backend' }, { status: 502 })
   }
 }

@@ -25,9 +25,9 @@ LLM_MODEL_INTERVIEW_PREP=claude-sonnet-4-20250514
 
 Current behavior:
 
-- `cv-optimizer` uses the configured LLM if `LLM_API_KEY` is present
-- If no API key is configured, it falls back to local heuristic analysis
-- `outreach`, `dream-company`, and `interview-prep` have model config slots ready, but no backend routes yet
+- `cv-optimizer` uses the configured LLM if `LLM_API_KEY` is present; otherwise it falls back to local heuristic analysis
+- `dream-company` (`/api/dream-company/generate`, `/api/dream-company/parse-cv`) and `outreach` (`/api/outreach/generate`) run on the backend and require `LLM_API_KEY` (and optional `LLM_MODEL_*` overrides)
+- The Next.js app proxies these paths to `BACKEND_URL` (same pattern as CV optimizer)
 
 ## Folder Layout
 
@@ -38,11 +38,19 @@ backend/
     routes/
       system.ts
       cv-optimizer.ts
+      dream-company.ts
+      outreach.ts
     services/
       system.service.ts
       cv-optimizer.service.ts
+      dream-company.service.ts
+    lib/
+      llm-anthropic.ts
+      dream-company/prompts.ts
+      outreach/*.ts
     types/
-      cv-optimizer.ts
+      dream-company.ts
+      outreach.ts
 ```
 ## How To Add A New Feature
 

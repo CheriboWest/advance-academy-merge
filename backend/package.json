@@ -11,8 +11,12 @@
   },
   "dependencies": {
     "@advance-academy/contracts": "*",
+    "@anthropic-ai/sdk": "^0.82.0",
     "@fastify/cors": "^11.1.0",
-    "fastify": "^5.2.1"
+    "@fastify/multipart": "^9.0.3",
+    "fastify": "^5.2.1",
+    "mammoth": "^1.9.0",
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",

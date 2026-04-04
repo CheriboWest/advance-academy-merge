@@ -4,6 +4,8 @@ import cors from '@fastify/cors';
 import Fastify from 'fastify';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerCvOptimizerRoutes } from './routes/cv-optimizer.js';
+import { registerDreamCompanyRoutes } from './routes/dream-company.js';
+import { registerOutreachRoutes } from './routes/outreach.js';
 
 function loadBackendEnvFile() {
   const candidates = [
@@ -35,7 +37,8 @@ async function bootstrap() {
 
   await registerSystemRoutes(app);
   await registerCvOptimizerRoutes(app);
-  //await registerSomething(app); then come to /routes folder
+  await registerDreamCompanyRoutes(app);
+  await registerOutreachRoutes(app);
   
   await app.listen({
     port,
