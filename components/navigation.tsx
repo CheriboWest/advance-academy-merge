@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Menu, X, Target } from 'lucide-react'
 import type { ViewName } from '@/shared/types/navigation'
 import { NAV_ITEMS } from '@/shared/config/navigation'
@@ -18,6 +19,9 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
     setMobileMenuOpen(false)
   }
 
+  const activeClass = 'bg-yellow-500 text-blue-900'
+  const inactiveClass = 'text-gray-700 hover:bg-gray-100'
+
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -31,19 +35,29 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.view}
-                onClick={() => handleNavigate(item.view)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  currentView === item.view
-                    ? 'bg-yellow-500 text-blue-900'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
+            {NAV_ITEMS.map((item) =>
+              item.href ? (
+                <Link
+                  key={item.view}
+                  href={item.href}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === item.view ? activeClass : inactiveClass
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <button
+                  key={item.view}
+                  onClick={() => handleNavigate(item.view)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === item.view ? activeClass : inactiveClass
+                  }`}
+                >
+                  {item.label}
+                </button>
+              )
+            )}
           </div>
 
           {/* Mobile Menu Toggle */}
@@ -58,19 +72,30 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="md:hidden pb-4 flex flex-col gap-2">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.view}
-                onClick={() => handleNavigate(item.view)}
-                className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  currentView === item.view
-                    ? 'bg-yellow-500 text-blue-900'
-                    : 'text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
+            {NAV_ITEMS.map((item) =>
+              item.href ? (
+                <Link
+                  key={item.view}
+                  href={item.href}
+                  className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors block ${
+                    currentView === item.view ? activeClass : inactiveClass
+                  }`}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <button
+                  key={item.view}
+                  onClick={() => handleNavigate(item.view)}
+                  className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === item.view ? activeClass : inactiveClass
+                  }`}
+                >
+                  {item.label}
+                </button>
+              )
+            )}
           </div>
         )}
       </div>

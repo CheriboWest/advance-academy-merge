@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ChevronRight, Briefcase, Target, FileText, Brain } from 'lucide-react'
 import { OrnamentalDivider } from '@/components/ornamental-divider'
 import type { ViewName } from '@/shared/types/navigation'
@@ -24,7 +25,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         <OrnamentalDivider />
 
         <div className="grid md:grid-cols-2 gap-8 mb-16">
-          <div className="bg-gray-50 rounded-xl p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('companies')}>
+          <Link href="/dream-company" className="bg-gray-50 rounded-xl p-8 hover:shadow-lg transition-shadow cursor-pointer block">
             <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center mb-4">
               <Briefcase className="w-6 h-6 text-blue-900" />
             </div>
@@ -33,7 +34,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
             <div className="flex items-center gap-2 text-yellow-600 font-medium">
               Explore <ChevronRight className="w-4 h-4" />
             </div>
-          </div>
+          </Link>
 
           <div className="bg-gray-50 rounded-xl p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('outreach')}>
             <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center mb-4">
@@ -75,12 +76,12 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
           <h2 className="text-3xl font-serif font-bold mb-4">Ready to advance your career?</h2>
           <p className="text-lg opacity-90 mb-6">Start with finding your dream company or optimizing your CV.</p>
           <div className="flex gap-4 justify-center flex-wrap">
-            <button
-              onClick={() => onNavigate('companies')}
+            <Link
+              href="/dream-company"
               className="px-6 py-3 bg-yellow-500 text-blue-900 rounded-lg font-semibold hover:bg-yellow-400 transition-colors"
             >
               Find Dream Companies
-            </button>
+            </Link>
             <button
               onClick={() => onNavigate('cv')}
               className="px-6 py-3 bg-white/20 hover:bg-white/30 rounded-lg font-semibold transition-colors"
