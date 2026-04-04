@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import type { CompanyFormData, CompanyResult } from '@/lib/types'
+import type { CompanyFormData, CompanyResult } from '@/features/dream-company/types'
 import { MOCK_COMPANIES } from '@/features/dream-company/data/mock-companies'
 
 export function useDreamCompany() {

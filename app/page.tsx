@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import type { ViewName } from '@/lib/types'
+import type { ViewName } from '@/shared/types/navigation'
 import { Navigation } from '@/components/navigation'
 import { HomeScreen } from '@/features/home/components/home-screen'
 import { DreamCompanyScreen } from '@/features/dream-company/components/dream-company-screen'

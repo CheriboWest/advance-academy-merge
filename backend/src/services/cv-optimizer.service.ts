@@ -1,11 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { AnalyzeCvAcceptedResponse } from '@advance-academy/contracts/cv-optimizer';
-import type { ApiErrorResponse } from '@advance-academy/contracts/jobs';
+import type { AnalyzeCvAcceptedResponse, AnalyzeCvRequest, AnalyzeCvResult } from '@advance-academy/contracts/cv-optimizer';
+import type { ApiErrorResponse, JobStatusResponse } from '@advance-academy/contracts/jobs';
 import { getLlmConfig } from '../config/llm.js';
-import type { AnalyzeCvDto, AnalyzeCvJobDto, AnalyzeCvResultDto } from '../types/cv-optimizer.js';
 import { generateJson } from './llm.service.js';
 
-const cvAnalysisJobs = new Map<string, AnalyzeCvJobDto>();
+const cvAnalysisJobs = new Map<string, JobStatusResponse<AnalyzeCvResult>>();
 
 export function getAnalyzeTemplate() {
   const llmConfig = getLlmConfig('cvOptimizer');
@@ -53,7 +52,7 @@ export function getAnalyzeTemplate() {
   };
 }
 
-function updateJob(jobId: string, updates: Partial<AnalyzeCvJobDto>) {
+function updateJob(jobId: string, updates: Partial<JobStatusResponse<AnalyzeCvResult>>) {
   const currentJob = cvAnalysisJobs.get(jobId);
 
   if (!currentJob) {
@@ -75,7 +74,7 @@ function buildJobError(message: string, details?: unknown): ApiErrorResponse {
   };
 }
 
-function buildFallbackAnalysis(body: AnalyzeCvDto): AnalyzeCvResultDto {
+function buildFallbackAnalysis(body: AnalyzeCvRequest): AnalyzeCvResult {
   const cvText = body.currentCvText.trim();
   const targetRole = body.targetRole.trim();
   const hasMetrics = /\b\d+%|\b\d+\+|\$\d+|\b\d+\s?(users|projects|clients|sales|team members)\b/i.test(cvText);
@@ -132,15 +131,15 @@ function buildFallbackAnalysis(body: AnalyzeCvDto): AnalyzeCvResultDto {
   };
 }
 
-function normalizeResult(candidateName: string, targetRole: string, result: Partial<AnalyzeCvResultDto>): AnalyzeCvResultDto {
+function normalizeResult(candidateName: string, targetRole: string, result: Partial<AnalyzeCvResult>): AnalyzeCvResult {
   const sanitizedSections = Array.isArray(result.sections)
     ? result.sections
-        .map((section: AnalyzeCvResultDto['sections'][number]) => ({
+        .map((section: AnalyzeCvResult['sections'][number]) => ({
           title: typeof section?.title === 'string' ? section.title.trim() : '',
           score: Math.max(0, Math.min(100, Math.round(Number(section?.score ?? 0)))),
           feedback: typeof section?.feedback === 'string' ? section.feedback.trim() : '',
         }))
-        .filter((section: AnalyzeCvResultDto['sections'][number]) => section.title && section.feedback)
+        .filter((section: AnalyzeCvResult['sections'][number]) => section.title && section.feedback)
     : [];
 
   if (sanitizedSections.length === 0) {
@@ -156,8 +155,8 @@ function normalizeResult(candidateName: string, targetRole: string, result: Part
   };
 }
 
-async function buildLlmAnalysis(body: AnalyzeCvDto) {
-  const result = await generateJson<AnalyzeCvResultDto>({
+async function buildLlmAnalysis(body: AnalyzeCvRequest) {
+  const result = await generateJson<AnalyzeCvResult>({
     feature: 'cvOptimizer',
     systemPrompt: [
       'You are an expert CV reviewer for job applications.',
@@ -183,7 +182,7 @@ async function buildLlmAnalysis(body: AnalyzeCvDto) {
   return normalizeResult(body.candidateName.trim(), body.targetRole.trim(), result);
 }
 
-async function analyzeCv(body: AnalyzeCvDto): Promise<AnalyzeCvResultDto> {
+async function analyzeCv(body: AnalyzeCvRequest): Promise<AnalyzeCvResult> {
   if (!getLlmConfig('cvOptimizer').enabled) {
     return buildFallbackAnalysis(body);
   }
@@ -201,7 +200,7 @@ async function analyzeCv(body: AnalyzeCvDto): Promise<AnalyzeCvResultDto> {
   return buildFallbackAnalysis(body);
 }
 
-async function runCvAnalysisJob(jobId: string, body: AnalyzeCvDto) {
+async function runCvAnalysisJob(jobId: string, body: AnalyzeCvRequest) {
   updateJob(jobId, { status: 'running', error: undefined });
 
   try {
@@ -221,7 +220,7 @@ async function runCvAnalysisJob(jobId: string, body: AnalyzeCvDto) {
   }
 }
 
-export async function createCvAnalysisJob(body: AnalyzeCvDto): Promise<AnalyzeCvAcceptedResponse> {
+export async function createCvAnalysisJob(body: AnalyzeCvRequest): Promise<AnalyzeCvAcceptedResponse> {
   const timestamp = new Date().toISOString();
   const jobId = randomUUID();
 

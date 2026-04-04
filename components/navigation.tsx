@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Menu, X, Target } from 'lucide-react'
-import type { ViewName } from '@/lib/types'
+import type { ViewName } from '@/shared/types/navigation'
 import { NAV_ITEMS } from '@/shared/config/navigation'
 
 interface NavigationProps {

@@ -1,4 +1,4 @@
-import type { NavItem } from '@/lib/types'
+import type { NavItem } from '@/shared/types/navigation'
 
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Home', view: 'home' },

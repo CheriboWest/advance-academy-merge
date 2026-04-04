@@ -5,7 +5,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import type { AnalyzeCvRequest, AnalyzeCvResult, JobStatusResponse } from '@advance-academy/contracts'
 import { HttpClientError } from '@/shared/api/http-client'
 import type { FeatureResultState } from '@/shared/types/feature'
-import { getCvAnalysisJob, submitCvAnalysis } from '@/features/cv-optimizer/api/client'
+import { getCvAnalysisJob, submitCvAnalysis } from '@/features/cv-optimizer/api/frontend-client'
 import { getClientEnv } from '@/shared/env/client'
 
 const STORAGE_KEY = 'advance-academy.cv-optimizer.job-id'

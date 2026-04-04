@@ -1,7 +1,7 @@
 'use client'
 
 import { Brain } from 'lucide-react'
-import type { ViewName } from '@/lib/types'
+import type { ViewName } from '@/shared/types/navigation'
 
 interface InterviewPrepScreenProps {
   onNavigate: (view: ViewName) => void

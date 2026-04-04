@@ -1,4 +1,4 @@
-import type { CompanyResult } from '@/lib/types'
+import type { CompanyResult } from '@/features/dream-company/types'
 
 export const MOCK_COMPANIES: CompanyResult[] = [
   { name: 'TechFlow Systems', industry: 'Software', location: 'San Francisco, CA', match: 94 },
