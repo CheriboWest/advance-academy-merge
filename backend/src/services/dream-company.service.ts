@@ -1,3 +1,7 @@
+/**
+ * Dream Company — service called from routes only.
+ * Uses lib/dream-company/prompts (all prompt builders) and lib/llm-anthropic (Anthropic SDK).
+ */
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 import type {
@@ -9,10 +13,11 @@ import type {
   DreamCompanyResult,
 } from '../types/dream-company.js';
 import {
-  buildProfileAnalysisPrompt,
-  buildCompanyMatrixPrompt,
-  buildTargetRolesPrompt,
   buildCareerRoadmapPrompt,
+  buildCompanyMatrixPrompt,
+  buildDreamCompanyCvParsePrompt,
+  buildProfileAnalysisPrompt,
+  buildTargetRolesPrompt,
 } from '../lib/dream-company/prompts.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 
@@ -114,46 +119,6 @@ export async function generateDreamCompanyReport(
   };
 }
 
-const CV_PARSE_PROMPT = `Extract structured career information from the following CV text and map it to the specified fields.
-
-CV TEXT:
-{CV_TEXT}
-
-YOUR TASK:
-Parse the CV and extract the following fields:
-- degree: highest education degree (e.g., "Bachelor of Computer Science")
-- workExperience: summary of work experience as a single string describing roles and companies
-- skills: comma-separated list of technical and soft skills mentioned
-- interests: professional interests or areas of focus mentioned
-- targetSalary: any salary expectations mentioned, or empty string if not found
-- location: candidate's location or preferred work location
-
-Also determine:
-- currentLevel: the candidate's current career level — one of: intern, junior, mid, senior, lead, manager, director, executive
-- confidence: an object with confidence levels for each extracted field:
-  { "degree": "high"|"medium"|"low", "workExperience": "high"|"medium"|"low", "skills": "high"|"medium"|"low", "location": "high"|"medium"|"low" }
-
-Use empty string "" for any field that cannot be determined from the CV.
-
-Return ONLY a valid JSON object matching this schema:
-{
-  "degree": "string",
-  "workExperience": "string",
-  "skills": "string",
-  "interests": "string",
-  "targetSalary": "string",
-  "location": "string",
-  "currentLevel": "intern"|"junior"|"mid"|"senior"|"lead"|"manager"|"director"|"executive",
-  "confidence": {
-    "degree": "high"|"medium"|"low",
-    "workExperience": "high"|"medium"|"low",
-    "skills": "high"|"medium"|"low",
-    "location": "high"|"medium"|"low"
-  }
-}
-
-Return ONLY a valid JSON object. No explanation, no markdown, no code blocks.`;
-
 export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string): Promise<Record<string, unknown>> {
   const isPdf = fileNameLower.endsWith('.pdf');
   const isDocx = fileNameLower.endsWith('.docx');
@@ -187,7 +152,7 @@ export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string)
     messages: [
       {
         role: 'user',
-        content: CV_PARSE_PROMPT.replace('{CV_TEXT}', extractedText),
+        content: buildDreamCompanyCvParsePrompt(extractedText),
       },
     ],
   });

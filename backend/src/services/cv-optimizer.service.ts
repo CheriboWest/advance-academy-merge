@@ -1,3 +1,7 @@
+/**
+ * CV Optimizer — async job queue + structured CV analysis.
+ * Uses llm.service (HTTP OpenAI/Anthropic + JSON) when LLM is enabled; otherwise local heuristics.
+ */
 import { randomUUID } from 'node:crypto';
 import type { AnalyzeCvAcceptedResponse, AnalyzeCvRequest, AnalyzeCvResult } from '@advance-academy/contracts/cv-optimizer';
 import type { ApiErrorResponse, JobStatusResponse } from '@advance-academy/contracts/jobs';

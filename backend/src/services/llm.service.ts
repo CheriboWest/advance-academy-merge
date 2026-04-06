@@ -1,3 +1,7 @@
+/**
+ * Shared HTTP LLM client (OpenAI-compatible chat completions + Anthropic Messages).
+ * Use for JSON-shaped responses when per-call token limits in this module are sufficient.
+ */
 import { getLlmApiKey, getLlmConfig, type LlmFeature } from '../config/llm.js';
 
 interface ChatMessage {

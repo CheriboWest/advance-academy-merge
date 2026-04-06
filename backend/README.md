@@ -47,7 +47,7 @@ backend/
     lib/
       llm-anthropic.ts
       dream-company/prompts.ts
-      outreach/*.ts
+      outreach/prompts.ts
     types/
       dream-company.ts
       outreach.ts

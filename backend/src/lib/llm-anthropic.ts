@@ -1,3 +1,7 @@
+/**
+ * Anthropic SDK helpers + feature config (used when features need SDK options, e.g. high max_tokens).
+ * For JSON-over-HTTP without SDK, see services/llm.service.ts.
+ */
 import Anthropic from '@anthropic-ai/sdk';
 import type { LlmFeature } from '../config/llm.js';
 import { getLlmApiKey, getLlmConfig } from '../config/llm.js';

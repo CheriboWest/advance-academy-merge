@@ -1,3 +1,6 @@
+/**
+ * System — health and lightweight metadata (no LLM).
+ */
 export function getHealth() {
   return {
     status: 'ok',

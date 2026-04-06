@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { generateOutreach } from '../lib/outreach/generateOutreach.js';
+import { generateOutreach } from '../services/outreach.service.js';
 import type { OutreachRequest } from '../types/outreach.js';
 
 export async function registerOutreachRoutes(app: FastifyInstance) {
