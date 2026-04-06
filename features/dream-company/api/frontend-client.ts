@@ -1,20 +1,14 @@
+'use client'
+
 import type { DreamCompanyInput, DreamCompanyResult } from '@/types/dream-company'
+import { fetchFormDataJson, fetchJson } from '@/shared/api/http-client'
 
-export async function generateDreamCompanies(
-  profile: DreamCompanyInput
-): Promise<DreamCompanyResult> {
-  const response = await fetch('/api/dream-company/generate', {
+export async function generateDreamCompanies(profile: DreamCompanyInput): Promise<DreamCompanyResult> {
+  return fetchJson<DreamCompanyResult>('/api/dream-company/generate', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ profile }),
+    timeoutMs: 120000,
   })
-
-  if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.error || 'Generation failed')
-  }
-
-  return response.json()
 }
 
 export interface CVParseResponse {
@@ -37,15 +31,5 @@ export async function parseCV(file: File): Promise<CVParseResponse> {
   const formData = new FormData()
   formData.append('cv', file)
 
-  const response = await fetch('/api/dream-company/parse-cv', {
-    method: 'POST',
-    body: formData,
-  })
-
-  if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.error || 'CV parsing failed')
-  }
-
-  return response.json()
+  return fetchFormDataJson<CVParseResponse>('/api/dream-company/parse-cv', formData, { timeoutMs: 120000 })
 }

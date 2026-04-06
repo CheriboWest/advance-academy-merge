@@ -15,11 +15,7 @@ export default function DreamCompanyPage() {
         router.push('/dream-company')
         return
       }
-      if (view === 'home') {
-        router.push('/')
-        return
-      }
-      router.push(`/?view=${view}`)
+      router.push(view === 'home' ? '/' : `/?view=${view}`)
     },
     [router],
   )

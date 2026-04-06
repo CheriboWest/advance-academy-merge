@@ -1,25 +1,41 @@
 import { NextResponse } from 'next/server'
-import { getServerEnv } from '@/shared/env/server'
+import type { DreamCompanyInput } from '@/types/dream-company'
+import { generateDreamCompaniesWithBackend } from '@/shared/api/backend-client'
+import { HttpClientError } from '@/shared/api/http-client'
+
+function isDreamCompanyPayload(body: unknown): body is { profile: DreamCompanyInput } {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'profile' in body &&
+    typeof (body as { profile: unknown }).profile === 'object' &&
+    (body as { profile: DreamCompanyInput }).profile !== null
+  )
+}
 
 export async function POST(request: Request) {
-  const { backendUrl } = getServerEnv()
-  const bodyText = await request.text()
-
   try {
-    const res = await fetch(`${backendUrl}/api/dream-company/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: bodyText,
-    })
-    const text = await res.text()
-    return new NextResponse(text, {
-      status: res.status,
-      headers: {
-        'Content-Type': res.headers.get('Content-Type') ?? 'application/json',
-      },
-    })
+    const json: unknown = await request.json()
+    if (!isDreamCompanyPayload(json)) {
+      return NextResponse.json(
+        { code: 'INVALID_REQUEST', message: 'Request body must include a profile object.' },
+        { status: 400 },
+      )
+    }
+
+    const response = await generateDreamCompaniesWithBackend(json)
+    return NextResponse.json(response)
   } catch (error) {
-    console.error('Dream company proxy error:', error)
-    return NextResponse.json({ error: 'Failed to reach backend' }, { status: 502 })
+    if (error instanceof HttpClientError) {
+      return NextResponse.json(error.payload, { status: error.status || 500 })
+    }
+
+    return NextResponse.json(
+      {
+        code: 'INVALID_REQUEST',
+        message: error instanceof Error ? error.message : 'Invalid request body.',
+      },
+      { status: 400 },
+    )
   }
 }

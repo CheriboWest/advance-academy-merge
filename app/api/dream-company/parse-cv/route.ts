@@ -1,24 +1,23 @@
 import { NextResponse } from 'next/server'
-import { getServerEnv } from '@/shared/env/server'
+import { parseDreamCompanyCvWithBackend } from '@/shared/api/backend-client'
+import { HttpClientError } from '@/shared/api/http-client'
 
 export async function POST(request: Request) {
-  const { backendUrl } = getServerEnv()
-  const formData = await request.formData()
-
   try {
-    const res = await fetch(`${backendUrl}/api/dream-company/parse-cv`, {
-      method: 'POST',
-      body: formData,
-    })
-    const text = await res.text()
-    return new NextResponse(text, {
-      status: res.status,
-      headers: {
-        'Content-Type': res.headers.get('Content-Type') ?? 'application/json',
-      },
-    })
+    const formData = await request.formData()
+    const response = await parseDreamCompanyCvWithBackend(formData)
+    return NextResponse.json(response)
   } catch (error) {
-    console.error('Parse CV proxy error:', error)
-    return NextResponse.json({ error: 'Failed to reach backend' }, { status: 502 })
+    if (error instanceof HttpClientError) {
+      return NextResponse.json(error.payload, { status: error.status || 500 })
+    }
+
+    return NextResponse.json(
+      {
+        code: 'INVALID_REQUEST',
+        message: error instanceof Error ? error.message : 'Invalid multipart body.',
+      },
+      { status: 400 },
+    )
   }
 }
