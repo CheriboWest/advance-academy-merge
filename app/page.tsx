@@ -8,6 +8,7 @@ import { DreamCompanyView } from '@/components/views/dream-company-view'
 import { OutreachView } from '@/components/views/outreach-view'
 import { CvOptimizerView } from '@/components/views/cv-optimizer-view'
 import { InterviewPrepView } from '@/components/views/interview-prep-view'
+import { InterviewHistoryView } from '@/components/views/interview-history-view'
 import { useDreamCompany } from '@/hooks/use-dream-company'
 import { useOutreach } from '@/hooks/use-outreach'
 import { useCvOptimizer } from '@/hooks/use-cv-optimizer'
@@ -68,6 +69,7 @@ export default function Home() {
       {currentView === 'interview' && (
         <InterviewPrepView onNavigate={handleNavigate} />
       )}
+      {currentView === 'history' && <InterviewHistoryView />}
     </div>
   )
 }
