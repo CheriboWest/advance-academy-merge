@@ -6,6 +6,18 @@ Frontend:
 Backend:
 - Fastify + TypeScript
 
+## Documentation
+
+Full developer documentation lives in [`docs/`](./docs/README.md):
+
+- **[Getting Started](./docs/GETTING_STARTED.md)** — prerequisites, env setup, running dev
+- **[Architecture](./docs/ARCHITECTURE.md)** — system design with diagrams
+- **[Backend guide](./docs/BACKEND.md)** — Fastify layout, services, LLM integration
+- **[Frontend guide](./docs/FRONTEND.md)** — Next.js layout, feature modules, HTTP client
+- **[API reference](./docs/API_REFERENCE.md)** — all endpoints with request/response types
+- **[Conventions](./docs/CONVENTIONS.md)** — naming, layering rules, commit style
+- **[Add a feature](./docs/ADD_A_FEATURE.md)** — end-to-end walkthrough for new features
+
 ## Install
 
 ```bash
