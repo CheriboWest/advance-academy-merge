@@ -53,3 +53,19 @@ export function generateOutreachWithBackend(payload: OutreachRequest) {
     timeoutMs: 60000,
   })
 }
+
+export function extractOutreachTextWithBackend(payload: { url: string }) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchJson<{ text: string }>(`${backendUrl}/api/outreach/extract`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 60000,
+  })
+}
+
+export function extractOutreachFileWithBackend(formData: FormData) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchFormDataJson<{ text: string }>(`${backendUrl}/api/outreach/extract`, formData, { timeoutMs: 120000 })
+}

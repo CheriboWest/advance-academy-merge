@@ -7,16 +7,10 @@ function isOutreachRequest(body: unknown): body is OutreachRequest {
   if (typeof body !== 'object' || body === null) return false
   const o = body as Record<string, unknown>
   return (
-    typeof o.rawProfile === 'object' &&
-    o.rawProfile !== null &&
-    typeof o.targetData === 'object' &&
-    o.targetData !== null &&
-    typeof o.roleData === 'object' &&
-    o.roleData !== null &&
-    typeof o.recruiterData === 'object' &&
-    o.recruiterData !== null &&
-    typeof o.desiredRole === 'object' &&
-    o.desiredRole !== null
+    typeof o.intent === 'string' &&
+    typeof o.cvText === 'string' &&
+    typeof o.targetCompany === 'string' &&
+    typeof o.targetPersonName === 'string'
   )
 }
 

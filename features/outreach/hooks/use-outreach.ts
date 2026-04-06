@@ -8,74 +8,31 @@ import { HttpClientError } from '@/shared/api/http-client'
 import { submitOutreachGeneration } from '@/features/outreach/api/frontend-client'
 
 const INITIAL_FORM: OutreachFormData = {
-  headline: '',
-  about: '',
-  experience: [{ title: '', company: '', description: '', duration: '' }],
-  skills: [],
-  posts: [],
-
-  targetName: '',
-  targetRole: '',
+  cvText: '',
+  linkedInText: '',
   targetCompany: '',
-  targetIndustry: '',
-  recentActivity: '',
-  whyThisCompany: '',
-  companySignal: '',
-  hiringManager: '',
-  hiringManagerRole: '',
-
-  roleTitle: '',
-  department: '',
-  keyRequirements: [],
-  impliedPain: '',
-
-  recruiterName: '',
-  recruiterType: 'agency',
-  specialization: '',
-  activeRoles: [],
-
-  desiredTitle: '',
-  desiredLocation: '',
-  salaryExpectation: '',
+  targetPersonName: '',
+  targetPersonRole: '',
+  contextLinks: [],
+  intent: 'direct_application',
 }
 
 function buildRequest(form: OutreachFormData): OutreachRequest {
+  const enrichedContexts = form.contextLinks
+    .filter(link => link.status === 'success' && link.extractedText.trim().length > 0)
+    .map(link => ({
+      type: link.meaning || 'Unknown Context',
+      content: link.extractedText,
+    }));
+    
   return {
-    rawProfile: {
-      headline: form.headline,
-      about: form.about,
-      experience: form.experience.filter((e) => e.title || e.company),
-      skills: form.skills.filter(Boolean),
-      posts: form.posts.filter(Boolean),
-    },
-    targetData: {
-      name: form.targetName,
-      role: form.targetRole,
-      company: form.targetCompany,
-      industry: form.targetIndustry,
-      recentActivity: form.recentActivity || undefined,
-      whyThisCompany: form.whyThisCompany,
-      companySignal: form.companySignal || undefined,
-      hiringManager: form.hiringManager || undefined,
-      hiringManagerRole: form.hiringManagerRole || undefined,
-    },
-    roleData: {
-      title: form.roleTitle,
-      department: form.department,
-      keyRequirements: form.keyRequirements.filter(Boolean),
-      impliedPain: form.impliedPain,
-    },
-    recruiterData: {
-      name: form.recruiterName,
-      type: form.recruiterType,
-      specialization: form.specialization,
-      activeRoles: form.activeRoles.filter(Boolean),
-    },
-    desiredRole: {
-      title: form.desiredTitle,
-      location: form.desiredLocation,
-      salaryExpectation: form.salaryExpectation || undefined,
-    },
+    cvText: form.cvText,
+    linkedInText: form.linkedInText || undefined,
+    targetCompany: form.targetCompany,
+    targetPersonName: form.targetPersonName,
+    targetPersonRole: form.targetPersonRole || undefined,
+    enrichedContexts,
+    intent: form.intent,
   }
 }
 
@@ -90,8 +47,11 @@ export function useOutreach() {
     },
   })
 
-  const updateForm = useCallback((updates: Partial<OutreachFormData>) => {
-    setForm((previous) => ({ ...previous, ...updates }))
+  const updateForm = useCallback((updates: Partial<OutreachFormData> | ((prev: OutreachFormData) => Partial<OutreachFormData>)) => {
+    setForm((previous) => {
+      const next = typeof updates === 'function' ? updates(previous) : updates;
+      return { ...previous, ...next }
+    })
   }, [])
 
   const generate = useCallback(() => {
