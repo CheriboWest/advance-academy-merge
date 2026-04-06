@@ -8,7 +8,7 @@ import type {
   InterviewSession,
   InterviewMessage,
   IRSScore,
-} from '@/lib/types'
+} from '@/features/interview-prep/types'
 
 const STORAGE_KEY = 'interview_sessions'
 

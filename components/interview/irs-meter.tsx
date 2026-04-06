@@ -1,7 +1,7 @@
 'use client'
 
-import type { IRSScore } from '@/lib/types'
-import { irsScoreColor, irsScoreLabel } from '@/lib/score-utils'
+import type { IRSScore } from '@/features/interview-prep/types'
+import { irsScoreColor, irsScoreLabel } from '@/shared/utils/score-utils'
 
 interface IRSMeterProps {
   score: IRSScore

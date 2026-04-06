@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase, isDbReady } from '@/lib/supabase'
+import { supabase, isDbReady } from '@/shared/utils/supabase'
 
 export async function GET(
   _req: NextRequest,

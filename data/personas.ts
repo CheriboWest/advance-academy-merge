@@ -1,4 +1,4 @@
-import type { InterviewerPersona } from '@/lib/types'
+import type { InterviewerPersona } from '@/features/interview-prep/types'
 
 export const PERSONAS: InterviewerPersona[] = [
   {

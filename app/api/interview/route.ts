@@ -7,9 +7,9 @@ import type {
   SendMessageRequest,
   SendMessageResponse,
   InterviewContext,
-} from '@/lib/types'
-import { scoreAnswer } from '@/lib/irs-scoring'
-import { dbStartSession, dbStoreQuestion, dbStoreAssessment } from '@/lib/db'
+} from '@/features/interview-prep/types'
+import { scoreAnswer } from '@/shared/utils/irs-scoring'
+import { dbStartSession, dbStoreQuestion, dbStoreAssessment } from '@/shared/utils/db'
 
 const client = new Anthropic()
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { EvaluateSessionResponse } from '@/lib/types'
-import { generateFeedbackReport } from '@/lib/feedback-engine'
-import { dbCompleteSession, dbUpdateSessionStatus } from '@/lib/db'
+import type { EvaluateSessionResponse } from '@/features/interview-prep/types'
+import { generateFeedbackReport } from '@/shared/utils/feedback-engine'
+import { dbCompleteSession, dbUpdateSessionStatus } from '@/shared/utils/db'
 
 export async function POST(req: NextRequest) {
   try {
