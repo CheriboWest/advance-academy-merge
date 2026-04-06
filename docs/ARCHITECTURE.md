@@ -105,28 +105,28 @@ flowchart LR
     Browser[Browser]
 
     subgraph NextJS["Next.js (port 3000)"]
-        Pages[app/ pages + features/]
-        Proxy[app/api/*/route.ts<br/>proxy routes]
+        Pages["app/ pages + features/"]
+        Proxy["app/api route.ts<br/>proxy routes"]
     end
 
     subgraph Fastify["Fastify backend (port 4000)"]
-        Routes[routes/]
-        Services[services/]
-        Lib[lib/ prompts + helpers]
+        Routes["routes/"]
+        Services["services/"]
+        Lib["lib/ prompts + helpers"]
     end
 
-    Anthropic[Anthropic API]
-    Jina[Jina API<br/>r.jina.ai]
-    Files[(PDF/DOCX<br/>pdf-parse + mammoth)]
+    Anthropic["Anthropic API"]
+    Jina["Jina API<br/>r.jina.ai"]
+    Files[("PDF / DOCX<br/>pdf-parse + mammoth")]
 
     Browser -->|HTTP| Pages
-    Pages -->|fetch /api/*| Proxy
-    Proxy -->|fetch BACKEND_URL| Routes
+    Pages -->|"fetch api"| Proxy
+    Proxy -->|"fetch BACKEND_URL"| Routes
     Routes --> Services
     Services --> Lib
-    Services -->|@anthropic-ai/sdk<br/>or HTTP JSON| Anthropic
-    Services -.->|outreach URL extract| Jina
-    Services -.->|multipart upload| Files
+    Services -->|"Anthropic SDK or HTTP"| Anthropic
+    Services -.->|"outreach URL extract"| Jina
+    Services -.->|"multipart upload"| Files
 ```
 
 ## State & persistence
