@@ -1,0 +1,255 @@
+// ============================================================================
+//  ADVANCE INTERVIEW LAB — DBML schema for dbdiagram.io
+//  Paste this entire file into https://dbdiagram.io/d
+//  Mirrors supabase/migrations/001_create_tables.sql
+// ============================================================================
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  email text [unique, not null]
+  full_name text
+  created_at timestamptz [not null, default: `now()`]
+  Note: 'Core user identity table.'
+}
+
+Table candidate_profiles {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  full_name text
+  headline text
+  summary text
+  parsed_cv_json jsonb [note: 'Structured CV data extracted by AI']
+  cv_file_path text [note: 'Supabase Storage path if file uploaded']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'idx_candidate_profiles_user']
+  }
+}
+
+Table companies {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name text [not null]
+  canonical_domain text [note: 'e.g. google.com']
+  website_url text
+  linkedin_url text
+  description text
+  industry text
+  company_size text
+  headquarters text
+  research_status text [default: 'pending', note: 'pending | researching | done | failed']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    name [name: 'idx_companies_name']
+    canonical_domain [name: 'idx_companies_domain']
+  }
+}
+
+Table company_research_reports {
+  id uuid [pk, default: `gen_random_uuid()`]
+  company_id uuid [not null, ref: > companies.id]
+  source_inputs_json jsonb
+  summary_json jsonb
+  recent_activity_json jsonb
+  products_services_json jsonb
+  raw_sources_json jsonb
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    company_id [name: 'idx_company_research_company']
+  }
+}
+
+Table job_targets {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  company_id uuid [ref: > companies.id]
+  title text [not null]
+  location text
+  seniority text
+  jd_text text [note: 'Raw job description text']
+  parsed_jd_json jsonb [note: 'AI-parsed competencies, requirements']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'idx_job_targets_user']
+    company_id [name: 'idx_job_targets_company']
+  }
+}
+
+Table rubric_templates {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name text [not null]
+  rubric_type text [not null, default: 'IRS', note: 'IRS | IRS_PLUS']
+  schema_json jsonb [not null]
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table job_rubrics {
+  id uuid [pk, default: `gen_random_uuid()`]
+  job_target_id uuid [not null, ref: > job_targets.id]
+  rubric_template_id uuid [not null, ref: > rubric_templates.id]
+  competencies_json jsonb
+  weights_json jsonb
+  generated_from_json jsonb
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    job_target_id [name: 'idx_job_rubrics_target']
+  }
+}
+
+Table personas {
+  id text [pk]
+  name text [not null]
+  title text
+  description text
+  config_json jsonb [note: 'tone, strictness, followUpDepth, etc.']
+  is_active boolean [not null, default: true]
+}
+
+Table interview_packs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  job_target_id uuid [not null, ref: > job_targets.id]
+  candidate_profile_id uuid [not null, ref: > candidate_profiles.id]
+  persona_id text [not null, ref: > personas.id]
+  company_research_report_id uuid [ref: > company_research_reports.id]
+  plan_json jsonb
+  question_set_json jsonb
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    job_target_id [name: 'idx_interview_packs_target']
+  }
+}
+
+Table interview_sessions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [ref: > users.id]
+  candidate_profile_id uuid [ref: > candidate_profiles.id]
+  job_target_id uuid [ref: > job_targets.id]
+  interview_pack_id uuid [ref: > interview_packs.id]
+  persona_id text [not null, ref: > personas.id]
+  mode text [not null, default: 'live_ai', note: 'live_ai | uploaded_recording']
+  status text [not null, default: 'active', note: 'active | evaluating | complete']
+  started_at timestamptz [not null, default: `now()`]
+  ended_at timestamptz
+  final_score_json jsonb
+  final_report_json jsonb
+  context_json jsonb [note: 'Snapshot of CV text, JD, company name used']
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'idx_sessions_user']
+    status [name: 'idx_sessions_status']
+  }
+}
+
+Table session_media {
+  id uuid [pk, default: `gen_random_uuid()`]
+  session_id uuid [not null, ref: > interview_sessions.id]
+  media_type text [not null, note: 'audio | video']
+  storage_path text [not null]
+  duration_seconds numeric
+  transcription_status text [default: 'pending']
+  diarization_status text [default: 'pending']
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    session_id [name: 'idx_session_media_session']
+  }
+}
+
+Table transcript_turns {
+  id uuid [pk, default: `gen_random_uuid()`]
+  session_id uuid [not null, ref: > interview_sessions.id]
+  speaker text [not null, note: 'interviewer | candidate | unknown']
+  turn_index int [not null]
+  start_ms int
+  end_ms int
+  content text [not null]
+  derived_question_id uuid
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    session_id [name: 'idx_transcript_turns_session']
+  }
+}
+
+Table interview_questions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  session_id uuid [not null, ref: > interview_sessions.id]
+  competency_id text
+  question_text text [not null]
+  question_type text [note: 'behavioral | technical | case | culture']
+  source text [not null, default: 'generated', note: 'generated | uploaded_transcript | question_bank']
+  asked_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    session_id [name: 'idx_questions_session']
+  }
+}
+
+Table answer_assessments {
+  id uuid [pk, default: `gen_random_uuid()`]
+  session_id uuid [not null, ref: > interview_sessions.id]
+  question_id uuid [not null, ref: > interview_questions.id]
+  transcript_turn_id uuid [ref: > transcript_turns.id]
+  candidate_answer text
+  integrity_score numeric [not null]
+  relevance_score numeric [not null]
+  substance_score numeric [not null]
+  overall_score numeric [not null]
+  rationale_json jsonb
+  evidence_json jsonb
+  missing_signals_json jsonb
+  confidence numeric [default: 1.0]
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    session_id [name: 'idx_assessments_session']
+    question_id [name: 'idx_assessments_question']
+  }
+}
+
+Table answer_coaching {
+  id uuid [pk, default: `gen_random_uuid()`]
+  assessment_id uuid [not null, ref: > answer_assessments.id]
+  original_answer text
+  critique_json jsonb
+  improved_answer text
+  best_sample_answer text
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    assessment_id [name: 'idx_coaching_assessment']
+  }
+}
+
+Table question_bank_entries {
+  id uuid [pk, default: `gen_random_uuid()`]
+  company_id uuid [ref: > companies.id]
+  company_name text
+  country text [default: 'UK']
+  role_family text [note: 'e.g. Engineering, Marketing, Finance']
+  job_title text
+  seniority text [note: 'Junior | Mid | Senior | Lead | Director']
+  question_text text [not null]
+  question_type text [note: 'behavioral | technical | case | culture']
+  source_type text [not null, default: 'curated', note: 'public | community | curated']
+  source_url text
+  confidence numeric [default: 0.8]
+  tags "text[]"
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    company_id [name: 'idx_question_bank_company']
+    company_name [name: 'idx_question_bank_company_name']
+    role_family [name: 'idx_question_bank_role']
+    question_type [name: 'idx_question_bank_type']
+  }
+}
