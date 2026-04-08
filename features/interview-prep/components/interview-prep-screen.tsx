@@ -11,7 +11,9 @@ import {
   Loader2,
   RotateCcw,
   Sparkles,
+  Wand2,
 } from 'lucide-react'
+import type { InterviewMessage } from '@/features/interview-prep/types'
 import type { ViewName } from '@/shared/types/navigation'
 import type { PersonaId, InterviewStep } from '@/features/interview-prep/types'
 import { PERSONAS } from '@/data/personas'
@@ -74,6 +76,8 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
           onEnd={interview.endInterview}
           lastScore={interview.lastScore}
           candidateAnswerCount={interview.candidateAnswerCount}
+          onRequestCoach={interview.requestCoach}
+          onSubmitJit={interview.submitJitClarification}
         />
       )}
 
@@ -429,6 +433,8 @@ function InterviewStepView({
   onEnd,
   lastScore,
   candidateAnswerCount,
+  onRequestCoach,
+  onSubmitJit,
 }: {
   session: NonNullable<ReturnType<typeof useInterview>['session']>
   input: string
@@ -438,6 +444,8 @@ function InterviewStepView({
   onEnd: () => void
   lastScore: ReturnType<typeof useInterview>['lastScore']
   candidateAnswerCount: number
+  onRequestCoach: (messageId: string) => Promise<void>
+  onSubmitJit: (messageId: string, promptIndex: number, answer: string) => Promise<void>
 }) {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -478,19 +486,28 @@ function InterviewStepView({
 
         <div className="flex-1 space-y-4 mb-4 max-h-[500px] overflow-y-auto pr-2">
           {session.messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === 'candidate' ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                  msg.role === 'candidate' ? 'bg-blue-900 text-white' : 'bg-gray-100 text-gray-800'
-                }`}
-              >
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                {msg.irsScore && (
-                  <div className="mt-2 pt-2 border-t border-blue-800/30">
-                    <IRSMeter score={msg.irsScore} compact />
-                  </div>
-                )}
+            <div key={msg.id}>
+              <div className={`flex ${msg.role === 'candidate' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                    msg.role === 'candidate' ? 'bg-blue-900 text-white' : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                  {msg.irsScore && (
+                    <div className="mt-2 pt-2 border-t border-blue-800/30">
+                      <IRSMeter score={msg.irsScore} compact />
+                    </div>
+                  )}
+                </div>
               </div>
+              {msg.role === 'candidate' && msg.questionAsked && (
+                <CoachPanel
+                  message={msg}
+                  onRequestCoach={onRequestCoach}
+                  onSubmitJit={onSubmitJit}
+                />
+              )}
             </div>
           ))}
 
@@ -609,6 +626,148 @@ function RunningAverages({
       <div className="flex justify-between text-xs font-semibold">
         <span className="text-gray-600">Overall</span>
         <span className={irsScoreColor(avg((s) => s.overall))}>{avg((s) => s.overall).toFixed(1)}/10</span>
+      </div>
+    </div>
+  )
+}
+
+function CoachPanel({
+  message,
+  onRequestCoach,
+  onSubmitJit,
+}: {
+  message: InterviewMessage
+  onRequestCoach: (id: string) => Promise<void>
+  onSubmitJit: (id: string, idx: number, answer: string) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const handleClick = async () => {
+    if (!message.coach && !busy) {
+      setBusy(true)
+      try {
+        await onRequestCoach(message.id)
+      } finally {
+        setBusy(false)
+      }
+    }
+    setOpen((o) => !o)
+  }
+
+  return (
+    <div className="flex justify-end mt-2">
+      <div className="max-w-[80%] w-full">
+        <button
+          onClick={handleClick}
+          disabled={busy}
+          className="flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 font-medium ml-auto"
+        >
+          {busy ? (
+            <>
+              <Loader2 className="w-3 h-3 animate-spin" /> Generating enhanced version…
+            </>
+          ) : (
+            <>
+              <Wand2 className="w-3 h-3" />
+              {message.coach ? (open ? 'Hide enhanced version' : 'Show enhanced version') : 'See enhanced version'}
+            </>
+          )}
+        </button>
+        {open && message.coach && (
+          <div className="mt-2 border border-blue-200 bg-blue-50/60 rounded-xl p-4">
+            {message.coach.critique && (
+              <p className="text-xs text-gray-600 italic mb-2">{message.coach.critique}</p>
+            )}
+            <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+              {renderImproved(message.coach.improvedAnswer)}
+            </div>
+            {message.coach.missingEvidencePrompts.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-blue-200 space-y-2">
+                <p className="text-xs font-semibold text-blue-900">
+                  Help me fill in the missing details:
+                </p>
+                {message.coach.missingEvidencePrompts.map((p, i) => (
+                  <JitForm
+                    key={`${message.id}-${i}`}
+                    question={p.question}
+                    bulletText={p.bulletText}
+                    onSubmit={(answer) => onSubmitJit(message.id, i, answer)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function renderImproved(text: string) {
+  // Highlight [CANDIDATE TO FILL: bulletId|question] placeholders
+  const parts: Array<string | { ph: string }> = []
+  const re = /\[CANDIDATE TO FILL:[^\]]+\]/g
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push(text.slice(last, m.index))
+    parts.push({ ph: m[0] })
+    last = m.index + m[0].length
+  }
+  if (last < text.length) parts.push(text.slice(last))
+  return parts.map((p, i) =>
+    typeof p === 'string' ? (
+      <span key={i}>{p}</span>
+    ) : (
+      <span
+        key={i}
+        className="inline-block bg-yellow-200 text-yellow-900 px-1.5 py-0.5 rounded text-xs font-medium mx-0.5"
+      >
+        {p.ph.replace(/\[CANDIDATE TO FILL:\s*[^|]+\|\s*([^\]]+)\]/, '?? $1')}
+      </span>
+    ),
+  )
+}
+
+function JitForm({
+  question,
+  bulletText,
+  onSubmit,
+}: {
+  question: string
+  bulletText: string | null
+  onSubmit: (answer: string) => Promise<void>
+}) {
+  const [val, setVal] = useState('')
+  const [busy, setBusy] = useState(false)
+  return (
+    <div className="bg-white border border-yellow-200 rounded-lg p-2">
+      <p className="text-xs font-medium text-gray-800 mb-0.5">{question}</p>
+      {bulletText && <p className="text-[10px] text-gray-400 mb-1 truncate">re: {bulletText}</p>}
+      <div className="flex gap-1.5">
+        <input
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          placeholder="Type your answer…"
+          className="flex-1 text-xs p-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
+        />
+        <button
+          onClick={async () => {
+            if (!val.trim() || busy) return
+            setBusy(true)
+            try {
+              await onSubmit(val.trim())
+              setVal('')
+            } finally {
+              setBusy(false)
+            }
+          }}
+          disabled={busy || !val.trim()}
+          className="px-2 py-1 text-xs bg-blue-900 text-white rounded font-medium disabled:opacity-40"
+        >
+          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
+        </button>
       </div>
     </div>
   )

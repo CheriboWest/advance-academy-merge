@@ -253,3 +253,68 @@ Table question_bank_entries {
     question_type [name: 'idx_question_bank_type']
   }
 }
+
+// ── CV Knowledge Base ───────────────────────────────────────────────────────
+
+Table cv_versions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  name text [not null, note: 'User-given label, e.g. "2025 SWE CV"']
+  source_file_path text
+  raw_text text [not null]
+  detected_field text [note: 'tech | business | marketing']
+  is_active boolean [not null, default: false, note: 'Only one active CV per user']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'idx_cv_versions_user']
+  }
+}
+
+Table cv_bullets {
+  id uuid [pk, default: `gen_random_uuid()`]
+  cv_version_id uuid [not null, ref: > cv_versions.id]
+  section_path text
+  bullet_text text [not null]
+  ordinal int [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    cv_version_id [name: 'idx_cv_bullets_version']
+  }
+}
+
+Table bullet_gaps {
+  id uuid [pk, default: `gen_random_uuid()`]
+  bullet_id uuid [not null, ref: > cv_bullets.id]
+  question text [not null]
+  rationale text
+  ordinal int [not null, note: '1..5']
+  status text [not null, default: 'open', note: 'open | answered | skipped']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    bullet_id [name: 'idx_bullet_gaps_bullet']
+    (bullet_id, ordinal) [unique, name: 'idx_bullet_gaps_unique_ordinal']
+  }
+}
+
+Table bullet_artifacts {
+  id uuid [pk, default: `gen_random_uuid()`]
+  gap_id uuid [not null, ref: > bullet_gaps.id]
+  source_type text [not null, note: 'text | file | url | jit_clarification']
+  content_text text
+  source_url text
+  source_file_path text
+  summary_json jsonb
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    gap_id [name: 'idx_bullet_artifacts_gap']
+  }
+}
+
+// NOTE: also add `cv_version_id uuid [ref: > cv_versions.id]` to the
+// interview_sessions table block above when visualizing in dbdiagram.io.

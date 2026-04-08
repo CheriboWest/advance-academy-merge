@@ -4,6 +4,7 @@ export type ViewName =
   | 'outreach'
   | 'cv'
   | 'interview'
+  | 'cv-library'
   | 'history'
 
 export interface NavItem {
