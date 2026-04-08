@@ -5,7 +5,12 @@ import type {
   JobStatusResponse,
 } from '@advance-academy/contracts'
 import type { DreamCompanyInput, DreamCompanyResult } from '@/types/dream-company'
-import type { OutreachRequest, OutreachResult } from '@/types/outreach'
+import type {
+  EnrichmentRequest,
+  EnrichmentResponse,
+  OutreachRequest,
+  OutreachResult,
+} from '@/types/outreach'
 import { fetchFormDataJson, fetchJson } from '@/shared/api/http-client'
 import { getServerEnv } from '@/shared/env/server'
 
@@ -92,4 +97,14 @@ export function extractOutreachFileWithBackend(formData: FormData) {
   const { backendUrl } = getServerEnv()
 
   return fetchFormDataJson<{ text: string }>(`${backendUrl}/api/outreach/extract`, formData, { timeoutMs: 120000 })
+}
+
+export function enrichOutreachWithBackend(payload: EnrichmentRequest) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchJson<EnrichmentResponse>(`${backendUrl}/api/outreach/enrich`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 30000,
+  })
 }

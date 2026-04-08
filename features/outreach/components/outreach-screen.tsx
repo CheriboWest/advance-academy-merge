@@ -2,18 +2,19 @@
 
 import { useState } from 'react'
 import {
+  AlertTriangle,
   CheckCircle2,
   Copy,
-  Loader,
-  Plus,
-  Trash2,
-  Upload,
   Link as LinkIcon,
-  AlertTriangle
+  Loader,
+  Upload,
 } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useOutreach } from '@/features/outreach/hooks/use-outreach'
-import type { OutreachFormData, OutreachIntent, OutreachContextLink } from '@/features/outreach/types'
+import type { OutreachFormData } from '@/features/outreach/types'
+import type { EnrichmentCard, ExperienceLevel, OutreachIntent } from '@/types/outreach'
 import { extractOutreachSource } from '@/features/outreach/api/frontend-client'
+import { EnrichmentPanel } from './enrichment-panel'
 
 const inputClass =
   'w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm'
@@ -31,7 +32,9 @@ function Field({
   return (
     <div>
       <label className="block text-sm font-semibold text-blue-900 mb-1.5 flex justify-between items-center">
-        <span>{label} {required && <span className="text-red-500 ml-0.5">*</span>}</span>
+        <span>
+          {label} {required && <span className="text-red-500 ml-0.5">*</span>}
+        </span>
       </label>
       {children}
     </div>
@@ -68,28 +71,28 @@ function CopyButton({ text }: { text: string }) {
 
 function FileExtractor({
   onExtract,
-  placeholder = "Upload PDF/DOCX or Paste Text below",
+  placeholder = 'Upload PDF/DOCX or Paste Text below',
 }: {
-  onExtract: (text: string) => void;
-  placeholder?: string;
+  onExtract: (text: string) => void
+  placeholder?: string
 }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const file = e.target.files?.[0]
+    if (!file) return
 
-    setLoading(true);
-    setError('');
+    setLoading(true)
+    setError('')
     try {
-      const res = await extractOutreachSource(file);
-      onExtract(res.text);
+      const res = await extractOutreachSource(file)
+      onExtract(res.text)
     } catch (err: any) {
-      setError(err.message || 'Extract failed');
+      setError(err.message || 'Extract failed')
     } finally {
-      setLoading(false);
-      if (e.target) e.target.value = ''; // reset
+      setLoading(false)
+      if (e.target) e.target.value = ''
     }
   }
 
@@ -110,27 +113,27 @@ function FileExtractor({
 
 function UrlExtractor({
   onExtract,
-  placeholder = "https://linkedin.com/in/...",
+  placeholder = 'https://...',
 }: {
-  onExtract: (text: string) => void;
-  placeholder?: string;
+  onExtract: (text: string) => void
+  placeholder?: string
 }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [url, setUrl] = useState('')
 
   async function handleExtract() {
-    if (!url.trim()) return;
-    setLoading(true);
-    setError('');
+    if (!url.trim()) return
+    setLoading(true)
+    setError('')
     try {
-      const res = await extractOutreachSource(url.trim());
-      onExtract(res.text);
-      setUrl('');
+      const res = await extractOutreachSource(url.trim())
+      onExtract(res.text)
+      setUrl('')
     } catch (err: any) {
-      setError(err.message || 'Extract failed. Please try saving as PDF instead.');
+      setError(err.message || 'Extract failed. Please try saving as PDF instead.')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
 
@@ -140,7 +143,7 @@ function UrlExtractor({
         <input
           type="text"
           value={url}
-          onChange={e => setUrl(e.target.value)}
+          onChange={(e) => setUrl(e.target.value)}
           placeholder={placeholder}
           className="flex-1 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         />
@@ -153,92 +156,33 @@ function UrlExtractor({
           Extract URL
         </button>
       </div>
-      {error && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {error}</p>}
+      {error && (
+        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+          <AlertTriangle className="w-3 h-3" /> {error}
+        </p>
+      )}
     </div>
   )
 }
 
-function ContextLinksManager({ links, onUpdate }: { links: OutreachContextLink[], onUpdate: (updater: (prev: OutreachContextLink[]) => OutreachContextLink[]) => void }) {
-  const [url, setUrl] = useState('');
-  const [meaning, setMeaning] = useState('');
+const INTENT_OPTIONS: { value: OutreachIntent; label: string }[] = [
+  { value: 'direct_application', label: '🎯 Direct Application (Hard Pitch)' },
+  { value: 'referral_request', label: '🤝 Referral Request (Soft Ask to Employee)' },
+  { value: 'informational_interview', label: '☕ Informational Interview (Networking)' },
+  { value: 'agency_recruiter', label: '👔 Agency Recruiter (Headhunter Pitch)' },
+]
 
-  async function addLink() {
-    if (!url.trim() || !meaning.trim()) return;
-
-    const newLink: OutreachContextLink = {
-      id: Date.now().toString(),
-      meaning: meaning.trim(),
-      url: url.trim(),
-      status: 'loading',
-      extractedText: '',
-    };
-
-    onUpdate((prev) => [...prev, newLink]);
-    setUrl('');
-    setMeaning('');
-
-    try {
-      const res = await extractOutreachSource(newLink.url);
-      onUpdate((prev) => prev.map(l => l.id === newLink.id ? { ...l, status: 'success', extractedText: res.text } : l));
-    } catch (err: any) {
-      onUpdate((prev) => prev.map(l => l.id === newLink.id ? { ...l, status: 'error', errorMessage: err.message || 'Failed' } : l));
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      {links.length > 0 && (
-        <div className="space-y-3">
-          {links.map((link, idx) => (
-            <div key={link.id} className="p-4 border border-gray-200 rounded-xl bg-gray-50 flex justify-between items-start gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-bold text-sm bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{link.meaning}</span>
-                  <a href={link.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-xs">{link.url}</a>
-                </div>
-                {link.status === 'loading' && <p className="text-xs text-gray-500 flex items-center gap-1"><Loader className="w-3 h-3 animate-spin" /> Extracting text...</p>}
-                {link.status === 'error' && <p className="text-xs text-red-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {link.errorMessage}</p>}
-                {link.status === 'success' && (
-                  <textarea
-                    className={`${textareaClass} mt-2 text-xs h-20 text-gray-600`}
-                    value={link.extractedText}
-                    onChange={(e) => onUpdate(prev => prev.map(l => l.id === link.id ? { ...l, extractedText: e.target.value } : l))}
-                  />
-                )}
-              </div>
-              <button type="button" onClick={() => onUpdate(prev => prev.filter(l => l.id !== link.id))} className="text-red-500 hover:text-red-700 p-1">
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="p-4 border border-dashed border-gray-300 rounded-xl bg-white space-y-3">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Add Enriched Context Link (e.g JD, Company Website)</p>
-        <div className="flex gap-3">
-          <input
-            value={meaning} onChange={e => setMeaning(e.target.value)}
-            placeholder="Type (e.g. Job Description)"
-            className="w-1/3 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-          />
-          <input
-            value={url} onChange={e => setUrl(e.target.value)}
-            placeholder="https://..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            onKeyDown={(e) => e.key === 'Enter' && addLink()}
-          />
-          <button
-            onClick={addLink}
-            disabled={!meaning.trim() || !url.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50"
-          >
-            Add
-          </button>
-        </div>
-      </div>
-    </div>
-  )
+interface OutreachFormProps {
+  form: OutreachFormData
+  updateForm: (
+    updates: Partial<OutreachFormData> | ((prev: OutreachFormData) => Partial<OutreachFormData>),
+  ) => void
+  loading: boolean
+  error: string | null
+  onGenerate: () => void
+  onEnrich: () => void
+  enriching: boolean
+  enrichError: string | null
 }
 
 function OutreachForm({
@@ -247,24 +191,23 @@ function OutreachForm({
   loading,
   error,
   onGenerate,
-}: {
-  form: OutreachFormData
-  updateForm: (updates: Partial<OutreachFormData> | ((prev: OutreachFormData) => Partial<OutreachFormData>)) => void
-  loading: boolean
-  error: string | null
-  onGenerate: () => void
-}) {
-  const canSubmit = !loading && form.cvText && form.targetCompany && form.targetPersonName && form.intent
+  onEnrich,
+  enriching,
+  enrichError,
+}: OutreachFormProps) {
+  const atLeastOneOutput = form.outputs.email || form.outputs.linkedIn
+  const canSubmit =
+    !loading &&
+    form.cvText.trim().length > 0 &&
+    form.targetCompany.trim().length > 0 &&
+    form.targetRole.trim().length > 0 &&
+    atLeastOneOutput
 
-  const INTENT_OPTIONS: { value: OutreachIntent; label: string }[] = [
-    { value: 'direct_application', label: '🎯 Direct Application (Hard Pitch)' },
-    { value: 'referral_request', label: '🤝 Referral Request (Soft Ask to Employee)' },
-    { value: 'informational_interview', label: '☕ Informational Interview (Networking)' },
-    { value: 'agency_recruiter', label: '👔 Agency Recruiter (Headhunter Pitch)' },
-  ];
+  const canSearch = form.targetCompany.trim().length > 0 && form.targetRole.trim().length > 0
 
   return (
     <div className="space-y-8">
+      {/* Section 1 — Identity */}
       <div className="p-8 bg-white border border-gray-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">1</span>
@@ -283,25 +226,39 @@ function OutreachForm({
           </Field>
 
           <div className="border-t border-gray-100 pt-6">
-            <Field label="LinkedIn Content (Optional)">
-              <UrlExtractor placeholder="https://linkedin.com/in/..." onExtract={t => updateForm({ linkedInText: t })} />
-              <textarea
-                value={form.linkedInText}
-                onChange={(e) => updateForm({ linkedInText: e.target.value })}
-                placeholder="Review or paste LinkedIn data here. If URL fetch fails due to bot protection, please Save your LinkedIn as PDF and upload it via the CV uploader above."
-                className={`${textareaClass} h-24 focus:ring-blue-500 text-xs`}
+            <Field label="Portfolio / Additional Context (Optional)">
+              <p className="text-xs text-gray-500 mb-2">
+                Add a portfolio URL, case study, or project page. We&apos;ll extract the readable text via Jina.
+              </p>
+              <UrlExtractor
+                placeholder="https://your-portfolio.com or case study link"
+                onExtract={(t) =>
+                  updateForm({
+                    portfolioText: t,
+                    portfolioUrl: '',
+                  })
+                }
               />
+              {form.portfolioText && (
+                <textarea
+                  value={form.portfolioText}
+                  onChange={(e) => updateForm({ portfolioText: e.target.value })}
+                  placeholder="Extracted portfolio text…"
+                  className={`${textareaClass} h-24 focus:ring-blue-500 text-xs`}
+                />
+              )}
             </Field>
           </div>
         </div>
       </div>
 
+      {/* Section 2 — Target */}
       <div className="p-8 bg-white border border-gray-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">2</span>
-          The Target & Enriched Context
+          The Target
         </h3>
-        <div className="space-y-8">
+        <div className="space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
             <Field label="Target Company" required>
               <input
@@ -311,7 +268,7 @@ function OutreachForm({
                 className={inputClass}
               />
             </Field>
-            <Field label="Target Person Name" required>
+            <Field label="Target Person Name (Optional)">
               <input
                 value={form.targetPersonName}
                 onChange={(e) => updateForm({ targetPersonName: e.target.value })}
@@ -320,46 +277,81 @@ function OutreachForm({
               />
             </Field>
           </div>
-          <div className="grid md:grid-cols-2 gap-6">
-            <Field label="Target Person Role (Optional)">
-              <input
-                value={form.targetPersonRole}
-                onChange={(e) => updateForm({ targetPersonRole: e.target.value })}
-                placeholder="e.g. Hiring Manager"
-                className={inputClass}
-              />
-            </Field>
-          </div>
-
-          <div className="pt-4 border-t border-gray-100">
-            <h4 className="text-sm font-semibold text-blue-900 mb-3">Enriched Context Links</h4>
-            <p className="text-xs text-gray-500 mb-4">Add JD URLs, company news, or websites. We will extract the readable text to feed the AI.</p>
-            <ContextLinksManager
-              links={form.contextLinks}
-              onUpdate={(updater) => updateForm((prev: OutreachFormData) => ({ contextLinks: updater(prev.contextLinks) }))}
+          <Field label="Target Role" required>
+            <input
+              value={form.targetRole}
+              onChange={(e) => updateForm({ targetRole: e.target.value })}
+              placeholder="e.g. HR Manager, Head of Sales, Talent Acquisition Lead"
+              className={inputClass}
             />
-          </div>
+          </Field>
+          <Field label="Outreach Intent" required>
+            <select
+              value={form.intent}
+              onChange={(e) => updateForm({ intent: e.target.value as OutreachIntent })}
+              className={`${inputClass} bg-gray-50`}
+            >
+              {INTENT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
       </div>
 
+      {/* Section 3 — Enrichment */}
+      <EnrichmentPanel
+        experienceLevel={form.experienceLevel}
+        onChangeExperienceLevel={(level: ExperienceLevel) => updateForm({ experienceLevel: level })}
+        enrichmentResults={form.enrichmentResults}
+        selectedHiringCard={form.selectedHiringCard}
+        selectedSocialCard={form.selectedSocialCard}
+        onSelectHiring={(card: EnrichmentCard) => updateForm({ selectedHiringCard: card })}
+        onSelectSocial={(card: EnrichmentCard) => updateForm({ selectedSocialCard: card })}
+        onSearch={onEnrich}
+        loading={enriching}
+        error={enrichError}
+        canSearch={canSearch}
+      />
+
+      {/* Section 4 — Output preferences */}
       <div className="p-8 bg-white border border-gray-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
-          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">3</span>
-          The Intent
+        <h3 className="text-xl font-serif font-bold text-blue-900 mb-4 flex items-center gap-2">
+          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">4</span>
+          What to generate
         </h3>
-        <Field label="Outreach Goal" required>
-          <select
-            value={form.intent}
-            onChange={(e) => updateForm({ intent: e.target.value as OutreachIntent })}
-            className={`${inputClass} bg-gray-50`}
-          >
-            {INTENT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <p className="ml-10 mb-4 text-sm text-gray-500">
+          Pick which messages you want. Unselected ones are skipped to save tokens.
+        </p>
+        <div className="ml-10 flex flex-wrap gap-6">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <Checkbox
+              checked={form.outputs.email}
+              onCheckedChange={(checked) =>
+                updateForm({
+                  outputs: { ...form.outputs, email: checked === true },
+                })
+              }
+            />
+            <span className="text-sm font-semibold text-blue-900">📧 Email</span>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <Checkbox
+              checked={form.outputs.linkedIn}
+              onCheckedChange={(checked) =>
+                updateForm({
+                  outputs: { ...form.outputs, linkedIn: checked === true },
+                })
+              }
+            />
+            <span className="text-sm font-semibold text-blue-900">💼 LinkedIn message</span>
+          </label>
+        </div>
+        {!atLeastOneOutput && (
+          <p className="ml-10 mt-3 text-xs text-red-500">Select at least one output.</p>
+        )}
       </div>
 
       {error && (
@@ -380,7 +372,13 @@ function OutreachForm({
           </>
         ) : (
           <>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
             Generate Messages
@@ -392,7 +390,18 @@ function OutreachForm({
 }
 
 export function OutreachScreen() {
-  const { form, updateForm, results, setResults, loading, error, generate } = useOutreach()
+  const {
+    form,
+    updateForm,
+    results,
+    setResults,
+    loading,
+    error,
+    generate,
+    enrich,
+    enriching,
+    enrichError,
+  } = useOutreach()
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -401,7 +410,8 @@ export function OutreachScreen() {
           Recruitment Outreach Generator
         </h1>
         <p className="text-gray-600 text-lg sm:text-xl max-w-2xl mx-auto">
-          Generate highly personalized, intent-driven outreach scripts instantly. Connect with hiring managers effortlessly.
+          Generate highly personalized, intent-driven outreach scripts instantly. Powered by Exa
+          search for real-time hiring + social signals.
         </p>
       </div>
 
@@ -412,6 +422,9 @@ export function OutreachScreen() {
           loading={loading}
           error={error}
           onGenerate={generate}
+          onEnrich={enrich}
+          enriching={enriching}
+          enrichError={enrichError}
         />
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -424,57 +437,95 @@ export function OutreachScreen() {
             </button>
             <div className="flex items-center gap-2 text-sm font-semibold text-white bg-gradient-to-r from-blue-900 to-blue-800 px-4 py-1.5 rounded-full shadow-inner">
               <CheckCircle2 className="h-4 w-4" />
-              {results.intent.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+              {results.intent
+                .split('_')
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(' ')}
             </div>
           </div>
 
           <div className="space-y-8">
-            {/* LinkedIn Short Message */}
-            <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
-              <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
-                LinkedIn Connection Note
-              </h3>
-              <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 mb-6 text-base text-gray-800 leading-relaxed min-h-[100px]">
-                {results.linkedInMessage}
-              </div>
-              <div className="flex items-center justify-between">
-                <span className={`text-xs font-bold px-3 py-1 rounded-full ${results.linkedInMessage.length > 300 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
-                  {results.linkedInMessage.length}/300 characters
-                </span>
-                <CopyButton text={results.linkedInMessage} />
-              </div>
-            </div>
-
-            {/* Cold Email */}
-            <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-1 h-full bg-yellow-500" />
-              <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-500"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                Email Version
-              </h3>
-
-              <div className="mb-8">
-                <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Subject Line</p>
-                <div className="bg-gray-50 rounded-xl px-5 py-4 border border-gray-100 flex items-center justify-between gap-4">
-                  <span className="text-base text-gray-900 font-semibold">
-                    {results.email.subject}
+            {results.linkedInMessage !== undefined && (
+              <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
+                <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-blue-500"
+                  >
+                    <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
+                    <rect x="2" y="9" width="4" height="12"></rect>
+                    <circle cx="4" cy="4" r="2"></circle>
+                  </svg>
+                  LinkedIn Connection Note
+                </h3>
+                <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 mb-6 text-base text-gray-800 leading-relaxed min-h-[100px]">
+                  {results.linkedInMessage}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`text-xs font-bold px-3 py-1 rounded-full ${
+                      results.linkedInMessage.length > 300
+                        ? 'bg-red-100 text-red-600'
+                        : 'bg-green-100 text-green-700'
+                    }`}
+                  >
+                    {results.linkedInMessage.length}/300 characters
                   </span>
-                  <CopyButton text={results.email.subject} />
+                  <CopyButton text={results.linkedInMessage} />
                 </div>
               </div>
+            )}
 
-              <div>
-                <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Email Body</p>
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 mb-6 text-base text-gray-800 whitespace-pre-wrap leading-relaxed min-h-[200px]">
-                  {results.email.body}
+            {results.email && (
+              <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1 h-full bg-yellow-500" />
+                <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="text-yellow-500"
+                  >
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                  Email Version
+                </h3>
+
+                <div className="mb-8">
+                  <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Subject Line</p>
+                  <div className="bg-gray-50 rounded-xl px-5 py-4 border border-gray-100 flex items-center justify-between gap-4">
+                    <span className="text-base text-gray-900 font-semibold">{results.email.subject}</span>
+                    <CopyButton text={results.email.subject} />
+                  </div>
                 </div>
-                <div className="flex justify-end">
-                  <CopyButton text={results.email.body} />
+
+                <div>
+                  <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Email Body</p>
+                  <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 mb-6 text-base text-gray-800 whitespace-pre-wrap leading-relaxed min-h-[200px]">
+                    {results.email.body}
+                  </div>
+                  <div className="flex justify-end">
+                    <CopyButton text={results.email.body} />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

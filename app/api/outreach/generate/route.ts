@@ -6,12 +6,27 @@ import { HttpClientError } from '@/shared/api/http-client'
 function isOutreachRequest(body: unknown): body is OutreachRequest {
   if (typeof body !== 'object' || body === null) return false
   const o = body as Record<string, unknown>
-  return (
-    typeof o.intent === 'string' &&
-    typeof o.cvText === 'string' &&
-    typeof o.targetCompany === 'string' &&
-    typeof o.targetPersonName === 'string'
-  )
+  if (
+    typeof o.intent !== 'string' ||
+    typeof o.cvText !== 'string' ||
+    typeof o.targetCompany !== 'string' ||
+    typeof o.targetRole !== 'string' ||
+    typeof o.experienceLevel !== 'string'
+  ) {
+    return false
+  }
+  const outputs = o.outputs as { email?: unknown; linkedIn?: unknown } | undefined
+  if (
+    !outputs ||
+    typeof outputs.email !== 'boolean' ||
+    typeof outputs.linkedIn !== 'boolean'
+  ) {
+    return false
+  }
+  if (!outputs.email && !outputs.linkedIn) {
+    return false
+  }
+  return true
 }
 
 export async function POST(request: Request) {
