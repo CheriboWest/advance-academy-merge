@@ -6,4 +6,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Outreach', view: 'outreach' },
   { label: 'CV Optimizer', view: 'cv' },
   { label: 'Interview Prep', view: 'interview' },
+  { label: 'History', view: 'history' },
 ]
