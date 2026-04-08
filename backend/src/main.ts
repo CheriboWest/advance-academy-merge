@@ -6,6 +6,7 @@ import { registerSystemRoutes } from './routes/system.js';
 import { registerCvOptimizerRoutes } from './routes/cv-optimizer.js';
 import { registerDreamCompanyRoutes } from './routes/dream-company.js';
 import { registerOutreachRoutes } from './routes/outreach.js';
+import { registerInterviewPrepRoutes } from './routes/interview-prep.js';
 
 function loadBackendEnvFile() {
   const candidates = [
@@ -39,7 +40,8 @@ async function bootstrap() {
   await registerCvOptimizerRoutes(app);
   await registerDreamCompanyRoutes(app);
   await registerOutreachRoutes(app);
-  
+  await registerInterviewPrepRoutes(app);
+
   await app.listen({
     port,
     host: '0.0.0.0',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import {
   ArrowRight,
   ArrowLeft,
@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Loader2,
   RotateCcw,
+  Sparkles,
 } from 'lucide-react'
 import type { ViewName } from '@/shared/types/navigation'
 import type { PersonaId, InterviewStep } from '@/features/interview-prep/types'
@@ -142,8 +143,107 @@ function SetupStep({
     context.jobDescription.trim().length > 0 &&
     context.companyName.trim().length > 0
 
+  const [jobUrl, setJobUrl] = useState('')
+  const [extracting, setExtracting] = useState(false)
+  const [extractError, setExtractError] = useState<string | null>(null)
+  const [extractInfo, setExtractInfo] = useState<string | null>(null)
+
+  const handleExtractFromUrl = async () => {
+    const url = jobUrl.trim()
+    if (!url) return
+    setExtracting(true)
+    setExtractError(null)
+    setExtractInfo(null)
+    try {
+      const res = await fetch('/api/interview-prep/extract-job-from-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || data?.message || 'Failed to extract job details')
+      }
+      const data: {
+        jobTitle?: string
+        jobDescription?: string
+        companyName?: string
+        companyUrl?: string
+        extraLinks?: string
+      } = await res.json()
+
+      // Only overwrite fields that came back non-empty so user-typed data is preserved.
+      const updates: Record<string, string> = {}
+      if (data.jobTitle) updates.jobTitle = data.jobTitle
+      if (data.jobDescription) updates.jobDescription = data.jobDescription
+      if (data.companyName) updates.companyName = data.companyName
+      if (data.companyUrl) updates.companyUrl = data.companyUrl
+      if (data.extraLinks) updates.extraLinks = data.extraLinks
+      updateContext(updates)
+
+      const filled = Object.keys(updates).length
+      const missing = 5 - filled
+      setExtractInfo(
+        missing === 0
+          ? 'All fields extracted. Review and edit as needed.'
+          : `Filled ${filled} of 5 fields. Please complete the remaining ${missing} manually.`,
+      )
+    } catch (err) {
+      setExtractError(err instanceof Error ? err.message : 'Failed to extract job details')
+    } finally {
+      setExtracting(false)
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="lg:col-span-2">
+        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
+          <label className="block text-sm font-semibold text-blue-900 mb-2">
+            Paste a job posting URL to auto-fill
+          </label>
+          <p className="text-xs text-gray-600 mb-3">
+            We use Jina Reader + AI to pull the job title, description, company name, website, and links from a LinkedIn (or similar) job page. Anything we can&apos;t find is left blank for you to fill in.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="url"
+              value={jobUrl}
+              onChange={(e) => setJobUrl(e.target.value)}
+              placeholder="https://www.linkedin.com/jobs/view/..."
+              disabled={extracting}
+              className="flex-1 p-3 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:opacity-50"
+            />
+            <button
+              type="button"
+              onClick={handleExtractFromUrl}
+              disabled={extracting || !jobUrl.trim()}
+              className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-900 text-white rounded-xl text-sm font-semibold hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {extracting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Extracting...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" /> Extract
+                </>
+              )}
+            </button>
+          </div>
+          {extractError && (
+            <p className="mt-2 text-xs text-red-600 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" /> {extractError}
+            </p>
+          )}
+          {extractInfo && !extractError && (
+            <p className="mt-2 text-xs text-emerald-700 flex items-center gap-1.5">
+              <CheckCircle className="w-3.5 h-3.5" /> {extractInfo}
+            </p>
+          )}
+        </div>
+      </div>
+
       <div className="space-y-6">
         <div>
           <label className="block text-sm font-semibold text-blue-900 mb-2">Your CV / Resume *</label>

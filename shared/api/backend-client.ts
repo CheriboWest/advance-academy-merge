@@ -70,6 +70,24 @@ export function extractOutreachTextWithBackend(payload: { url: string }) {
   })
 }
 
+export interface ExtractedJob {
+  jobTitle: string
+  jobDescription: string
+  companyName: string
+  companyUrl: string
+  extraLinks: string
+}
+
+export function extractJobFromUrlWithBackend(payload: { url: string }) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchJson<ExtractedJob>(`${backendUrl}/api/interview-prep/extract-job-from-url`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 90000,
+  })
+}
+
 export function extractOutreachFileWithBackend(formData: FormData) {
   const { backendUrl } = getServerEnv()
 
