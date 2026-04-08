@@ -1,5 +1,6 @@
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 import { OUTREACH_SYSTEM_PROMPT, buildOutreachUserPrompt } from '../lib/outreach/prompts.js';
+import { extractContent } from './outreach-extractor.service.js';
 import type { OutreachRequest, OutreachResult } from '../types/outreach.js';
 
 function firstTextContent(response: { content: Array<{ type: string; text?: string }> }): string {
@@ -12,6 +13,18 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
   const anthropic = createAnthropicClient();
   const model = getFeatureModel('outreach');
 
+  // Extract content for selected enrichment cards in parallel.
+  // Blocked domains (LinkedIn, etc.) reuse the Exa-returned text directly;
+  // everything else goes through Jina Reader via extractContent().
+  const [hiringContext, socialContext] = await Promise.all([
+    request.hiringSignalUrl
+      ? extractContent(request.hiringSignalUrl, request.hiringSignalExaText)
+      : Promise.resolve(''),
+    request.socialSignalUrl
+      ? extractContent(request.socialSignalUrl, request.socialSignalExaText)
+      : Promise.resolve(''),
+  ]);
+
   const response = await anthropic.messages.create({
     model,
     max_tokens: 1500,
@@ -19,7 +32,7 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
     messages: [
       {
         role: 'user',
-        content: buildOutreachUserPrompt(request),
+        content: buildOutreachUserPrompt(request, hiringContext, socialContext),
       },
     ],
   });
@@ -36,16 +49,35 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
   let parsed: any;
   try {
     parsed = JSON.parse(jsonString);
-  } catch (err) {
+  } catch {
     throw new Error(`Failed to parse outreach response as JSON. Raw: ${rawText.slice(0, 200)}`);
   }
 
-  return {
+  const result: OutreachResult = {
     intent: request.intent,
-    linkedInMessage: parsed.linkedInMessage || '',
-    email: {
-      subject: parsed.email?.subject || '',
-      body: parsed.email?.body || '',
-    },
   };
+
+  if (request.outputs.linkedIn && typeof parsed.linkedInMessage === 'string') {
+    // Hard safety net: enforce LinkedIn's 300-char connection-request limit on
+    // the server side in case the LLM ignores the prompt instructions.
+    const LINKEDIN_MAX = 300;
+    let msg = parsed.linkedInMessage.trim();
+    if (msg.length > LINKEDIN_MAX) {
+      // Trim to the last full word that still fits, keeping at most 297 chars
+      // and adding a single ellipsis so the total stays ≤ 300.
+      const cut = msg.slice(0, LINKEDIN_MAX - 3);
+      const lastSpace = cut.lastIndexOf(' ');
+      msg = (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd() + '…';
+    }
+    result.linkedInMessage = msg;
+  }
+
+  if (request.outputs.email && parsed.email && typeof parsed.email === 'object') {
+    result.email = {
+      subject: typeof parsed.email.subject === 'string' ? parsed.email.subject : '',
+      body: typeof parsed.email.body === 'string' ? parsed.email.body : '',
+    };
+  }
+
+  return result;
 }

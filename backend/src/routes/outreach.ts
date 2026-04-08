@@ -1,15 +1,22 @@
 import type { FastifyInstance } from 'fastify';
 import { generateOutreach } from '../services/outreach.service.js';
-import type { OutreachRequest } from '../types/outreach.js';
+import { runEnrichment } from '../services/outreach-enrichment.service.js';
+import type { EnrichmentRequest, OutreachRequest } from '../types/outreach.js';
 
 export async function registerOutreachRoutes(app: FastifyInstance) {
   app.post<{ Body: OutreachRequest }>('/api/outreach/generate', async (request, reply) => {
     const body = request.body;
 
-    if (!body?.cvText || !body.targetCompany || !body.targetPersonName || !body.intent) {
+    if (!body?.cvText || !body.targetCompany || !body.targetRole || !body.intent || !body.outputs) {
       return reply.code(400).send({
         error:
-          'Missing required fields: cvText, targetCompany, targetPersonName, intent',
+          'Missing required fields: cvText, targetCompany, targetRole, intent, outputs',
+      });
+    }
+
+    if (!body.outputs.email && !body.outputs.linkedIn) {
+      return reply.code(400).send({
+        error: 'At least one output (email or linkedIn) must be enabled.',
       });
     }
 
@@ -24,6 +31,26 @@ export async function registerOutreachRoutes(app: FastifyInstance) {
       }
       request.log.error(error);
       return reply.code(statusCode).send({ error: error instanceof Error ? error.message : 'Outreach generation failed' });
+    }
+  });
+
+  app.post<{ Body: EnrichmentRequest }>('/api/outreach/enrich', async (request, reply) => {
+    const body = request.body;
+
+    if (!body?.companyName || !body.targetRole || !body.experienceLevel) {
+      return reply.code(400).send({
+        error: 'Missing required fields: companyName, targetRole, experienceLevel',
+      });
+    }
+
+    try {
+      return await runEnrichment(body);
+    } catch (error) {
+      const statusCode = error && typeof error === 'object' && 'statusCode' in error ? Number((error as { statusCode?: number }).statusCode) : 500;
+      request.log.error(error);
+      return reply.code(statusCode).send({
+        error: error instanceof Error ? error.message : 'Enrichment failed',
+      });
     }
   });
 

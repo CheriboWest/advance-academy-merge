@@ -1,4 +1,7 @@
-import type { OutreachScript } from '@/features/outreach/types'
+interface OutreachScript {
+  type: string
+  content: string
+}
 
 export const MOCK_SCRIPTS: OutreachScript[] = [
   {

@@ -1,8 +1,20 @@
 import { fetchJson } from '@/shared/api/http-client'
-import type { OutreachRequest, OutreachResult } from '@/types/outreach'
+import type {
+  EnrichmentRequest,
+  EnrichmentResponse,
+  OutreachRequest,
+  OutreachResult,
+} from '@/types/outreach'
 
 export async function submitOutreachGeneration(request: OutreachRequest): Promise<OutreachResult> {
   return fetchJson<OutreachResult>('/api/outreach/generate', {
+    method: 'POST',
+    body: JSON.stringify(request)
+  })
+}
+
+export async function submitOutreachEnrichment(request: EnrichmentRequest): Promise<EnrichmentResponse> {
+  return fetchJson<EnrichmentResponse>('/api/outreach/enrich', {
     method: 'POST',
     body: JSON.stringify(request)
   })
