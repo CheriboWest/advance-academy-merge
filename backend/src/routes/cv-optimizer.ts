@@ -6,7 +6,8 @@ import {
   getAnalyzeTemplate,
   extractFileText,
 } from '../services/cv-optimizer.service.js';
-import type { AnalyzeCvRequest } from '@advance-academy/contracts/cv-optimizer';
+import { generateRewrittenCvFile } from '../services/cv-rewrite-file.service.js';
+import type { AnalyzeCvRequest, RewriteSuggestion } from '@advance-academy/contracts/cv-optimizer';
 
 export async function registerCvOptimizerRoutes(app: FastifyInstance) {
   app.get('/api/cv-optimizer/template', async () => getAnalyzeTemplate());
@@ -45,6 +46,59 @@ export async function registerCvOptimizerRoutes(app: FastifyInstance) {
           return reply.code(statusCode).send({ code: 'INVALID_REQUEST', message: error instanceof Error ? error.message : 'Parse failed' });
         }
         return reply.code(500).send({ code: 'PARSE_FAILED', message: 'Failed to extract text from file' });
+      }
+    });
+
+    scoped.post('/api/cv-optimizer/generate-rewritten-cv', async (request, reply) => {
+      let fileBuffer: Buffer | null = null;
+      let fileName = '';
+      let suggestions: RewriteSuggestion[] = [];
+
+      try {
+        const parts = request.parts();
+        for await (const part of parts) {
+          if (part.type === 'file' && part.fieldname === 'file') {
+            fileName = part.filename ?? '';
+            fileBuffer = await part.toBuffer();
+          } else if (part.type === 'field' && part.fieldname === 'suggestions') {
+            try {
+              const parsed = JSON.parse(String(part.value));
+              if (Array.isArray(parsed)) suggestions = parsed as RewriteSuggestion[];
+            } catch {
+              return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'Invalid suggestions JSON' });
+            }
+          }
+        }
+      } catch {
+        return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'Invalid multipart upload' });
+      }
+
+      if (!fileBuffer || !fileName) {
+        return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'No file provided' });
+      }
+      if (suggestions.length === 0) {
+        return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'No rewrite suggestions provided' });
+      }
+
+      try {
+        const result = generateRewrittenCvFile(fileBuffer, fileName, suggestions);
+        reply
+          .header('Content-Type', result.contentType)
+          .header('Content-Disposition', `attachment; filename="${result.filename}"`)
+          .header('X-Rewrites-Applied', String(result.appliedCount))
+          .header('X-Rewrites-Total', String(result.totalCount));
+        return reply.send(result.buffer);
+      } catch (error) {
+        const statusCode = error && typeof error === 'object' && 'statusCode' in error
+          ? Number((error as { statusCode?: number }).statusCode)
+          : undefined;
+        if (statusCode && statusCode >= 400 && statusCode < 500) {
+          return reply.code(statusCode).send({
+            code: statusCode === 415 ? 'UNSUPPORTED_FORMAT' : 'INVALID_REQUEST',
+            message: error instanceof Error ? error.message : 'Rewrite failed',
+          });
+        }
+        return reply.code(500).send({ code: 'REWRITE_FAILED', message: 'Failed to generate rewritten CV' });
       }
     });
   });
