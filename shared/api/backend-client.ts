@@ -55,6 +55,15 @@ export function parseCvOptimizerFileWithBackend(formData: FormData) {
   return fetchFormDataJson<{ text: string }>(`${backendUrl}/api/cv-optimizer/parse-file`, formData, { timeoutMs: 60000 })
 }
 
+export function generateRewrittenCvWithBackend(formData: FormData): Promise<Response> {
+  const { backendUrl } = getServerEnv()
+
+  return fetch(`${backendUrl}/api/cv-optimizer/generate-rewritten-cv`, {
+    method: 'POST',
+    body: formData,
+  })
+}
+
 export function generateOutreachWithBackend(payload: OutreachRequest) {
   const { backendUrl } = getServerEnv()
 

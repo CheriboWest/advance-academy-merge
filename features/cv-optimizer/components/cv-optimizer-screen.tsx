@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { AlertCircle, ArrowRight, CheckCircle2, FileText, Loader, Upload, X, XCircle } from 'lucide-react'
+import { AlertCircle, ArrowRight, CheckCircle2, Download, FileText, Loader, Upload, X, XCircle } from 'lucide-react'
 import type {
   AnalyzeCvRequest,
   AnalyzeCvResult,
@@ -10,7 +10,7 @@ import type {
   RewriteSuggestion,
 } from '@advance-academy/contracts'
 import { type CvOptimizerTab, useCvOptimizer } from '@/features/cv-optimizer/hooks/use-cv-analysis'
-import { parseFileForCvOptimizer } from '@/features/cv-optimizer/api/frontend-client'
+import { generateRewrittenCv, parseFileForCvOptimizer } from '@/features/cv-optimizer/api/frontend-client'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -321,13 +321,50 @@ function BulletsTab({ results }: { results: AnalyzeCvResult }) {
   )
 }
 
-function RewriteTab({ results }: { results: AnalyzeCvResult }) {
+interface RewriteTabProps {
+  results: AnalyzeCvResult
+  cvFile: File | null
+  onDownload: () => void
+  downloading: boolean
+  downloadError: string | null
+  downloadNotice: string | null
+}
+
+function RewriteTab({ results, cvFile, onDownload, downloading, downloadError, downloadNotice }: RewriteTabProps) {
   if (results.rewriteSuggestions.length === 0) {
     return <p className="text-gray-500 text-sm">No rewrite suggestions returned.</p>
   }
 
+  const isDocx = cvFile ? cvFile.name.toLowerCase().endsWith('.docx') : false
+
   return (
     <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
+        <div>
+          <p className="text-sm font-semibold text-blue-900">Download your improved CV</p>
+          <p className="text-xs text-blue-700 mt-0.5">
+            {cvFile
+              ? isDocx
+                ? `We'll apply these rewrites to ${cvFile.name}, preserving its original formatting.`
+                : 'PDF in-place editing isn\'t supported. Re-upload your CV as a .docx file to download an improved version.'
+              : 'Re-upload your CV as a file to enable download (text-only inputs can\'t be rewritten in place).'}
+          </p>
+        </div>
+        <button
+          onClick={onDownload}
+          disabled={!cvFile || !isDocx || downloading}
+          className="flex-shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 bg-yellow-500 text-blue-900 rounded-lg font-semibold hover:bg-yellow-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {downloading ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          {downloading ? 'Generating...' : 'Download Rewritten CV'}
+        </button>
+      </div>
+      {downloadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{downloadError}</div>
+      )}
+      {downloadNotice && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{downloadNotice}</div>
+      )}
       {results.rewriteSuggestions.map((suggestion: RewriteSuggestion, idx: number) => (
         <div key={idx} className="rounded-xl border border-gray-200 overflow-hidden">
           <div className="bg-gray-100 px-4 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -367,11 +404,15 @@ function ExpertReviewTab({ results }: { results: AnalyzeCvResult }) {
 
 export function CvOptimizerScreen() {
   const [form, setForm] = useState<AnalyzeCvRequest>(INITIAL_FORM)
+  const [cvFile, setCvFile] = useState<File | null>(null)
   const [cvFileName, setCvFileName] = useState<string | null>(null)
   const [jdFileName, setJdFileName] = useState<string | null>(null)
   const [cvParsing, setCvParsing] = useState(false)
   const [jdParsing, setJdParsing] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
+  const [downloadingRewrite, setDownloadingRewrite] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null)
 
   const { tab, setTab, state, submit, reset, latestJob } = useCvOptimizer()
   const isBusy = state.status === 'submitting' || state.status === 'running'
@@ -382,14 +423,47 @@ export function CvOptimizerScreen() {
   }
 
   async function handleCvFile(file: File) {
-    setCvFileName(file.name); setCvParsing(true); setParseError(null)
+    setCvFile(file); setCvFileName(file.name); setCvParsing(true); setParseError(null)
     try {
       const { text } = await parseFileForCvOptimizer(file)
       updateField('currentCvText', text)
     } catch {
       setParseError('Failed to extract text from CV file. Try pasting it manually.')
+      setCvFile(null)
       setCvFileName(null)
     } finally { setCvParsing(false) }
+  }
+
+  async function handleDownloadRewrittenCv() {
+    if (!cvFile || !results) return
+    setDownloadingRewrite(true)
+    setDownloadError(null)
+    setDownloadNotice(null)
+    try {
+      const { blob, filename, appliedCount, totalCount } = await generateRewrittenCv(
+        cvFile,
+        results.rewriteSuggestions,
+      )
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      if (totalCount > 0 && appliedCount < totalCount) {
+        setDownloadNotice(
+          `Downloaded ${filename}. Applied ${appliedCount} of ${totalCount} rewrites — the rest couldn't be matched against the original document text.`,
+        )
+      } else {
+        setDownloadNotice(`Downloaded ${filename} with ${appliedCount} rewrite${appliedCount === 1 ? '' : 's'} applied.`)
+      }
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : 'Failed to generate rewritten CV.')
+    } finally {
+      setDownloadingRewrite(false)
+    }
   }
 
   async function handleJdFile(file: File) {
@@ -404,7 +478,8 @@ export function CvOptimizerScreen() {
   }
 
   function handleReset() {
-    reset(); setForm(INITIAL_FORM); setCvFileName(null); setJdFileName(null); setParseError(null)
+    reset(); setForm(INITIAL_FORM); setCvFile(null); setCvFileName(null); setJdFileName(null); setParseError(null)
+    setDownloadError(null); setDownloadNotice(null)
   }
 
   return (
@@ -424,7 +499,7 @@ export function CvOptimizerScreen() {
             />
             <div className="space-y-2">
               <FileUploadZone label="CV" fileName={cvFileName} parsing={cvParsing} onFile={handleCvFile}
-                onClear={() => { setCvFileName(null); updateField('currentCvText', '') }} />
+                onClear={() => { setCvFile(null); setCvFileName(null); updateField('currentCvText', '') }} />
               <textarea value={form.currentCvText} onChange={(e) => updateField('currentCvText', e.target.value)}
                 placeholder="Or paste your CV text here..." className="min-h-36 w-full rounded-lg border border-gray-200 px-4 py-3 bg-white text-sm" />
             </div>
@@ -542,7 +617,16 @@ export function CvOptimizerScreen() {
           {tab === 'keywords' && <KeywordsTab results={results} />}
           {tab === 'ats' && <AtsTab results={results} />}
           {tab === 'bullets' && <BulletsTab results={results} />}
-          {tab === 'rewrite' && <RewriteTab results={results} />}
+          {tab === 'rewrite' && (
+            <RewriteTab
+              results={results}
+              cvFile={cvFile}
+              onDownload={handleDownloadRewrittenCv}
+              downloading={downloadingRewrite}
+              downloadError={downloadError}
+              downloadNotice={downloadNotice}
+            />
+          )}
           {tab === 'expert' && <ExpertReviewTab results={results} />}
         </div>
       )}
