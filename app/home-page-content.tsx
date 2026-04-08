@@ -9,8 +9,9 @@ import { OutreachScreen } from '@/features/outreach/components/outreach-screen'
 import { CvOptimizerScreen } from '@/features/cv-optimizer/components/cv-optimizer-screen'
 import { InterviewPrepScreen } from '@/features/interview-prep/components/interview-prep-screen'
 import { InterviewHistoryScreen } from '@/features/interview-prep/components/interview-history-screen'
+import { DreamCompanyScreen } from '@/features/dream-company/components/dream-company-screen'
 
-const VIEWS_FROM_QUERY = new Set<string>(['home', 'outreach', 'cv', 'interview', 'history'])
+const VIEWS_FROM_QUERY = new Set<string>(['home', 'outreach', 'cv', 'interview', 'history', 'companies'])
 
 function viewFromSearchParams(searchParams: URLSearchParams | null): ViewName {
   const raw = searchParams?.get('view')
@@ -26,10 +27,6 @@ export function HomePageContent() {
 
   const handleNavigate = useCallback(
     (view: ViewName) => {
-      if (view === 'companies') {
-        router.push('/dream-company')
-        return
-      }
       router.push(view === 'home' ? '/' : `/?view=${view}`)
     },
     [router],
@@ -52,6 +49,9 @@ export function HomePageContent() {
         <InterviewPrepScreen onNavigate={handleNavigate} />
       )}
       {currentView === 'history' && <InterviewHistoryScreen />}
+      {currentView === 'companies' && (
+        <DreamCompanyScreen />
+      )}
     </div>
   )
 }

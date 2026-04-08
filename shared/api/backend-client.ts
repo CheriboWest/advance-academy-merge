@@ -44,6 +44,12 @@ export function parseDreamCompanyCvWithBackend(formData: FormData) {
   return fetchFormDataJson(`${backendUrl}/api/dream-company/parse-cv`, formData, { timeoutMs: 120000 })
 }
 
+export function parseCvOptimizerFileWithBackend(formData: FormData) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchFormDataJson<{ text: string }>(`${backendUrl}/api/cv-optimizer/parse-file`, formData, { timeoutMs: 60000 })
+}
+
 export function generateOutreachWithBackend(payload: OutreachRequest) {
   const { backendUrl } = getServerEnv()
 

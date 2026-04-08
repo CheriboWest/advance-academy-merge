@@ -54,8 +54,10 @@ export function useCvAnalysisJob(jobId: string | null) {
   })
 }
 
+export type CvOptimizerTab = 'analysis' | 'keywords' | 'ats' | 'bullets' | 'rewrite' | 'expert'
+
 export function useCvOptimizer() {
-  const [tab, setTab] = useState<'analysis' | 'expert'>('analysis')
+  const [tab, setTab] = useState<CvOptimizerTab>('analysis')
   const [jobId, setJobId] = useState<string | null>(null)
   const submitMutation = useSubmitCvAnalysis()
   const jobQuery = useCvAnalysisJob(jobId)
