@@ -8,6 +8,7 @@ import type {
   InterviewSession,
   InterviewMessage,
   IRSScore,
+  CoachResult,
 } from '@/features/interview-prep/types'
 
 const STORAGE_KEY = 'interview_sessions'
@@ -120,6 +121,9 @@ export function useInterview() {
     setLoading(true)
     setError(null)
 
+    const lastQuestion =
+      [...session.messages].reverse().find((m) => m.role === 'interviewer')?.content ?? ''
+
     try {
       const messageHistory = updatedMessages.map((m) => ({
         role: m.role,
@@ -147,6 +151,7 @@ export function useInterview() {
       const scoredCandidate: InterviewMessage = {
         ...candidateMessage,
         irsScore: data.irsScore,
+        questionAsked: lastQuestion,
       }
 
       const interviewerReply: InterviewMessage = {
@@ -185,6 +190,74 @@ export function useInterview() {
       setLoading(false)
     }
   }, [session, input, loading])
+
+  const requestCoach = useCallback(
+    async (messageId: string) => {
+      if (!session) return
+      const msg = session.messages.find((m) => m.id === messageId)
+      if (!msg || msg.role !== 'candidate' || !msg.questionAsked) return
+      try {
+        const res = await fetch('/api/interview/coach-answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: msg.questionAsked,
+            answer: msg.content,
+            context: {
+              jobTitle: session.context.jobTitle,
+              jobDescription: session.context.jobDescription,
+              companyName: session.context.companyName,
+            },
+            irsScore: msg.irsScore && {
+              integrity: msg.irsScore.integrity.score,
+              relevance: msg.irsScore.relevance.score,
+              substance: msg.irsScore.substance.score,
+              overall: msg.irsScore.overall,
+            },
+          }),
+        })
+        if (!res.ok) throw new Error('Failed to coach')
+        const coach: CoachResult = await res.json()
+        setSession((prev) =>
+          prev
+            ? {
+                ...prev,
+                messages: prev.messages.map((m) => (m.id === messageId ? { ...m, coach } : m)),
+              }
+            : null,
+        )
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Coach failed')
+      }
+    },
+    [session],
+  )
+
+  const submitJitClarification = useCallback(
+    async (messageId: string, promptIndex: number, answer: string) => {
+      if (!session) return
+      const msg = session.messages.find((m) => m.id === messageId)
+      if (!msg?.coach) return
+      const prompt = msg.coach.missingEvidencePrompts[promptIndex]
+      if (!prompt) return
+      try {
+        await fetch('/api/cv-library/jit-clarification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bulletId: prompt.bulletId,
+            question: prompt.question,
+            answer,
+          }),
+        })
+        // After saving, re-run the coach so the placeholder disappears.
+        await requestCoach(messageId)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to save clarification')
+      }
+    },
+    [session, requestCoach],
+  )
 
   const evaluateSession = useCallback(async (sessionToEvaluate: InterviewSession) => {
     setLoading(true)
@@ -281,5 +354,7 @@ export function useInterview() {
     reset,
     lastScore,
     candidateAnswerCount,
+    requestCoach,
+    submitJitClarification,
   }
 }

@@ -41,12 +41,26 @@ export interface IRSScore {
   overall: number
 }
 
+export interface MissingEvidencePrompt {
+  bulletId: string | null
+  bulletText: string | null
+  question: string
+}
+
+export interface CoachResult {
+  critique: string
+  improvedAnswer: string
+  missingEvidencePrompts: MissingEvidencePrompt[]
+}
+
 export interface InterviewMessage {
   id: string
   role: 'interviewer' | 'candidate'
   content: string
   timestamp: number
   irsScore?: IRSScore
+  questionAsked?: string
+  coach?: CoachResult
 }
 
 export interface FeedbackItem {

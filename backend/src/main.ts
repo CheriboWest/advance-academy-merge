@@ -7,6 +7,8 @@ import { registerCvOptimizerRoutes } from './routes/cv-optimizer.js';
 import { registerDreamCompanyRoutes } from './routes/dream-company.js';
 import { registerOutreachRoutes } from './routes/outreach.js';
 import { registerInterviewPrepRoutes } from './routes/interview-prep.js';
+import { registerCvLibraryRoutes } from './routes/cv-library.js';
+import { registerCoachAnswerRoutes } from './routes/coach-answer.js';
 
 function loadBackendEnvFile() {
   const candidates = [
@@ -41,6 +43,8 @@ async function bootstrap() {
   await registerDreamCompanyRoutes(app);
   await registerOutreachRoutes(app);
   await registerInterviewPrepRoutes(app);
+  await registerCvLibraryRoutes(app);
+  await registerCoachAnswerRoutes(app);
 
   await app.listen({
     port,
