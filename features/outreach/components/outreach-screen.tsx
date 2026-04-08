@@ -11,10 +11,11 @@ import {
 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useOutreach } from '@/features/outreach/hooks/use-outreach'
-import type { OutreachFormData } from '@/features/outreach/types'
+import type { ManualContextLink, OutreachFormData } from '@/features/outreach/types'
 import type { EnrichmentCard, ExperienceLevel, OutreachIntent } from '@/types/outreach'
 import { extractOutreachSource } from '@/features/outreach/api/frontend-client'
 import { EnrichmentPanel } from './enrichment-panel'
+import { ManualContextManager } from './manual-context-manager'
 
 const inputClass =
   'w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm'
@@ -268,6 +269,16 @@ function OutreachForm({
                 className={inputClass}
               />
             </Field>
+            <Field label="Target Country (Optional)">
+              <input
+                value={form.targetCountry}
+                onChange={(e) => updateForm({ targetCountry: e.target.value })}
+                placeholder="e.g. Vietnam, United States, Singapore"
+                className={inputClass}
+              />
+            </Field>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6">
             <Field label="Target Person Name (Optional)">
               <input
                 value={form.targetPersonName}
@@ -276,15 +287,15 @@ function OutreachForm({
                 className={inputClass}
               />
             </Field>
+            <Field label="Target Role" required>
+              <input
+                value={form.targetRole}
+                onChange={(e) => updateForm({ targetRole: e.target.value })}
+                placeholder="e.g. HR Manager, Head of Sales"
+                className={inputClass}
+              />
+            </Field>
           </div>
-          <Field label="Target Role" required>
-            <input
-              value={form.targetRole}
-              onChange={(e) => updateForm({ targetRole: e.target.value })}
-              placeholder="e.g. HR Manager, Head of Sales, Talent Acquisition Lead"
-              className={inputClass}
-            />
-          </Field>
           <Field label="Outreach Intent" required>
             <select
               value={form.intent}
@@ -297,6 +308,21 @@ function OutreachForm({
                 </option>
               ))}
             </select>
+          </Field>
+          <Field label="Additional Context Links (Optional)">
+            <p className="text-xs text-gray-500 mb-3">
+              Add a title + URL for each piece of context (job description, recent article, mutual
+              project, etc.). We&apos;ll extract the page content via Jina and use it both when
+              re-ranking enrichment results and when generating the message.
+            </p>
+            <ManualContextManager
+              contexts={form.manualContexts}
+              onUpdate={(updater: (prev: ManualContextLink[]) => ManualContextLink[]) =>
+                updateForm((prev: OutreachFormData) => ({
+                  manualContexts: updater(prev.manualContexts),
+                }))
+              }
+            />
           </Field>
         </div>
       </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, ChevronDown, ExternalLink } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, Sparkles } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import type { EnrichmentCard } from '@/types/outreach'
@@ -13,6 +13,12 @@ function getHostname(url: string): string {
   } catch {
     return url
   }
+}
+
+function scoreBadgeClass(score: number): string {
+  if (score >= 80) return 'bg-green-100 text-green-800 border-green-200'
+  if (score >= 50) return 'bg-amber-100 text-amber-800 border-amber-200'
+  return 'bg-gray-100 text-gray-600 border-gray-200'
 }
 
 interface SignalCardProps {
@@ -44,13 +50,27 @@ export function SignalCard({ card, selected, onSelect }: SignalCardProps) {
         selected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200',
       )}
     >
-      {selected && (
-        <div className="absolute top-3 right-3 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white">
-          <Check className="h-3 w-3" />
-        </div>
-      )}
+      <div className="absolute top-3 right-3 flex items-center gap-1.5">
+        {typeof card.score === 'number' && (
+          <span
+            title={card.reason || 'Claude relevance score'}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+              scoreBadgeClass(card.score),
+            )}
+          >
+            <Sparkles className="h-2.5 w-2.5" />
+            {card.score}
+          </span>
+        )}
+        {selected && (
+          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white">
+            <Check className="h-3 w-3" />
+          </div>
+        )}
+      </div>
 
-      <h4 className="pr-7 text-sm font-semibold text-blue-900 leading-snug line-clamp-2">
+      <h4 className="pr-16 text-sm font-semibold text-blue-900 leading-snug line-clamp-2">
         {card.title}
       </h4>
 
@@ -71,6 +91,13 @@ export function SignalCard({ card, selected, onSelect }: SignalCardProps) {
           <Badge variant="outline" className="text-[10px]">Via Jina</Badge>
         )}
       </div>
+
+      {card.reason && (
+        <p className="mt-2 text-[11px] text-gray-500 italic leading-relaxed">
+          <Sparkles className="inline h-3 w-3 mr-1 text-blue-400" />
+          {card.reason}
+        </p>
+      )}
 
       {previewSnippet && (
         <p className="mt-2 text-xs text-gray-600 leading-relaxed">{previewSnippet}{card.snippet.length > 100 ? '…' : ''}</p>

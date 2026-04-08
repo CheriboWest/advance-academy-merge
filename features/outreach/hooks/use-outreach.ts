@@ -5,6 +5,7 @@ import { useMutation } from '@tanstack/react-query'
 import type {
   EnrichmentRequest,
   EnrichmentResponse,
+  ManualContext,
   OutreachRequest,
   OutreachResult,
 } from '@/types/outreach'
@@ -20,14 +21,27 @@ const INITIAL_FORM: OutreachFormData = {
   portfolioUrl: '',
   portfolioText: '',
   targetCompany: '',
+  targetCountry: '',
   targetPersonName: '',
   targetRole: '',
   experienceLevel: 'mid',
   intent: 'direct_application',
+  manualContexts: [],
   selectedHiringCard: null,
   selectedSocialCard: null,
   outputs: { email: true, linkedIn: true },
   enrichmentResults: null,
+}
+
+function packManualContexts(form: OutreachFormData): ManualContext[] | undefined {
+  const packed = form.manualContexts
+    .filter((c) => c.status === 'success' && c.extractedText.trim().length > 0)
+    .map((c) => ({
+      title: c.title.trim() || 'Untitled context',
+      url: c.url.trim(),
+      content: c.extractedText.trim(),
+    }))
+  return packed.length > 0 ? packed : undefined
 }
 
 function buildGenerateRequest(form: OutreachFormData): OutreachRequest {
@@ -35,10 +49,12 @@ function buildGenerateRequest(form: OutreachFormData): OutreachRequest {
     cvText: form.cvText,
     portfolioText: form.portfolioText.trim() ? form.portfolioText : undefined,
     targetCompany: form.targetCompany,
+    targetCountry: form.targetCountry.trim() || undefined,
     targetPersonName: form.targetPersonName.trim() ? form.targetPersonName : undefined,
     targetRole: form.targetRole,
     experienceLevel: form.experienceLevel,
     intent: form.intent,
+    manualContexts: packManualContexts(form),
     hiringSignalUrl: form.selectedHiringCard?.url,
     hiringSignalExaText: form.selectedHiringCard?.exaText,
     socialSignalUrl: form.selectedSocialCard?.url,
@@ -50,9 +66,12 @@ function buildGenerateRequest(form: OutreachFormData): OutreachRequest {
 function buildEnrichRequest(form: OutreachFormData): EnrichmentRequest {
   return {
     companyName: form.targetCompany.trim(),
+    targetCountry: form.targetCountry.trim() || undefined,
     targetRole: form.targetRole.trim(),
     experienceLevel: form.experienceLevel,
     personName: form.targetPersonName.trim() || undefined,
+    intent: form.intent,
+    manualContexts: packManualContexts(form),
   }
 }
 

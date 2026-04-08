@@ -58,7 +58,18 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
   };
 
   if (request.outputs.linkedIn && typeof parsed.linkedInMessage === 'string') {
-    result.linkedInMessage = parsed.linkedInMessage;
+    // Hard safety net: enforce LinkedIn's 300-char connection-request limit on
+    // the server side in case the LLM ignores the prompt instructions.
+    const LINKEDIN_MAX = 300;
+    let msg = parsed.linkedInMessage.trim();
+    if (msg.length > LINKEDIN_MAX) {
+      // Trim to the last full word that still fits, keeping at most 297 chars
+      // and adding a single ellipsis so the total stays ≤ 300.
+      const cut = msg.slice(0, LINKEDIN_MAX - 3);
+      const lastSpace = cut.lastIndexOf(' ');
+      msg = (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd() + '…';
+    }
+    result.linkedInMessage = msg;
   }
 
   if (request.outputs.email && parsed.email && typeof parsed.email === 'object') {

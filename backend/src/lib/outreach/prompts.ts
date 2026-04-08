@@ -13,7 +13,8 @@ CRITICAL RULES:
 - Do not mention that you used job postings, search results, scraping, or any research tool. The signal is shown as if the sender naturally noticed it.
 - Tailor the value proposition based on the user's CV (and portfolio, if any) AND the Target Role / Hiring Signal.
 - Do not use buzzwords (synergy, passionate, leverage, results-driven).
-- Email body MUST be at most 150 words. LinkedIn message MUST be at most 80 words and must not include a subject line.
+- LinkedIn message HARD LIMIT: 280 CHARACTERS total (including spaces and punctuation). This is LinkedIn's connection request limit. Do NOT exceed this. Before responding, count the characters of your linkedInMessage. If it is over 280, rewrite it shorter — drop adjectives, drop the sender's name from the closing, drop pleasantries. Aim for 240-270 characters. NO subject line.
+- Email body HARD LIMIT: 150 words maximum.
 - Format the output EXACTLY as valid JSON matching the OUTPUT FORMAT block. Do not include markdown formatting blocks.
 
 INTENT GUIDELINES:
@@ -37,12 +38,30 @@ export function buildOutreachUserPrompt(
   }
 
   const targetLines: string[] = [`- Company: ${request.targetCompany}`];
+  if (request.targetCountry && request.targetCountry.trim()) {
+    targetLines.push(`- Country: ${request.targetCountry.trim()}`);
+  }
   if (request.targetPersonName && request.targetPersonName.trim()) {
     targetLines.push(`- Person: ${request.targetPersonName.trim()}`);
   }
   targetLines.push(`- Role: ${request.targetRole}`);
   targetLines.push(`- Experience Level: ${request.experienceLevel}`);
   sections.push(`TARGET:\n${targetLines.join('\n')}`);
+
+  if (request.manualContexts && request.manualContexts.length > 0) {
+    const formatted = request.manualContexts
+      .map((ctx) => {
+        const title = ctx.title.trim() || 'Untitled context';
+        const url = ctx.url.trim();
+        const body = ctx.content.trim();
+        const header = url ? `--- ${title} (${url}) ---` : `--- ${title} ---`;
+        return `${header}\n${body}`;
+      })
+      .join('\n\n');
+    sections.push(
+      `ADDITIONAL CONTEXT FROM SENDER (use these details alongside the signals below):\n${formatted}`,
+    );
+  }
 
   if (hiringContext.trim()) {
     sections.push(`HIRING SIGNAL (they are actively hiring for this role):\n${hiringContext.trim()}`);
@@ -57,29 +76,35 @@ export function buildOutreachUserPrompt(
   const wantEmail = request.outputs.email;
   const wantLinkedIn = request.outputs.linkedIn;
 
+  const linkedInRule =
+    'string — HARD LIMIT 280 characters (count chars, not words). LinkedIn rejects connection requests over 300 chars. NO subject line. Aim 240-270 chars.';
+  const emailBodyRule = 'string (≤ 150 words)';
+
   let formatBlock: string;
   if (wantEmail && wantLinkedIn) {
     formatBlock = `OUTPUT FORMAT — respond ONLY with this exact JSON object, no other text:
 {
-  "linkedInMessage": "string (≤ 80 words, no subject line)",
+  "linkedInMessage": "${linkedInRule}",
   "email": {
     "subject": "string",
-    "body": "string (≤ 150 words)"
+    "body": "${emailBodyRule}"
   }
-}`;
+}
+Before you finalize your response, count the characters of linkedInMessage. If it is over 280 characters, REWRITE it shorter until it fits.`;
   } else if (wantEmail) {
     formatBlock = `OUTPUT FORMAT — respond ONLY with this exact JSON object, no other text:
 {
   "email": {
     "subject": "string",
-    "body": "string (≤ 150 words)"
+    "body": "${emailBodyRule}"
   }
 }`;
   } else {
     formatBlock = `OUTPUT FORMAT — respond ONLY with this exact JSON object, no other text:
 {
-  "linkedInMessage": "string (≤ 80 words, no subject line)"
-}`;
+  "linkedInMessage": "${linkedInRule}"
+}
+Before you finalize your response, count the characters of linkedInMessage. If it is over 280 characters, REWRITE it shorter until it fits.`;
   }
 
   sections.push(formatBlock);

@@ -11,14 +11,22 @@ export interface OutreachOutputs {
   linkedIn: boolean;
 }
 
+export interface ManualContext {
+  title: string;
+  url: string;
+  content: string;
+}
+
 export interface OutreachRequest {
   cvText: string;
   portfolioText?: string;
   targetCompany: string;
+  targetCountry?: string;
   targetPersonName?: string;
   targetRole: string;
   experienceLevel: ExperienceLevel;
   intent: OutreachIntent;
+  manualContexts?: ManualContext[];
   hiringSignalUrl?: string;
   hiringSignalExaText?: string;
   socialSignalUrl?: string;
@@ -39,9 +47,12 @@ export interface OutreachResult {
 
 export interface EnrichmentRequest {
   companyName: string;
+  targetCountry?: string;
   targetRole: string;
   experienceLevel: ExperienceLevel;
   personName?: string;
+  intent?: OutreachIntent;
+  manualContexts?: ManualContext[];
 }
 
 export interface EnrichmentCard {
@@ -50,6 +61,8 @@ export interface EnrichmentCard {
   snippet: string;
   isBlockedDomain: boolean;
   exaText: string;
+  score?: number;
+  reason?: string;
 }
 
 export interface EnrichmentResponse {
