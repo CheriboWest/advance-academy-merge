@@ -12,12 +12,13 @@ Run from the repo root (npm workspaces; `backend` is a workspace):
 - `npm run build:all` — `next build` then backend `tsc -p tsconfig.build.json`
 - `npm run lint` — ESLint over the whole repo
 - `npm run typecheck --workspace backend` — backend type check only
+- `npx tsc --noEmit` (from repo root) — frontend type check
 
-There is no test runner configured. Env: copy `.env.local.example` → `.env.local` (frontend, mainly `BACKEND_URL`) and `backend/.env.example` → `backend/.env` (`LLM_API_KEY`, `FRONTEND_URL`, optional `LLM_TIMEOUT_MS`).
+There is no test runner configured. Env: copy `.env.local.example` → `.env.local` (frontend, mainly `BACKEND_URL`) and `backend/.env.example` → `backend/.env` (`LLM_API_KEY`, `FRONTEND_URL`, optional `LLM_TIMEOUT_MS`, plus `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` for the interview-prep + CV Library features that persist data).
 
 ## Architecture
 
-Career-tools web app with four AI features (CV Optimizer, Dream Company Finder, Outreach Generator, Interview Prep), all powered by Anthropic Claude. **Stateless** — no database, no auth, no user accounts. See `docs/ARCHITECTURE.md` for the canonical reference and diagrams; `docs/BACKEND.md`, `docs/FRONTEND.md`, `docs/ADD_A_FEATURE.md`, and `docs/CONVENTIONS.md` are also authoritative.
+Career-tools web app with five AI features (CV Optimizer, Dream Company Finder, Outreach Generator, Interview Prep, CV Library), all powered by Anthropic Claude. The Outreach Generator and CV Library extractors also use Jina Reader for URL fetching. **Persistence:** Supabase Postgres backs Interview Prep (sessions, assessments, coaching) and the CV Library (versions, bullets, gaps, artifacts); the other features remain stateless request/response. **Auth:** there is no auth — all data belongs to a hardcoded `MVP_USER_ID`. See `docs/ARCHITECTURE.md` for the canonical reference and diagrams; `docs/BACKEND.md`, `docs/FRONTEND.md`, `docs/ADD_A_FEATURE.md`, `docs/CV_KNOWLEDGE_BASE.md`, and `docs/CONVENTIONS.md` are also authoritative.
 
 ### The 4-layer request flow
 
@@ -53,9 +54,14 @@ UI (features/*/components)
 
 Types and error shapes shared between frontend and backend live in `packages/contracts` (`@advance-academy/contracts`, a workspace package). Use it for any cross-layer type.
 
-### CV Optimizer polling — the one stateful piece
+### Persistence
 
-`POST /api/cv-optimizer/analyze` returns `202 + jobId`; the client polls `GET /api/cv-optimizer/jobs/:jobId`. The job map is an **in-memory `Map` in the backend process**. This is sticky to a single instance — multi-instance deploys behind a load balancer will return "not found" on polls that land on a different instance. Use sticky sessions or stay single-instance.
+- **Interview Prep + CV Library** persist to Supabase via `backend/src/lib/supabase.ts` (`getSupabase()`, `getMvpUserId()`). Migrations live in `supabase/migrations/`. See `docs/CV_KNOWLEDGE_BASE.md` for the schema and the coach-answer / JIT-clarification flow.
+- **CV Optimizer** has its own in-memory job pattern: `POST /api/cv-optimizer/analyze` returns `202 + jobId`; the client polls `GET /api/cv-optimizer/jobs/:jobId`. The job map is an **in-memory `Map` in the backend process** — sticky to a single instance. Multi-instance deploys behind a load balancer will return "not found" on polls that land on a different instance. Use sticky sessions or stay single-instance.
+
+### Interview-prep refactor note
+
+Earlier versions kept interview-prep LLM + DB calls inside Next.js route handlers (`app/api/interview/route.ts`, `app/api/evaluate/route.ts`, `app/api/interview/sessions/*`). These have been moved to Fastify (`backend/src/routes/interview.ts` + `backend/src/services/interview.service.ts`). The `app/api/interview/*` and `app/api/evaluate/*` files are now thin proxies. Any new interview-prep work goes in the backend.
 
 ### Timeouts (know these before debugging hangs)
 
@@ -65,4 +71,4 @@ Types and error shapes shared between frontend and backend live in `packages/con
 
 ### Authentication
 
-There is none. Every endpoint is public. Do not add auth without a product decision; the right place would be middleware in `backend/src/main.ts` plus a hook in `shared/api/backend-client.ts`.
+There is none. Every endpoint is public. CV Library and Interview Prep use a hardcoded `MVP_USER_ID` (set in `backend/.env`, defaults to the all-zeros UUID). Do not add real auth without a product decision; the right place would be middleware in `backend/src/main.ts` plus a hook in `shared/api/backend-client.ts`.

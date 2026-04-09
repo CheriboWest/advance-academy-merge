@@ -28,19 +28,28 @@ The frontend is the Next.js application at the repo root. It is a single-page Ap
 │   ├── home-page-content.tsx         ?view= router (client component)
 │   ├── providers.tsx                 QueryClientProvider
 │   ├── globals.css                   Tailwind + design tokens
+│   ├── cv-library/                   CV Library page (real route, not ?view=)
 │   └── api/                          Proxy routes (server-only)
 │       ├── cv-optimizer/analyze/route.ts
 │       ├── cv-optimizer/jobs/[jobId]/route.ts
 │       ├── dream-company/generate/route.ts
 │       ├── dream-company/parse-cv/route.ts
 │       ├── outreach/generate/route.ts
-│       └── outreach/extract/route.ts
+│       ├── outreach/extract/route.ts
+│       ├── interview/route.ts                          (proxy: start/message)
+│       ├── interview/coach-answer/route.ts             (proxy: enhanced answer)
+│       ├── interview/sessions/route.ts                 (proxy: list)
+│       ├── interview/sessions/[id]/route.ts            (proxy: detail)
+│       ├── interview-prep/extract-job-from-url/route.ts (proxy: Jina + LLM)
+│       ├── evaluate/route.ts                           (proxy: final report)
+│       └── cv-library/                                  (proxies: versions, bullets, gaps, jit-clarification)
 ├── features/                         Feature modules
 │   ├── home/                         Landing page
 │   ├── cv-optimizer/
 │   ├── dream-company/
 │   ├── outreach/
-│   └── interview-prep/
+│   ├── interview-prep/
+│   └── cv-library/
 ├── shared/
 │   ├── api/
 │   │   ├── http-client.ts            fetchJson, fetchFormDataJson, HttpClientError
@@ -70,8 +79,9 @@ The frontend is a single-page app. Navigation happens via a `?view=` query param
 - `/?view=outreach` — Outreach
 - `/?view=cv` — CV Optimizer
 - `/?view=interview` — Interview Prep
+- `/cv-library` — CV Library (real Next.js route, **not** a `?view=` switch)
 
-The switch lives in `app/home-page-content.tsx`. It reads `?view=` via `useSearchParams()` and renders the matching `<*-screen />` from `features/{feature}/components/`. **When you add a new feature, you must add its case here** or the screen will never render.
+Most features still use the `?view=` switch in `app/home-page-content.tsx`. The CV Library is the exception: it lives at the real path `/cv-library` (`app/cv-library/page.tsx`) and is linked from the top nav via `NAV_ITEMS[].href`. **When you add a new `?view=` feature, you must add its case to `home-page-content.tsx`** or the screen will never render. When you add a real-path feature, register it in `shared/config/navigation.ts` with an `href`.
 
 ## Feature module anatomy
 

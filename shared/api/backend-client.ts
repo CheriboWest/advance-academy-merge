@@ -180,6 +180,20 @@ export function activateCvVersionWithBackend(id: string) {
   })
 }
 
+export function getCvVersionWithBackend(id: string) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<{
+    id: string
+    name: string
+    rawText: string
+    detectedField: 'tech' | 'business' | 'marketing' | null
+    isActive: boolean
+  }>(`${backendUrl}/api/cv-library/versions/${id}`, {
+    method: 'GET',
+    timeoutMs: 15000,
+  })
+}
+
 export function deleteCvVersionWithBackend(id: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ ok: true }>(`${backendUrl}/api/cv-library/versions/${id}`, {
@@ -233,6 +247,42 @@ export function jitClarificationWithBackend(payload: {
     method: 'POST',
     body: JSON.stringify(payload),
     timeoutMs: 30000,
+  })
+}
+
+// ── Interview prep (start/message/evaluate/sessions) ────────────────────────
+
+export function postInterviewWithBackend(payload: unknown) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<unknown>(`${backendUrl}/api/interview`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 60000,
+  })
+}
+
+export function evaluateInterviewWithBackend(payload: unknown) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<unknown>(`${backendUrl}/api/evaluate`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 90000,
+  })
+}
+
+export function listInterviewSessionsWithBackend() {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<{ sessions: unknown[] }>(`${backendUrl}/api/interview/sessions`, {
+    method: 'GET',
+    timeoutMs: 15000,
+  })
+}
+
+export function getInterviewSessionWithBackend(id: string) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<{ session: unknown }>(`${backendUrl}/api/interview/sessions/${id}`, {
+    method: 'GET',
+    timeoutMs: 15000,
   })
 }
 

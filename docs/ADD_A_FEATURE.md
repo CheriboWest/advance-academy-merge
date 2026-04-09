@@ -523,3 +523,7 @@ Before opening a pull request, tick every box:
 **Need a multi-step LLM pipeline?** Use the Anthropic SDK directly (via `backend/src/lib/llm-anthropic.ts`) and copy the structure of `backend/src/services/dream-company.service.ts` — one private function per step, throw with `step: 'stepName'` on parse failures.
 
 **Need async polling?** Copy `backend/src/services/cv-optimizer.service.ts`. Read the warning in [ARCHITECTURE.md](./ARCHITECTURE.md#state--persistence) first — the in-memory job map is single-process only.
+
+**Need to persist data?** Don't reach for the in-memory `Map`. Use Supabase via `backend/src/lib/supabase.ts` (`getSupabase()`, `getMvpUserId()`) — that's how Interview Prep and the CV Library do it. Add a migration in `supabase/migrations/` (idempotent: `create table if not exists`, `add column if not exists`, `create index if not exists`). See [CV_KNOWLEDGE_BASE.md](./CV_KNOWLEDGE_BASE.md) for a full worked example, including how the schema, services, routes, and Next.js proxies all line up.
+
+**Adding a feature that needs its own page (not a `?view=` switch)?** Look at how the CV Library is wired: real Next.js page at `app/cv-library/page.tsx`, screen at `features/cv-library/components/`, and a navigation entry in `shared/config/navigation.ts` with an `href` so the top nav links to it. Don't add it to `home-page-content.tsx` — that file is only for `?view=` features.

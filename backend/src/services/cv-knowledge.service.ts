@@ -223,6 +223,18 @@ export async function deleteCvVersion(cvVersionId: string): Promise<void> {
   if (error) throw Object.assign(new Error(error.message), { statusCode: 500 });
 }
 
+export async function getCvVersion(id: string): Promise<CvVersionRow | null> {
+  const supabase = getSupabase();
+  const userId = getMvpUserId();
+  const { data } = await supabase
+    .from('cv_versions')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle();
+  return (data as CvVersionRow | null) ?? null;
+}
+
 export async function getActiveCvVersion(): Promise<CvVersionRow | null> {
   const supabase = getSupabase();
   const userId = getMvpUserId();

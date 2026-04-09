@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState } from 'react'
+import Link from 'next/link'
 import {
   ArrowRight,
   ArrowLeft,
@@ -12,8 +13,18 @@ import {
   RotateCcw,
   Sparkles,
   Wand2,
+  FileText,
 } from 'lucide-react'
 import type { InterviewMessage } from '@/features/interview-prep/types'
+
+interface CvVersionOption {
+  id: string
+  name: string
+  isActive: boolean
+  detectedField: 'tech' | 'business' | 'marketing' | null
+  bulletCount: number
+  openGapCount: number
+}
 import type { ViewName } from '@/shared/types/navigation'
 import type { PersonaId, InterviewStep } from '@/features/interview-prep/types'
 import { PERSONAS } from '@/data/personas'
@@ -147,6 +158,77 @@ function SetupStep({
     context.jobDescription.trim().length > 0 &&
     context.companyName.trim().length > 0
 
+  // ── CV Library picker ──────────────────────────────────────────────
+  const [cvVersions, setCvVersions] = useState<CvVersionOption[]>([])
+  const [cvLoading, setCvLoading] = useState(true)
+  const [cvError, setCvError] = useState<string | null>(null)
+  const [selectedCvId, setSelectedCvId] = useState<string>('')
+  const [loadingRawText, setLoadingRawText] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setCvLoading(true)
+      setCvError(null)
+      try {
+        const res = await fetch('/api/cv-library/versions')
+        if (!res.ok) throw new Error('Failed to load CVs')
+        const data: CvVersionOption[] = await res.json()
+        if (cancelled) return
+        setCvVersions(data)
+        // Default to active CV (or first one)
+        const active = data.find((c) => c.isActive) ?? data[0]
+        if (active && !selectedCvId) {
+          setSelectedCvId(active.id)
+        }
+      } catch (err) {
+        if (!cancelled) setCvError(err instanceof Error ? err.message : 'Failed to load CVs')
+      } finally {
+        if (!cancelled) setCvLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // When the selected CV changes, fetch its raw text and put it into context.cvText
+  // so the existing scoring/feedback path stays grounded.
+  useEffect(() => {
+    if (!selectedCvId) return
+    let cancelled = false
+    ;(async () => {
+      setLoadingRawText(true)
+      try {
+        const res = await fetch(`/api/cv-library/versions/${selectedCvId}`)
+        if (!res.ok) throw new Error('Failed to load CV')
+        const data: { rawText: string } = await res.json()
+        if (cancelled) return
+        updateContext({ cvText: data.rawText ?? '' })
+      } catch (err) {
+        if (!cancelled) setCvError(err instanceof Error ? err.message : 'Failed to load CV')
+      } finally {
+        if (!cancelled) setLoadingRawText(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCvId])
+
+  // Also keep the active CV in sync so the coach-answer service uses the same one.
+  const handleSelectCv = async (id: string) => {
+    setSelectedCvId(id)
+    try {
+      await fetch(`/api/cv-library/versions/${id}/activate`, { method: 'POST' })
+      setCvVersions((prev) => prev.map((c) => ({ ...c, isActive: c.id === id })))
+    } catch {
+      // non-fatal
+    }
+  }
+
   const [jobUrl, setJobUrl] = useState('')
   const [extracting, setExtracting] = useState(false)
   const [extractError, setExtractError] = useState<string | null>(null)
@@ -250,18 +332,71 @@ function SetupStep({
 
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-semibold text-blue-900 mb-2">Your CV / Resume *</label>
-          <textarea
-            value={context.cvText}
-            onChange={(e) => updateContext({ cvText: e.target.value })}
-            placeholder="Paste your CV content here... Include your experience, skills, education, and achievements."
-            className="w-full h-48 p-4 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 resize-none"
-          />
-          <p className="text-xs text-gray-400 mt-1">
-            {context.cvText.length > 0
-              ? `${context.cvText.length} characters`
-              : 'Paste your CV text for personalized questions'}
-          </p>
+          <label className="block text-sm font-semibold text-blue-900 mb-2">
+            CV from your library *
+          </label>
+          {cvLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500 p-3 border border-gray-200 rounded-xl">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading your CVs…
+            </div>
+          ) : cvVersions.length === 0 ? (
+            <div className="p-4 border border-yellow-200 bg-yellow-50 rounded-xl text-sm">
+              <p className="text-yellow-900 font-medium mb-1 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4" /> No CVs in your library yet
+              </p>
+              <p className="text-yellow-800 text-xs mb-2">
+                Upload one in the CV Library so we can ground your interview answers in real evidence.
+              </p>
+              <Link
+                href="/cv-library"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-900 hover:text-blue-700"
+              >
+                <FileText className="w-3.5 h-3.5" /> Go to CV Library →
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <select
+                  value={selectedCvId}
+                  onChange={(e) => handleSelectCv(e.target.value)}
+                  disabled={loadingRawText}
+                  className="w-full p-3 pr-10 border border-gray-200 rounded-xl text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:opacity-50 appearance-none"
+                >
+                  {cvVersions.map((cv) => (
+                    <option key={cv.id} value={cv.id}>
+                      {cv.name}
+                      {cv.isActive ? ' (active)' : ''}
+                      {cv.detectedField ? ` · ${cv.detectedField}` : ''}
+                      {' · '}
+                      {cv.bulletCount} bullets, {cv.openGapCount} gaps remaining
+                    </option>
+                  ))}
+                </select>
+                <FileText className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-gray-400">
+                  {loadingRawText
+                    ? 'Loading CV…'
+                    : context.cvText.length > 0
+                      ? `${context.cvText.length} characters loaded`
+                      : 'Select a CV to use for this interview'}
+                </p>
+                <Link
+                  href="/cv-library"
+                  className="text-xs text-blue-700 hover:text-blue-900 font-medium"
+                >
+                  Manage library →
+                </Link>
+              </div>
+            </>
+          )}
+          {cvError && (
+            <p className="mt-2 text-xs text-red-600 flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" /> {cvError}
+            </p>
+          )}
         </div>
 
         <div>
