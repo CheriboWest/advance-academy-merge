@@ -2,14 +2,15 @@
 
 ## Product summary
 
-Advance Academy is a career-tools web app with four AI-powered features:
+Advance Academy is a career-tools web app with five AI-powered features:
 
 1. **CV Optimizer** — analyzes a CV against a job description and returns section-by-section scores and expert feedback.
 2. **Dream Company Finder** — profile in, 4-step career intelligence pipeline out (market level, company matrix, target roles, career roadmap).
 3. **Outreach Generator** — generates a LinkedIn message and an email tailored to a target company, person, and intent.
-4. **Interview Prep** — interview preparation (scaffolding in place).
+4. **Interview Prep** — live mock interview with persona-driven questions, IRS scoring per answer, a final feedback report, and an evidence-grounded "enhanced answer" coach.
+5. **CV Library** — persistent per-user CV store. The user uploads a CV, the system extracts every bullet, generates the 5 most important "missing details" per bullet, and the user fills them with text/file/URL evidence. The artifacts are reused by the Interview Prep coach so it stops hallucinating.
 
-All AI features are powered by Anthropic Claude. The app is **stateless** — no database, no user accounts, no persistent storage. Every feature is a request in / response out.
+All AI features are powered by Anthropic Claude. **Persistence:** Interview Prep and the CV Library write to Supabase Postgres (sessions, assessments, coaching, CV versions, bullets, gaps, artifacts). CV Optimizer, Dream Company, and Outreach remain stateless request/response. There is no auth — Supabase rows are owned by a hardcoded `MVP_USER_ID`. See [CV_KNOWLEDGE_BASE.md](./CV_KNOWLEDGE_BASE.md) for the CV Library + coach-answer flow.
 
 ## Repo layout (high level)
 
@@ -20,16 +21,22 @@ All AI features are powered by Anthropic Claude. The app is **stateless** — no
 │   ├── page.tsx                  Home page entry
 │   ├── home-page-content.tsx     View switch driven by ?view= query param
 │   ├── providers.tsx             React Query provider
+│   ├── cv-library/               CV Library page (uses /api/cv-library/*)
 │   └── api/                      Server-side proxy routes → backend
 │       ├── cv-optimizer/
 │       ├── dream-company/
-│       └── outreach/
+│       ├── outreach/
+│       ├── interview/            (proxies to backend; was previously native)
+│       ├── interview-prep/
+│       ├── evaluate/             (proxies to backend; was previously native)
+│       └── cv-library/
 ├── features/                     Feature modules
 │   ├── home/
 │   ├── cv-optimizer/
 │   ├── dream-company/
 │   ├── outreach/
-│   └── interview-prep/
+│   ├── interview-prep/
+│   └── cv-library/
 ├── shared/                       Cross-feature utilities
 │   ├── api/                      http-client, backend-client
 │   ├── env/                      server.ts, client.ts
@@ -84,7 +91,7 @@ sequenceDiagram
     UI-->>User: Render result
 ```
 
-Every feature — CV Optimizer, Dream Company, Outreach — follows this exact shape. **If you're adding something new, replicate it.**
+Every feature — CV Optimizer, Dream Company, Outreach, Interview Prep, CV Library — follows this exact shape. **If you're adding something new, replicate it.** (Historical note: the interview-prep + evaluate routes used to bypass Fastify and call Anthropic / Supabase directly from Next.js. They have been refactored to follow this canonical flow; the corresponding `app/api/interview/*` and `app/api/evaluate/*` files are now thin proxies.)
 
 ## Why a Next.js proxy layer?
 
@@ -131,18 +138,22 @@ flowchart LR
 
 ## State & persistence
 
-**There is no database.** Make peace with this early.
+The app has **two storage layers**:
 
-- **Dream Company, Outreach, Interview Prep** — pure request/response. No state.
-- **CV Optimizer** — has a polling pattern. `POST /api/cv-optimizer/analyze` returns `202` + a `jobId`, and the client polls `GET /api/cv-optimizer/jobs/:jobId`. The job map is **in-memory**:
+- **Supabase Postgres** — backs Interview Prep and the CV Library. The backend talks to it via `backend/src/lib/supabase.ts` (`getSupabase()`, `getMvpUserId()`). Tables (see `supabase/migrations/`):
+  - `interview_sessions`, `interview_questions`, `answer_assessments`, `answer_coaching` — interview transcripts + IRS scores + per-answer coaching
+  - `cv_versions`, `cv_bullets`, `bullet_gaps`, `bullet_artifacts` — the CV Library knowledge base
+  - `companies`, `job_targets`, `candidate_profiles`, etc. — supporting tables
+- **In-memory `Map` (single process)** — used by **CV Optimizer** only. `POST /api/cv-optimizer/analyze` returns `202` + a `jobId`; the client polls `GET /api/cv-optimizer/jobs/:jobId`.
 
   ```ts
   const jobs = new Map<jobId, JobStatusResponse>()
   ```
 
-  **Gotcha #1:** This is sticky to a single process. If you deploy multiple backend instances behind a load balancer, the poll can land on a different instance and return "not found". Use sticky sessions, an external store (Redis), or stay on a single instance. This is the most important thing to know about the architecture.
+  **Gotcha:** This is sticky to a single process. If you deploy multiple backend instances behind a load balancer, the poll can land on a different instance and return "not found". Use sticky sessions, an external store (Redis), or stay on a single instance.
 
-- **No user accounts.** No auth. The app is a public tool.
+- **Dream Company, Outreach** — still pure request/response. No state.
+- **No user accounts. No auth.** All Supabase rows are owned by the hardcoded `MVP_USER_ID` env var (defaults to the all-zeros UUID seeded in `supabase/migrations/001_create_tables.sql`). Adding real auth means putting middleware in `backend/src/main.ts` and threading a user id through `getSupabase()` calls.
 
 ## Cross-cutting concerns
 

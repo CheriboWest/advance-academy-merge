@@ -9,6 +9,7 @@ import { registerOutreachRoutes } from './routes/outreach.js';
 import { registerInterviewPrepRoutes } from './routes/interview-prep.js';
 import { registerCvLibraryRoutes } from './routes/cv-library.js';
 import { registerCoachAnswerRoutes } from './routes/coach-answer.js';
+import { registerInterviewRoutes } from './routes/interview.js';
 
 function loadBackendEnvFile() {
   const candidates = [
@@ -45,6 +46,7 @@ async function bootstrap() {
   await registerInterviewPrepRoutes(app);
   await registerCvLibraryRoutes(app);
   await registerCoachAnswerRoutes(app);
+  await registerInterviewRoutes(app);
 
   await app.listen({
     port,

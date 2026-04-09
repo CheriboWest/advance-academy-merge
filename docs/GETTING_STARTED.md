@@ -44,8 +44,11 @@ The full list of variables the backend reads:
 | `LLM_MODEL_CV_OPTIMIZER` | same as default | Model for CV Optimizer |
 | `LLM_MODEL_OUTREACH` | same as default | Model for Outreach |
 | `LLM_MODEL_DREAM_COMPANY` | same as default | Model for Dream Company |
-| `LLM_MODEL_INTERVIEW_PREP` | same as default | Model for Interview Prep |
-| `JINA_API_KEY` | *(empty)* | Optional bearer token for `https://r.jina.ai/` URL scraping |
+| `LLM_MODEL_INTERVIEW_PREP` | same as default | Model for Interview Prep + CV Library + coach-answer |
+| `JINA_API_KEY` | *(empty)* | Optional bearer token for `https://r.jina.ai/` URL scraping (Outreach + CV Library + job-extract) |
+| `SUPABASE_URL` | *(empty)* | **Required** for Interview Prep + CV Library persistence |
+| `SUPABASE_SERVICE_ROLE_KEY` | *(empty)* | **Required** for Interview Prep + CV Library persistence (server-side only — never expose to the browser) |
+| `MVP_USER_ID` | `00000000-0000-0000-0000-000000000000` | Owns all Supabase rows until real auth is wired in |
 
 ### Frontend — `.env.local` (optional)
 
@@ -80,7 +83,9 @@ curl http://localhost:4000/api/health
 # => {"status":"ok","timestamp":"...","adapter":"..."}
 ```
 
-Verify the frontend loads by opening `http://localhost:3000` in a browser — you should see the Advance Academy home page with four feature cards.
+Verify the frontend loads by opening `http://localhost:3000` in a browser — you should see the Advance Academy home page with the feature cards. The CV Library lives at `http://localhost:3000/cv-library`.
+
+If you set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, also apply the migrations in `supabase/migrations/` (the SQL Editor in the Supabase dashboard works) so Interview Prep + CV Library can persist data.
 
 Verify end-to-end (Dream Company):
 
@@ -105,6 +110,8 @@ npm run start:frontend   # starts Next.js in production mode
 - **CV Optimizer** — falls back to local heuristic scoring and still works.
 - **Dream Company** — returns `503` until `LLM_API_KEY` is set.
 - **Outreach** — returns `503` until `LLM_API_KEY` is set.
+- **Interview Prep** — start/score/report/coach all return `503` until `LLM_API_KEY` is set; session persistence and the CV Library additionally require `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`. The interview will still run end-to-end without Supabase, it just won't persist or feed the coach with stored evidence.
+- **CV Library** — returns `503` until both Supabase and `LLM_API_KEY` are set (it needs the LLM to extract bullets and generate gaps).
 
 This is intentional so contributors can work on the CV Optimizer UI without needing a key.
 

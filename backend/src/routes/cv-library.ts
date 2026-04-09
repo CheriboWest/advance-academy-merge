@@ -5,6 +5,7 @@ import {
   createCvVersionFromFile,
   createCvVersionFromText,
   deleteCvVersion,
+  getCvVersion,
   listBulletsWithGaps,
   listCvVersions,
   recordJitClarification,
@@ -38,6 +39,23 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
     try {
       await activateCvVersion(id);
       return { ok: true };
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  app.get('/api/cv-library/versions/:id', async (request, reply) => {
+    const id = (request.params as { id: string }).id;
+    try {
+      const row = await getCvVersion(id);
+      if (!row) return reply.code(404).send({ error: 'Not found' });
+      return {
+        id: row.id,
+        name: row.name,
+        rawText: row.raw_text,
+        detectedField: row.detected_field,
+        isActive: row.is_active,
+      };
     } catch (err) {
       return sendError(reply, err);
     }

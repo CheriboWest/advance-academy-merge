@@ -16,10 +16,11 @@ This folder is the single source of truth for understanding, running, and extend
 ## Index
 
 - **[GETTING_STARTED.md](./GETTING_STARTED.md)** — prerequisites, install, env vars, running dev, smoke tests, troubleshooting.
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — high-level system design, the 4-layer request flow, diagrams, the "no database" model, cross-cutting concerns.
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — high-level system design, the 4-layer request flow, diagrams, the persistence model (Supabase for Interview Prep + CV Library, in-memory for CV Optimizer, stateless for the rest), cross-cutting concerns.
 - **[BACKEND.md](./BACKEND.md)** — Fastify layout, routes → services → lib layering, LLM integration, error handling, async job pattern.
 - **[FRONTEND.md](./FRONTEND.md)** — Next.js App Router layout, feature module anatomy, HTTP client pattern, proxy routes, state management.
 - **[API_REFERENCE.md](./API_REFERENCE.md)** — full HTTP reference for every backend endpoint with request/response types.
+- **[CV_KNOWLEDGE_BASE.md](./CV_KNOWLEDGE_BASE.md)** — CV Library schema, bullet/gap extraction, the grounded coach-answer flow, and the JIT clarification loop. Read this before touching anything in `cv_*` / `bullet_*` tables or `coach-answer.service.ts`.
 - **[CONVENTIONS.md](./CONVENTIONS.md)** — naming, file layout, layering rules, error shape, environment access, commit style.
 - **[ADD_A_FEATURE.md](./ADD_A_FEATURE.md)** — end-to-end walkthrough of adding a new feature using a "Job Tracker" example.
 

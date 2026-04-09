@@ -1,6 +1,6 @@
 # Backend
 
-The backend is a Fastify + TypeScript workspace at `backend/`. It is stateless, LLM-powered, and has no database.
+The backend is a Fastify + TypeScript workspace at `backend/`. It is LLM-powered. Most routes are stateless request/response, but Interview Prep and the CV Library persist to Supabase Postgres via `backend/src/lib/supabase.ts`. See [CV_KNOWLEDGE_BASE.md](./CV_KNOWLEDGE_BASE.md) for the persistent flows.
 
 ## Tech stack
 
@@ -14,6 +14,8 @@ The backend is a Fastify + TypeScript workspace at `backend/`. It is stateless, 
 | File uploads | `@fastify/multipart` |
 | PDF parsing | `pdf-parse` |
 | DOCX parsing | `mammoth` |
+| Database | `@supabase/supabase-js` (Interview Prep + CV Library only) |
+| URL fetching | `fetch` against `https://r.jina.ai/` (Outreach + CV Library) |
 | Dev runner | `tsx` |
 
 Scripts (from `backend/package.json`):
@@ -31,7 +33,7 @@ From the repo root you can also use `npm run dev:backend` and `npm run build:bac
 
 ```
 backend/src/
-├── main.ts                              Entry point
+├── main.ts                              Entry point — registers all route bundles
 ├── pdf-parse.d.ts                       Ambient types for pdf-parse
 ├── config/
 │   └── llm.ts                           Feature → model mapping + provider config
@@ -39,21 +41,35 @@ backend/src/
 │   ├── system.ts                        GET /api/health
 │   ├── cv-optimizer.ts                  POST /analyze, GET /jobs/:jobId, GET /template
 │   ├── dream-company.ts                 POST /generate, POST /parse-cv
-│   └── outreach.ts                      POST /generate, POST /extract
+│   ├── outreach.ts                      POST /generate, POST /extract
+│   ├── interview-prep.ts                POST /api/interview-prep/extract-job-from-url
+│   ├── interview.ts                     POST /api/interview, POST /api/evaluate, GET /api/interview/sessions[/:id]
+│   ├── coach-answer.ts                  POST /api/interview/coach-answer
+│   └── cv-library.ts                    /api/cv-library/* (versions, bullets, gaps, artifacts, jit-clarification)
 ├── services/                            Business logic
 │   ├── system.service.ts
 │   ├── llm.service.ts                   HTTP JSON mode, generateJson()
 │   ├── cv-optimizer.service.ts          Async job queue + heuristic fallback
 │   ├── dream-company.service.ts         4-step Anthropic SDK pipeline
 │   ├── outreach.service.ts              Single-call message generation
-│   └── outreach-extractor.service.ts    File + URL text extraction
+│   ├── outreach-extractor.service.ts    File + URL text extraction (Jina)
+│   ├── job-extraction.service.ts        Jina + LLM → structured ExtractedJob
+│   ├── interview.service.ts             startInterviewSession / sendInterviewMessage / evaluateInterview
+│   ├── feedback-engine.service.ts       Final-report LLM call
+│   ├── cv-knowledge.service.ts          CV Library: parse → bullets → gaps → artifacts
+│   └── coach-answer.service.ts          Grounded "enhanced answer" coach
 ├── lib/                                 Pure helpers
-│   ├── llm-anthropic.ts                 Anthropic SDK wrapper
-│   ├── dream-company/prompts.ts         System prompts for the 4-step pipeline
-│   └── outreach/prompts.ts              Outreach system prompt
+│   ├── llm-anthropic.ts                 Anthropic SDK wrapper (assertLlmConfigured / createAnthropicClient / getFeatureModel)
+│   ├── supabase.ts                      Supabase service-role client + getMvpUserId()
+│   ├── dream-company/prompts.ts
+│   ├── outreach/prompts.ts
+│   ├── cv-knowledge/prompts.ts          Bullet extraction, gap generation, summarize-with-quotes, coach prompt
+│   └── interview-prep/                  personas.ts, irs-scoring.ts, db.ts (Supabase helpers)
 └── types/
     ├── dream-company.ts
-    └── outreach.ts
+    ├── outreach.ts
+    ├── interview-prep.ts                Interview-prep core types (mirrors features/interview-prep/types.ts)
+    └── cv-knowledge.ts                  Row + DTO types for CV Library + coach-answer
 ```
 
 ## Bootstrap
@@ -62,7 +78,7 @@ backend/src/
 
 1. **Load env** — `loadBackendEnvFile()` looks for `.env` in the cwd, then `backend/.env`, and calls Node's native `process.loadEnvFile`.
 2. **Configure CORS** — reads `FRONTEND_URL`, splits on commas, passes to `@fastify/cors`.
-3. **Register routes** — `registerSystemRoutes` → `registerCvOptimizerRoutes` → `registerDreamCompanyRoutes` → `registerOutreachRoutes`.
+3. **Register routes** — `registerSystemRoutes` → `registerCvOptimizerRoutes` → `registerDreamCompanyRoutes` → `registerOutreachRoutes` → `registerInterviewPrepRoutes` → `registerCvLibraryRoutes` → `registerCoachAnswerRoutes` → `registerInterviewRoutes`.
 4. **Listen** — `0.0.0.0:PORT` (default `4000`).
 
 If you add a new route module, **you must call it here** or the routes will never be reachable.
