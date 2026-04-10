@@ -10,6 +10,7 @@ import { registerInterviewPrepRoutes } from './routes/interview-prep.js';
 import { registerCvLibraryRoutes } from './routes/cv-library.js';
 import { registerCoachAnswerRoutes } from './routes/coach-answer.js';
 import { registerInterviewRoutes } from './routes/interview.js';
+import { registerCoachUnderstandingRoutes } from './routes/coach-understanding.js';
 
 function loadBackendEnvFile() {
   const candidates = [
@@ -47,6 +48,7 @@ async function bootstrap() {
   await registerCvLibraryRoutes(app);
   await registerCoachAnswerRoutes(app);
   await registerInterviewRoutes(app);
+  await registerCoachUnderstandingRoutes(app);
 
   await app.listen({
     port,

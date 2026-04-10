@@ -82,6 +82,47 @@ export interface BulletWithGaps {
   }>;
 }
 
+// ── Two-phase upload types ───────────────────────────────────────────────────
+
+export interface SimilarBulletCandidate {
+  bulletId: string;
+  bulletText: string;
+  sectionPath: string | null;
+  similarity: number;
+  gapCount: number;
+  answeredGapCount: number;
+}
+
+export interface ParsedBulletWithCandidates {
+  tempId: string;
+  bulletText: string;
+  sectionPath: string | null;
+  candidates: SimilarBulletCandidate[];
+}
+
+export interface CvUploadPhase1Response {
+  cvVersionId: string;
+  detectedField: DetectedField;
+  parsedBullets: ParsedBulletWithCandidates[];
+}
+
+export interface BulletResolution {
+  tempId: string;
+  action: 'merge' | 'new';
+  existingBulletId?: string;
+}
+
+export interface CvFinalizeRequest {
+  resolutions: BulletResolution[];
+}
+
+export interface CvFinalizeResponse {
+  bulletCount: number;
+  newBulletCount: number;
+  mergedBulletCount: number;
+  gapCount: number;
+}
+
 export interface CoachAnswerRequest {
   question: string;
   answer: string;

@@ -2,15 +2,21 @@ import type { FastifyInstance } from 'fastify';
 import {
   activateCvVersion,
   addArtifactToGap,
-  createCvVersionFromFile,
-  createCvVersionFromText,
+  backfillEmbeddings,
   deleteCvVersion,
+  finalizeCvBullets,
+  findSimilarBullets,
   getCvVersion,
   listBulletsWithGaps,
   listCvVersions,
+  mergeBullets,
+  parseCvVersion,
+  parseCvVersionFromFile,
   recordJitClarification,
   skipGap,
 } from '../services/cv-knowledge.service.js';
+import { getMvpUserId } from '../lib/supabase.js';
+import type { BulletResolution, ParsedBulletWithCandidates } from '../types/cv-knowledge.js';
 
 function statusOf(error: unknown): number {
   if (error && typeof error === 'object' && 'statusCode' in error) {
@@ -80,6 +86,68 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
     }
   });
 
+  // ── Finalize: Phase 2 of two-phase upload ─────────────────────────────────
+  app.post('/api/cv-library/versions/:id/finalize', async (request, reply) => {
+    const cvVersionId = (request.params as { id: string }).id;
+    const body = request.body as {
+      parsedBullets?: ParsedBulletWithCandidates[];
+      resolutions?: BulletResolution[];
+    } | undefined;
+    if (!body?.parsedBullets || !body?.resolutions) {
+      return reply.code(400).send({ error: 'parsedBullets and resolutions required' });
+    }
+    try {
+      return await finalizeCvBullets(cvVersionId, body.parsedBullets, body.resolutions);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  // ── Similar bullets for a given bullet ────────────────────────────────────
+  app.post('/api/cv-library/bullets/:id/similar', async (request, reply) => {
+    const bulletId = (request.params as { id: string }).id;
+    try {
+      const supabase = (await import('../lib/supabase.js')).getSupabase();
+      const { data: bullet } = await supabase
+        .from('cv_bullets')
+        .select('bullet_text, user_id')
+        .eq('id', bulletId)
+        .single();
+      if (!bullet) return reply.code(404).send({ error: 'Bullet not found' });
+      const candidates = await findSimilarBullets(bullet.user_id, bullet.bullet_text, 5);
+      // Exclude the bullet itself from results
+      return candidates.filter((c) => c.bulletId !== bulletId);
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
+  // ── Merge two bullets ─────────────────────────────────────────────────────
+  app.post<{ Body: { sourceBulletId: string; targetBulletId: string } }>(
+    '/api/cv-library/bullets/merge',
+    async (request, reply) => {
+      const body = request.body;
+      if (!body?.sourceBulletId || !body?.targetBulletId) {
+        return reply.code(400).send({ error: 'sourceBulletId and targetBulletId required' });
+      }
+      try {
+        await mergeBullets(body.sourceBulletId, body.targetBulletId);
+        return { ok: true };
+      } catch (err) {
+        return sendError(reply, err);
+      }
+    },
+  );
+
+  // ── Backfill embeddings ───────────────────────────────────────────────────
+  app.post('/api/cv-library/backfill-embeddings', async (_request, reply) => {
+    try {
+      return await backfillEmbeddings();
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   app.post<{ Params: { gapId: string } }>('/api/cv-library/gaps/:gapId/skip', async (request, reply) => {
     try {
       await skipGap(request.params.gapId);
@@ -116,7 +184,7 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
       limits: { fileSize: 15 * 1024 * 1024 },
     });
 
-    // Create a CV version (multipart with file + name field, OR JSON with text)
+    // Phase 1: Parse CV → return bullets + similarity candidates
     scoped.post('/api/cv-library/versions', async (request, reply) => {
       const ctype = request.headers['content-type'] ?? '';
       try {
@@ -139,15 +207,13 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
           if (!name.trim()) {
             return reply.code(400).send({ error: 'name is required' });
           }
-          const result = await createCvVersionFromFile(name.trim(), fileBuffer, fileName);
-          return result;
+          return await parseCvVersionFromFile(name.trim(), fileBuffer, fileName);
         }
-        // JSON path: { name, rawText }
         const body = request.body as { name?: string; rawText?: string } | undefined;
         if (!body?.name || !body?.rawText) {
           return reply.code(400).send({ error: 'name and rawText required' });
         }
-        return await createCvVersionFromText({ name: body.name.trim(), rawText: body.rawText });
+        return await parseCvVersion({ name: body.name.trim(), rawText: body.rawText });
       } catch (err) {
         return sendError(reply, err);
       }
