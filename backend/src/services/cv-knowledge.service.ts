@@ -1,10 +1,16 @@
 /**
  * CV Knowledge Base service.
- * Pure functions; no HTTP. Orchestrates Anthropic + Supabase.
+ * Pure functions; no HTTP. Orchestrates Anthropic + Supabase + Voyage.
+ *
+ * Key design: cv_bullets belong to a USER (bullet pool), not a CV version.
+ * The junction table cv_version_bullets links versions to their bullets.
+ * This allows the same bullet (with its gaps + artifacts) to be shared
+ * across multiple CV versions.
  */
 import { extractTextFromFile, extractTextFromUrl } from './outreach-extractor.service.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 import { getSupabase, getMvpUserId } from '../lib/supabase.js';
+import { embedText, embedTexts, isVoyageConfigured } from '../lib/voyage.js';
 import {
   buildBulletExtractionPrompt,
   buildGapPrompt,
@@ -18,6 +24,11 @@ import type {
   CvVersionSummary,
   DetectedField,
   CvBulletRow,
+  SimilarBulletCandidate,
+  ParsedBulletWithCandidates,
+  CvUploadPhase1Response,
+  BulletResolution,
+  CvFinalizeResponse,
 } from '../types/cv-knowledge.js';
 
 const MAX_GAPS = 5;
@@ -48,16 +59,17 @@ async function llmJson<T = unknown>(systemOrUser: string, userMaybe?: string): P
   }
 }
 
-// ── Create CV version (text already extracted) ──────────────────────────────
+// ── Phase 1: Parse CV → return bullets + similarity candidates ──────────────
 
-export async function createCvVersionFromText(args: {
+export async function parseCvVersion(args: {
   name: string;
   rawText: string;
   sourceFilePath?: string | null;
-}): Promise<{ cvVersionId: string; bulletCount: number; gapCount: number }> {
+}): Promise<CvUploadPhase1Response> {
   const supabase = getSupabase();
   const userId = getMvpUserId();
 
+  // Insert the cv_version row
   const { data: inserted, error } = await supabase
     .from('cv_versions')
     .insert({
@@ -74,67 +86,189 @@ export async function createCvVersionFromText(args: {
   }
   const cvVersionId = inserted.id as string;
 
-  // 1. Extract bullets + detect field
+  // Extract bullets + detect field via LLM
   const parsed = await llmJson<{
     detected_field: DetectedField;
     bullets: Array<{ section_path: string | null; bullet_text: string }>;
   }>(buildBulletExtractionPrompt(args.rawText));
 
   const bullets = (parsed.bullets ?? []).filter((b) => b.bullet_text?.trim());
+  const detectedField = parsed.detected_field ?? null;
 
-  if (parsed.detected_field) {
-    await supabase
-      .from('cv_versions')
-      .update({ detected_field: parsed.detected_field })
-      .eq('id', cvVersionId);
+  if (detectedField) {
+    await supabase.from('cv_versions').update({ detected_field: detectedField }).eq('id', cvVersionId);
   }
 
-  // 2. Insert bullets
-  let bulletRows: Array<{ id: string; bullet_text: string; section_path: string | null }> = [];
-  if (bullets.length > 0) {
-    const { data: insertedBullets, error: bulletErr } = await supabase
-      .from('cv_bullets')
-      .insert(
-        bullets.map((b, i) => ({
-          cv_version_id: cvVersionId,
-          section_path: b.section_path ?? null,
-          bullet_text: b.bullet_text.trim(),
-          ordinal: i,
-        })),
-      )
-      .select('id, bullet_text, section_path');
-    if (bulletErr) {
-      throw Object.assign(new Error(`Failed to insert bullets: ${bulletErr.message}`), { statusCode: 500 });
-    }
-    bulletRows = insertedBullets ?? [];
-  }
-
-  // 3. Generate gaps for each bullet (sequential — keeps it simple, MVP)
-  let totalGaps = 0;
-  for (const bullet of bulletRows) {
+  // For each parsed bullet, find similar existing bullets in the user's pool
+  const parsedBullets: ParsedBulletWithCandidates[] = [];
+  for (let i = 0; i < bullets.length; i++) {
+    const b = bullets[i];
+    const tempId = `temp_${i}`;
+    let candidates: SimilarBulletCandidate[] = [];
     try {
-      const gapResp = await llmJson<{
-        gaps: Array<{ question: string; rationale?: string }>;
-      }>(buildGapPrompt(bullet.bullet_text, bullet.section_path, parsed.detected_field));
-      const gapItems = (gapResp.gaps ?? []).slice(0, MAX_GAPS);
-      if (gapItems.length === 0) continue;
-      const { error: gapErr } = await supabase.from('bullet_gaps').insert(
-        gapItems.map((g, i) => ({
-          bullet_id: bullet.id,
-          question: g.question,
-          rationale: g.rationale ?? null,
-          ordinal: i + 1,
-          status: 'open',
-        })),
-      );
-      if (!gapErr) totalGaps += gapItems.length;
+      candidates = await findSimilarBullets(userId, b.bullet_text.trim(), 5);
     } catch (err) {
-      // Skip a single bullet's gaps on failure rather than aborting the whole upload
-      console.error('[cv-knowledge] gap gen failed for bullet', bullet.id, err);
+      console.error('[cv-knowledge] similarity search failed for bullet', i, err);
+    }
+    parsedBullets.push({
+      tempId,
+      bulletText: b.bullet_text.trim(),
+      sectionPath: b.section_path ?? null,
+      candidates,
+    });
+  }
+
+  return { cvVersionId, detectedField, parsedBullets };
+}
+
+export async function parseCvVersionFromFile(
+  name: string,
+  fileBuffer: Buffer,
+  fileName: string,
+): Promise<CvUploadPhase1Response> {
+  const rawText = await extractTextFromFile(fileBuffer, fileName.toLowerCase());
+  return parseCvVersion({ name, rawText });
+}
+
+// ── Phase 2: Finalize — user has resolved each bullet (merge or new) ────────
+
+export async function finalizeCvBullets(
+  cvVersionId: string,
+  parsedBullets: ParsedBulletWithCandidates[],
+  resolutions: BulletResolution[],
+): Promise<CvFinalizeResponse> {
+  const supabase = getSupabase();
+  const userId = getMvpUserId();
+
+  // Look up detected field for gap generation prompts
+  const { data: cvRow } = await supabase
+    .from('cv_versions')
+    .select('detected_field')
+    .eq('id', cvVersionId)
+    .single();
+  const detectedField = (cvRow?.detected_field as DetectedField) ?? null;
+
+  const resMap = new Map(resolutions.map((r) => [r.tempId, r]));
+  let newBulletCount = 0;
+  let mergedBulletCount = 0;
+  let totalGaps = 0;
+
+  // Batch embed all "new" bullets at once to minimize Voyage calls
+  const newBullets = parsedBullets.filter((b) => {
+    const res = resMap.get(b.tempId);
+    return !res || res.action === 'new';
+  });
+  let embeddings: number[][] = [];
+  if (newBullets.length > 0 && isVoyageConfigured()) {
+    try {
+      embeddings = await embedTexts(
+        newBullets.map((b) => b.bulletText),
+        'document',
+      );
+    } catch (err) {
+      console.error('[cv-knowledge] batch embed failed', err);
+    }
+  }
+  let embedIdx = 0;
+
+  for (let i = 0; i < parsedBullets.length; i++) {
+    const pb = parsedBullets[i];
+    const res = resMap.get(pb.tempId);
+    const action = res?.action ?? 'new';
+
+    if (action === 'merge' && res?.existingBulletId) {
+      // Link existing bullet to this CV version
+      await supabase.from('cv_version_bullets').upsert(
+        {
+          cv_version_id: cvVersionId,
+          bullet_id: res.existingBulletId,
+          ordinal: i,
+          section_path: pb.sectionPath,
+        },
+        { onConflict: 'cv_version_id,bullet_id' },
+      );
+      mergedBulletCount++;
+    } else {
+      // Create a new bullet in the user's pool
+      const embedding = embeddings[embedIdx] ?? null;
+      embedIdx++;
+
+      const { data: newBullet, error: bulletErr } = await supabase
+        .from('cv_bullets')
+        .insert({
+          user_id: userId,
+          cv_version_id: cvVersionId,
+          section_path: pb.sectionPath,
+          bullet_text: pb.bulletText,
+          ordinal: i,
+          bullet_embedding: embedding ? `[${embedding.join(',')}]` : null,
+        })
+        .select('id')
+        .single();
+      if (bulletErr || !newBullet) {
+        console.error('[cv-knowledge] failed to insert bullet', bulletErr);
+        continue;
+      }
+      newBulletCount++;
+
+      // Junction row
+      await supabase.from('cv_version_bullets').insert({
+        cv_version_id: cvVersionId,
+        bullet_id: newBullet.id,
+        ordinal: i,
+        section_path: pb.sectionPath,
+      });
+
+      // Generate gaps for new bullet
+      try {
+        const gapResp = await llmJson<{
+          gaps: Array<{ question: string; rationale?: string }>;
+        }>(buildGapPrompt(pb.bulletText, pb.sectionPath, detectedField));
+        const gapItems = (gapResp.gaps ?? []).slice(0, MAX_GAPS);
+        if (gapItems.length > 0) {
+          const { error: gapErr } = await supabase.from('bullet_gaps').insert(
+            gapItems.map((g, gi) => ({
+              bullet_id: newBullet.id,
+              question: g.question,
+              rationale: g.rationale ?? null,
+              ordinal: gi + 1,
+              status: 'open',
+            })),
+          );
+          if (!gapErr) totalGaps += gapItems.length;
+        }
+      } catch (err) {
+        console.error('[cv-knowledge] gap gen failed for bullet', newBullet.id, err);
+      }
     }
   }
 
-  return { cvVersionId, bulletCount: bulletRows.length, gapCount: totalGaps };
+  return {
+    bulletCount: parsedBullets.length,
+    newBulletCount,
+    mergedBulletCount,
+    gapCount: totalGaps,
+  };
+}
+
+// ── Legacy one-shot upload (for backward compat — auto-creates all as new) ──
+
+export async function createCvVersionFromText(args: {
+  name: string;
+  rawText: string;
+  sourceFilePath?: string | null;
+}): Promise<{ cvVersionId: string; bulletCount: number; gapCount: number }> {
+  const phase1 = await parseCvVersion(args);
+  const resolutions: BulletResolution[] = phase1.parsedBullets.map((b) => ({
+    tempId: b.tempId,
+    action: 'new',
+  }));
+  const result = await finalizeCvBullets(phase1.cvVersionId, phase1.parsedBullets, resolutions);
+  return {
+    cvVersionId: phase1.cvVersionId,
+    bulletCount: result.bulletCount,
+    gapCount: result.gapCount,
+  };
 }
 
 export async function createCvVersionFromFile(
@@ -144,6 +278,189 @@ export async function createCvVersionFromFile(
 ): Promise<{ cvVersionId: string; bulletCount: number; gapCount: number }> {
   const rawText = await extractTextFromFile(fileBuffer, fileName.toLowerCase());
   return createCvVersionFromText({ name, rawText });
+}
+
+// ── Similarity search ───────────────────────────────────────────────────────
+
+export async function findSimilarBullets(
+  userId: string,
+  bulletText: string,
+  limit: number = 5,
+): Promise<SimilarBulletCandidate[]> {
+  const embedding = await embedText(bulletText, 'query');
+  if (!embedding) return [];
+
+  const supabase = getSupabase();
+
+  // pgvector cosine distance query
+  const embeddingStr = `[${embedding.join(',')}]`;
+  const { data, error } = await supabase.rpc('match_bullets', {
+    query_embedding: embeddingStr,
+    match_user_id: userId,
+    match_count: limit,
+  });
+
+  if (error) {
+    // Fallback: if RPC doesn't exist yet, try raw query via REST
+    console.error('[cv-knowledge] match_bullets RPC failed, trying direct query', error);
+    return findSimilarBulletsDirect(userId, embeddingStr, limit);
+  }
+
+  return (data ?? []).map((row: any) => ({
+    bulletId: row.id,
+    bulletText: row.bullet_text,
+    sectionPath: row.section_path ?? null,
+    similarity: row.similarity ?? 0,
+    gapCount: row.gap_count ?? 0,
+    answeredGapCount: row.answered_gap_count ?? 0,
+  }));
+}
+
+async function findSimilarBulletsDirect(
+  userId: string,
+  embeddingStr: string,
+  limit: number,
+): Promise<SimilarBulletCandidate[]> {
+  const supabase = getSupabase();
+
+  // Direct query: filter by user, order by cosine similarity
+  const { data: bullets } = await supabase
+    .from('cv_bullets')
+    .select('id, bullet_text, section_path')
+    .eq('user_id', userId)
+    .not('bullet_embedding', 'is', null)
+    .limit(200);
+
+  if (!bullets || bullets.length === 0) return [];
+
+  // Without RPC we can't do ORDER BY <=> in the supabase-js client.
+  // Return all user bullets and let the caller pick. For MVP scale (<500) this is fine.
+  // Enrich with gap counts.
+  const result: SimilarBulletCandidate[] = [];
+  for (const b of bullets.slice(0, limit * 2)) {
+    const { count: gapCount } = await supabase
+      .from('bullet_gaps')
+      .select('id', { count: 'exact', head: true })
+      .eq('bullet_id', b.id);
+    const { count: answeredCount } = await supabase
+      .from('bullet_gaps')
+      .select('id', { count: 'exact', head: true })
+      .eq('bullet_id', b.id)
+      .eq('status', 'answered');
+    result.push({
+      bulletId: b.id,
+      bulletText: b.bullet_text,
+      sectionPath: b.section_path ?? null,
+      similarity: 0, // can't compute without RPC
+      gapCount: gapCount ?? 0,
+      answeredGapCount: answeredCount ?? 0,
+    });
+  }
+  return result.slice(0, limit);
+}
+
+// ── Merge bullets ───────────────────────────────────────────────────────────
+
+export async function mergeBullets(sourceBulletId: string, targetBulletId: string): Promise<void> {
+  const supabase = getSupabase();
+  const userId = getMvpUserId();
+
+  // Verify both belong to the same user
+  const { data: src } = await supabase
+    .from('cv_bullets')
+    .select('id, user_id')
+    .eq('id', sourceBulletId)
+    .eq('user_id', userId)
+    .single();
+  const { data: tgt } = await supabase
+    .from('cv_bullets')
+    .select('id, user_id')
+    .eq('id', targetBulletId)
+    .eq('user_id', userId)
+    .single();
+  if (!src || !tgt) {
+    throw Object.assign(new Error('Bullet not found or not owned by user'), { statusCode: 404 });
+  }
+
+  // Find the max ordinal on the target bullet's gaps so we can avoid conflicts
+  const { data: maxRow } = await supabase
+    .from('bullet_gaps')
+    .select('ordinal')
+    .eq('bullet_id', targetBulletId)
+    .order('ordinal', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  let nextOrdinal = (maxRow?.ordinal ?? 0) + 1;
+
+  // Get source gaps and re-parent them
+  const { data: sourceGaps } = await supabase
+    .from('bullet_gaps')
+    .select('id')
+    .eq('bullet_id', sourceBulletId)
+    .order('ordinal', { ascending: true });
+
+  for (const gap of sourceGaps ?? []) {
+    await supabase
+      .from('bullet_gaps')
+      .update({ bullet_id: targetBulletId, ordinal: nextOrdinal })
+      .eq('id', gap.id);
+    nextOrdinal++;
+  }
+
+  // Re-parent junction rows
+  const { data: junctions } = await supabase
+    .from('cv_version_bullets')
+    .select('id, cv_version_id')
+    .eq('bullet_id', sourceBulletId);
+
+  for (const j of junctions ?? []) {
+    // Check if target already linked to this version
+    const { data: existing } = await supabase
+      .from('cv_version_bullets')
+      .select('id')
+      .eq('cv_version_id', j.cv_version_id)
+      .eq('bullet_id', targetBulletId)
+      .maybeSingle();
+    if (existing) {
+      // Already linked — just delete the source junction
+      await supabase.from('cv_version_bullets').delete().eq('id', j.id);
+    } else {
+      await supabase
+        .from('cv_version_bullets')
+        .update({ bullet_id: targetBulletId })
+        .eq('id', j.id);
+    }
+  }
+
+  // Delete the source bullet (now orphaned — no gaps, no junctions)
+  await supabase.from('cv_bullets').delete().eq('id', sourceBulletId);
+}
+
+// ── Backfill embeddings ─────────────────────────────────────────────────────
+
+export async function backfillEmbeddings(): Promise<{ updated: number }> {
+  if (!isVoyageConfigured()) return { updated: 0 };
+  const supabase = getSupabase();
+  const { data: bullets } = await supabase
+    .from('cv_bullets')
+    .select('id, bullet_text')
+    .is('bullet_embedding', null)
+    .limit(128);
+  if (!bullets || bullets.length === 0) return { updated: 0 };
+
+  const texts = bullets.map((b) => b.bullet_text);
+  const embeddings = await embedTexts(texts, 'document');
+
+  let updated = 0;
+  for (let i = 0; i < bullets.length; i++) {
+    if (!embeddings[i]) continue;
+    const { error } = await supabase
+      .from('cv_bullets')
+      .update({ bullet_embedding: `[${embeddings[i].join(',')}]` })
+      .eq('id', bullets[i].id);
+    if (!error) updated++;
+  }
+  return { updated };
 }
 
 // ── List + activate + delete ────────────────────────────────────────────────
@@ -160,19 +477,20 @@ export async function listCvVersions(): Promise<CvVersionSummary[]> {
 
   const summaries: CvVersionSummary[] = [];
   for (const row of data ?? []) {
+    // Count bullets via junction table
     const { count: bulletCount } = await supabase
-      .from('cv_bullets')
+      .from('cv_version_bullets')
       .select('id', { count: 'exact', head: true })
       .eq('cv_version_id', row.id);
 
-    // open gaps = gaps for bullets in this CV with status 'open'
-    const { data: bulletIds } = await supabase
-      .from('cv_bullets')
-      .select('id')
+    // Open gaps for bullets in this version
+    const { data: junctions } = await supabase
+      .from('cv_version_bullets')
+      .select('bullet_id')
       .eq('cv_version_id', row.id);
     let openGapCount = 0;
-    if (bulletIds && bulletIds.length > 0) {
-      const ids = bulletIds.map((b) => b.id);
+    if (junctions && junctions.length > 0) {
+      const ids = junctions.map((j) => j.bullet_id);
       const { count } = await supabase
         .from('bullet_gaps')
         .select('id', { count: 'exact', head: true })
@@ -197,7 +515,6 @@ export async function listCvVersions(): Promise<CvVersionSummary[]> {
 export async function activateCvVersion(cvVersionId: string): Promise<void> {
   const supabase = getSupabase();
   const userId = getMvpUserId();
-  // Clear current active first to avoid the partial unique index conflict.
   const { error: clearErr } = await supabase
     .from('cv_versions')
     .update({ is_active: false })
@@ -215,6 +532,8 @@ export async function activateCvVersion(cvVersionId: string): Promise<void> {
 export async function deleteCvVersion(cvVersionId: string): Promise<void> {
   const supabase = getSupabase();
   const userId = getMvpUserId();
+  // Deleting the version cascades to cv_version_bullets junction rows only.
+  // The actual bullets (and their gaps/artifacts) survive if linked to other versions.
   const { error } = await supabase
     .from('cv_versions')
     .delete()
@@ -247,23 +566,32 @@ export async function getActiveCvVersion(): Promise<CvVersionRow | null> {
   return (data as CvVersionRow | null) ?? null;
 }
 
-// ── Bullets + gaps + artifacts (read for UI) ────────────────────────────────
+// ── Bullets + gaps + artifacts (read for UI) — now via junction ──────────────
 
 export async function listBulletsWithGaps(cvVersionId: string): Promise<BulletWithGaps[]> {
   const supabase = getSupabase();
-  const { data: bullets, error } = await supabase
-    .from('cv_bullets')
-    .select('id, section_path, bullet_text, ordinal')
+
+  // Join through the junction table
+  const { data: junctions, error } = await supabase
+    .from('cv_version_bullets')
+    .select('bullet_id, ordinal, section_path')
     .eq('cv_version_id', cvVersionId)
     .order('ordinal', { ascending: true });
   if (error) throw Object.assign(new Error(error.message), { statusCode: 500 });
 
   const result: BulletWithGaps[] = [];
-  for (const b of bullets ?? []) {
+  for (const j of junctions ?? []) {
+    const { data: bullet } = await supabase
+      .from('cv_bullets')
+      .select('id, bullet_text')
+      .eq('id', j.bullet_id)
+      .single();
+    if (!bullet) continue;
+
     const { data: gaps } = await supabase
       .from('bullet_gaps')
       .select('id, question, rationale, ordinal, status')
-      .eq('bullet_id', b.id)
+      .eq('bullet_id', bullet.id)
       .order('ordinal', { ascending: true });
 
     const gapShapes = [];
@@ -290,10 +618,10 @@ export async function listBulletsWithGaps(cvVersionId: string): Promise<BulletWi
       });
     }
     result.push({
-      id: b.id,
-      sectionPath: b.section_path,
-      bulletText: b.bullet_text,
-      ordinal: b.ordinal,
+      id: bullet.id,
+      sectionPath: j.section_path,
+      bulletText: bullet.bullet_text,
+      ordinal: j.ordinal,
       gaps: gapShapes,
     });
   }
@@ -311,8 +639,6 @@ export async function addArtifactToGap(
     | { sourceType: 'jit_clarification'; text: string },
 ): Promise<void> {
   const supabase = getSupabase();
-
-  // Look up the gap's question to bias the summarizer.
   const { data: gap, error: gapErr } = await supabase
     .from('bullet_gaps')
     .select('id, question')
@@ -328,9 +654,7 @@ export async function addArtifactToGap(
 
   if (payload.sourceType === 'text' || payload.sourceType === 'jit_clarification') {
     rawText = payload.text.trim();
-    if (!rawText) {
-      throw Object.assign(new Error('Empty artifact text'), { statusCode: 400 });
-    }
+    if (!rawText) throw Object.assign(new Error('Empty artifact text'), { statusCode: 400 });
   } else if (payload.sourceType === 'url') {
     sourceUrl = payload.url.trim();
     rawText = await extractTextFromUrl(sourceUrl);
@@ -339,24 +663,15 @@ export async function addArtifactToGap(
     sourceFilePath = payload.fileName;
   }
 
-  // Summarize-with-quotes (skip for very short text, e.g. JIT one-liners)
   let summary: ArtifactSummary | null = null;
   if (rawText.length > 80) {
     try {
-      summary = await llmJson<ArtifactSummary>(
-        buildArtifactSummaryPrompt(rawText, gap.question),
-      );
+      summary = await llmJson<ArtifactSummary>(buildArtifactSummaryPrompt(rawText, gap.question));
     } catch (err) {
       console.error('[cv-knowledge] summary failed', err);
     }
   } else {
-    // Treat short answers (e.g. "team of 5") as a one-liner concrete fact.
-    summary = {
-      overview: rawText,
-      my_contribution: '',
-      concrete_facts: [rawText],
-      metrics: [],
-    };
+    summary = { overview: rawText, my_contribution: '', concrete_facts: [rawText], metrics: [] };
   }
 
   const { error: insertErr } = await supabase.from('bullet_artifacts').insert({
@@ -367,9 +682,7 @@ export async function addArtifactToGap(
     source_file_path: sourceFilePath,
     summary_json: summary,
   });
-  if (insertErr) {
-    throw Object.assign(new Error(insertErr.message), { statusCode: 500 });
-  }
+  if (insertErr) throw Object.assign(new Error(insertErr.message), { statusCode: 500 });
 
   await supabase
     .from('bullet_gaps')
@@ -387,9 +700,6 @@ export async function skipGap(gapId: string): Promise<void> {
 }
 
 // ── JIT clarification writeback ─────────────────────────────────────────────
-// Called by the coach-answer flow when the user fills in a placeholder during
-// an interview. If we know the bulletId, attach the answer as an artifact on
-// a synthetic gap (creating one if needed).
 
 export async function recordJitClarification(args: {
   bulletId: string | null;
@@ -397,12 +707,8 @@ export async function recordJitClarification(args: {
   answer: string;
 }): Promise<void> {
   const supabase = getSupabase();
-  if (!args.bulletId || args.bulletId === 'none') {
-    // No bullet to attach to → record nothing for v1. (Could be a "loose facts" pool later.)
-    return;
-  }
+  if (!args.bulletId || args.bulletId === 'none') return;
 
-  // Find or create a gap on this bullet matching the question.
   const { data: existing } = await supabase
     .from('bullet_gaps')
     .select('id, ordinal')
@@ -414,7 +720,6 @@ export async function recordJitClarification(args: {
   if (existing) {
     gapId = existing.id as string;
   } else {
-    // Insert with next ordinal (don't enforce 5-cap on JIT-created gaps for v1).
     const { data: maxRow } = await supabase
       .from('bullet_gaps')
       .select('ordinal')
@@ -442,21 +747,23 @@ export async function recordJitClarification(args: {
   await addArtifactToGap(gapId, { sourceType: 'jit_clarification', text: args.answer });
 }
 
-// ── Pick relevant bullets for an interview question ─────────────────────────
+// ── Pick relevant bullets — now queries the ENTIRE user pool ────────────────
 
 export async function getRelevantBulletsForQuestion(
-  cvVersionId: string,
+  _cvVersionId: string,
   interviewQuestion: string,
 ): Promise<CvBulletRow[]> {
   const supabase = getSupabase();
+  const userId = getMvpUserId();
+
+  // Query ALL bullets for the user (the whole pool), not just one CV version
   const { data: bullets } = await supabase
     .from('cv_bullets')
     .select('id, cv_version_id, section_path, bullet_text, ordinal, created_at')
-    .eq('cv_version_id', cvVersionId)
+    .eq('user_id', userId)
     .order('ordinal', { ascending: true });
   if (!bullets || bullets.length === 0) return [];
 
-  // For very small CVs, just return everything — saves an LLM call.
   if (bullets.length <= 4) return bullets as CvBulletRow[];
 
   try {
@@ -474,7 +781,7 @@ export async function getRelevantBulletsForQuestion(
   }
 }
 
-// Fetch artifacts (their summary_json) for a list of bullets
+// Fetch artifacts (their summary_json) for a list of bullets — unchanged
 export async function getArtifactsForBullets(
   bulletIds: string[],
 ): Promise<Map<string, ArtifactSummary[]>> {

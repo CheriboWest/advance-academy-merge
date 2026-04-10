@@ -1,7 +1,7 @@
 // ============================================================================
 //  ADVANCE INTERVIEW LAB — DBML schema for dbdiagram.io
 //  Paste this entire file into https://dbdiagram.io/d
-//  Mirrors supabase/migrations/001_create_tables.sql
+//  Mirrors supabase/migrations/001-004
 // ============================================================================
 
 Table users {
@@ -141,11 +141,13 @@ Table interview_sessions {
   final_score_json jsonb
   final_report_json jsonb
   context_json jsonb [note: 'Snapshot of CV text, JD, company name used']
+  cv_version_id uuid [ref: > cv_versions.id, note: 'Which CV version was used for this session']
   created_at timestamptz [not null, default: `now()`]
 
   Indexes {
     user_id [name: 'idx_sessions_user']
     status [name: 'idx_sessions_status']
+    cv_version_id [name: 'idx_sessions_cv_version']
   }
 }
 
@@ -274,14 +276,32 @@ Table cv_versions {
 
 Table cv_bullets {
   id uuid [pk, default: `gen_random_uuid()`]
-  cv_version_id uuid [not null, ref: > cv_versions.id]
+  cv_version_id uuid [ref: > cv_versions.id, note: 'Nullable — originally parsed from this version']
+  user_id uuid [not null, ref: > users.id, note: 'Owner; enables cross-CV pool queries']
   section_path text
   bullet_text text [not null]
   ordinal int [not null]
+  bullet_embedding "vector(1024)" [note: 'Voyage voyage-3.5-lite embedding for similarity search']
   created_at timestamptz [not null, default: `now()`]
 
   Indexes {
     cv_version_id [name: 'idx_cv_bullets_version']
+    user_id [name: 'idx_cv_bullets_user']
+  }
+}
+
+Table cv_version_bullets {
+  id uuid [pk, default: `gen_random_uuid()`]
+  cv_version_id uuid [not null, ref: > cv_versions.id]
+  bullet_id uuid [not null, ref: > cv_bullets.id]
+  ordinal int [not null]
+  section_path text
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    cv_version_id [name: 'idx_cvb_version']
+    bullet_id [name: 'idx_cvb_bullet']
+    (cv_version_id, bullet_id) [unique, name: 'idx_cvb_unique']
   }
 }
 
@@ -316,5 +336,17 @@ Table bullet_artifacts {
   }
 }
 
-// NOTE: also add `cv_version_id uuid [ref: > cv_versions.id]` to the
-// interview_sessions table block above when visualizing in dbdiagram.io.
+// ── Coach Understanding Reports ─────────────────────────────────────────────
+
+Table coach_understanding_reports {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  report_md text [not null, note: 'Markdown report of the AI coach understanding']
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'idx_coach_reports_user']
+  }
+}
+
+// ── End of schema ───────────────────────────────────────────────────────────

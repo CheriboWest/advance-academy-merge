@@ -228,6 +228,42 @@ export function addGapArtifactFileWithBackend(gapId: string, formData: FormData)
   )
 }
 
+export function finalizeCvVersionWithBackend(id: string, payload: unknown) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<unknown>(`${backendUrl}/api/cv-library/versions/${id}/finalize`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 300000,
+  })
+}
+
+export function findSimilarBulletsWithBackend(bulletId: string) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<unknown[]>(`${backendUrl}/api/cv-library/bullets/${bulletId}/similar`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+    timeoutMs: 30000,
+  })
+}
+
+export function mergeBulletsWithBackend(payload: { sourceBulletId: string; targetBulletId: string }) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<{ ok: true }>(`${backendUrl}/api/cv-library/bullets/merge`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 30000,
+  })
+}
+
+export function backfillEmbeddingsWithBackend() {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<{ updated: number }>(`${backendUrl}/api/cv-library/backfill-embeddings`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+    timeoutMs: 300000,
+  })
+}
+
 export function skipGapWithBackend(gapId: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ ok: true }>(`${backendUrl}/api/cv-library/gaps/${gapId}/skip`, {
@@ -284,6 +320,33 @@ export function getInterviewSessionWithBackend(id: string) {
     method: 'GET',
     timeoutMs: 15000,
   })
+}
+
+// ── Coach Understanding Reports ──────────────────────────────────────────────
+
+export function generateCoachUnderstandingWithBackend() {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<{ reportId: string; reportMd: string }>(`${backendUrl}/api/coach-understanding/generate`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+    timeoutMs: 120000,
+  })
+}
+
+export function listCoachReportsWithBackend() {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<Array<{ id: string; createdAt: string; preview: string }>>(
+    `${backendUrl}/api/coach-understanding/reports`,
+    { method: 'GET', timeoutMs: 15000 },
+  )
+}
+
+export function getCoachReportWithBackend(id: string) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<{ id: string; reportMd: string; createdAt: string }>(
+    `${backendUrl}/api/coach-understanding/reports/${id}`,
+    { method: 'GET', timeoutMs: 15000 },
+  )
 }
 
 export function coachAnswerWithBackend(payload: {
