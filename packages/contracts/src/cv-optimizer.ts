@@ -20,9 +20,27 @@ export interface KeywordHighlight {
 
 export interface BulletEvaluation {
   original: string
+  project: string         // Role / project / company this bullet belongs to
   hasImpact: boolean
-  impactScore: number  // 1–10
+  impactScore: number     // 1–10
   feedback: string
+  /** Auto-generated rewrite for weak bullets, derived from the original CV content only (no invented metrics). Empty string when the bullet is already strong. */
+  autoRewrite: string
+  /** Targeted questions to extract missing impact/responsibility context. Empty when the bullet is already strong. */
+  clarifyingQuestions: string[]
+}
+
+export interface RewriteBulletRequest {
+  original: string
+  project: string
+  feedback: string
+  clarifyingQuestions: string[]
+  answers: string[]       // Aligned by index with clarifyingQuestions
+  targetRole: string
+}
+
+export interface RewriteBulletResponse {
+  rewritten: string
 }
 
 export interface RewriteSuggestion {
@@ -32,10 +50,34 @@ export interface RewriteSuggestion {
   reason: string
 }
 
+export type AtsKeywordCategory =
+  | 'job_title'
+  | 'tool_or_technical_skill'
+  | 'hard_skill'
+  | 'industry_term'
+  | 'certification'
+  | 'seniority_indicator'
+  | 'mandatory_requirement'
+
+export interface AtsExtractedKeyword {
+  keyword: string
+  category: AtsKeywordCategory
+  mandatory: boolean          // true for must-have items (licence, visa, DBS, degree, etc.)
+  foundInCv: boolean
+}
+
+export interface AtsRelevanceSignal {
+  signal: string              // e.g. "job_history_relevance"
+  score: number               // 1–10
+  reasoning: string
+}
+
 export interface AtsCheck {
   score: number      // 0–100
   issues: string[]
   passed: string[]
+  extractedKeywords: AtsExtractedKeyword[]
+  relevanceSignals: AtsRelevanceSignal[]
 }
 
 export interface FormatCheck {
@@ -49,16 +91,40 @@ export interface JdAlignment {
   alignmentSummary: string
 }
 
+export interface ActionPlanItem {
+  title: string
+  description: string
+}
+
+export interface ActionPlan {
+  summary: string
+  projectsToBuild: ActionPlanItem[]
+  skillsToLearn: ActionPlanItem[]
+  certifications: ActionPlanItem[]
+  intermediateRoles: ActionPlanItem[]
+}
+
+/**
+ * Composite score breakdown:
+ *   overallScore = 0.25 × cvOverview + 0.40 × atsAndKeywordIntelligence + 0.35 × bulletImpact
+ */
+export interface ScoreBreakdown {
+  cvOverview: number               // 0–100  (weight 25%)
+  atsAndKeywordIntelligence: number // 0–100  (weight 40%)
+  bulletImpact: number             // 0–100  (weight 35%)
+}
+
 export interface AnalyzeCvResult {
   overallScore: number
+  scoreBreakdown: ScoreBreakdown
   sections: AnalyzeCvSection[]
-  expertReview: string
   keywordHighlights: KeywordHighlight[]
   atsCheck: AtsCheck
   formatCheck: FormatCheck
   bulletEvaluations: BulletEvaluation[]
   rewriteSuggestions: RewriteSuggestion[]
   jdAlignment: JdAlignment
+  actionPlan: ActionPlan
 }
 
 export type AnalyzeCvAcceptedResponse = AcceptedJobResponse

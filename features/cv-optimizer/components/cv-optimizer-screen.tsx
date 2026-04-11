@@ -1,16 +1,20 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { AlertCircle, ArrowRight, CheckCircle2, Download, FileText, Loader, Upload, X, XCircle } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertCircle, ArrowRight, CheckCircle2, Download, FileText, Loader, Target, Upload, X, XCircle } from 'lucide-react'
 import type {
+  ActionPlan,
+  ActionPlanItem,
   AnalyzeCvRequest,
   AnalyzeCvResult,
+  AtsExtractedKeyword,
+  AtsKeywordCategory,
   BulletEvaluation,
-  KeywordHighlight,
   RewriteSuggestion,
 } from '@advance-academy/contracts'
 import { type CvOptimizerTab, useCvOptimizer } from '@/features/cv-optimizer/hooks/use-cv-analysis'
-import { generateRewrittenCv, parseFileForCvOptimizer } from '@/features/cv-optimizer/api/frontend-client'
+import { generateRewrittenCv, parseFileForCvOptimizer, rewriteBullet } from '@/features/cv-optimizer/api/frontend-client'
+import { HttpClientError } from '@/shared/api/http-client'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -20,14 +24,33 @@ const INITIAL_FORM: AnalyzeCvRequest = {
   jobDescription: '',
 }
 
-const TABS: { id: CvOptimizerTab; label: string }[] = [
-  { id: 'analysis', label: 'Section Scores' },
-  { id: 'keywords', label: 'Keywords & JD Fit' },
-  { id: 'ats', label: 'ATS & Format' },
-  { id: 'bullets', label: 'Bullet Impact' },
+const TABS: { id: CvOptimizerTab; label: string; weight?: string }[] = [
+  { id: 'overview', label: 'CV Overview', weight: '25%' },
+  { id: 'ats', label: 'ATS Compatibility', weight: '40%' },
+  { id: 'bullets', label: 'Bullet Impact', weight: '35%' },
   { id: 'rewrite', label: 'Rewrite Suggestions' },
-  { id: 'expert', label: 'Expert Review' },
+  { id: 'action-plan', label: 'Action Plan' },
 ]
+
+const KEYWORD_CATEGORY_LABEL: Record<AtsKeywordCategory, string> = {
+  job_title: 'Job Title',
+  tool_or_technical_skill: 'Tool/Tech',
+  hard_skill: 'Hard Skill',
+  industry_term: 'Industry Term',
+  certification: 'Certification',
+  seniority_indicator: 'Seniority',
+  mandatory_requirement: 'Mandatory',
+}
+
+const KEYWORD_CATEGORY_COLOR: Record<AtsKeywordCategory, string> = {
+  job_title: 'bg-purple-100 text-purple-700 border-purple-200',
+  tool_or_technical_skill: 'bg-blue-100 text-blue-700 border-blue-200',
+  hard_skill: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  industry_term: 'bg-teal-100 text-teal-700 border-teal-200',
+  certification: 'bg-amber-100 text-amber-700 border-amber-200',
+  seniority_indicator: 'bg-gray-100 text-gray-700 border-gray-200',
+  mandatory_requirement: 'bg-red-100 text-red-700 border-red-200',
+}
 
 // ─── Score helpers ────────────────────────────────────────────────────────────
 
@@ -128,9 +151,14 @@ function ScoreBar({ score }: { score: number }) {
 
 // ─── Results tabs ─────────────────────────────────────────────────────────────
 
-function SectionScoresTab({ results }: { results: AnalyzeCvResult }) {
+function CvOverviewTab({ results }: { results: AnalyzeCvResult }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
+        <p className="text-sm text-blue-900">
+          <span className="font-semibold">CV Overview</span> contributes <span className="font-semibold">25%</span> of your overall score. It measures how your CV reads across four core dimensions — skills, experience, role alignment, and writing impact.
+        </p>
+      </div>
       {results.sections.map((section, idx) => (
         <div key={`${section.title}-${idx}`} className={`rounded-xl border p-6 ${scoreBg(section.score)}`}>
           <div className="flex items-center justify-between mb-1">
@@ -148,94 +176,39 @@ function SectionScoresTab({ results }: { results: AnalyzeCvResult }) {
   )
 }
 
-function KeywordsTab({ results }: { results: AnalyzeCvResult }) {
-  const found = results.keywordHighlights.filter((k) => k.foundInCv)
-  const missing = results.keywordHighlights.filter((k) => !k.foundInCv)
-
-  const categoryLabel: Record<KeywordHighlight['category'], string> = {
-    required_skill: 'Required',
-    tech_stack: 'Tech Stack',
-    nice_to_have: 'Nice to Have',
-  }
-
-  const categoryColor: Record<KeywordHighlight['category'], string> = {
-    required_skill: 'bg-red-100 text-red-700 border-red-200',
-    tech_stack: 'bg-blue-100 text-blue-700 border-blue-200',
-    nice_to_have: 'bg-gray-100 text-gray-600 border-gray-200',
-  }
-
+function AtsKeywordChip({ kw }: { kw: AtsExtractedKeyword }) {
+  const baseColor = kw.foundInCv
+    ? 'bg-green-100 text-green-700 border-green-200'
+    : KEYWORD_CATEGORY_COLOR[kw.category]
   return (
-    <div className="space-y-6">
-      {results.keywordHighlights.length > 0 && (
-        <div>
-          <h4 className="font-semibold text-blue-900 mb-3">Keyword Coverage</h4>
-          <div className="flex flex-wrap gap-2">
-            {results.keywordHighlights.map((kw, idx) => (
-              <span
-                key={idx}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
-                  kw.foundInCv ? 'bg-green-100 text-green-700 border-green-200' : categoryColor[kw.category]
-                }`}
-              >
-                {kw.foundInCv
-                  ? <CheckCircle2 className="w-3 h-3" />
-                  : <XCircle className="w-3 h-3" />}
-                {kw.keyword}
-                <span className="opacity-60 text-[10px]">{categoryLabel[kw.category]}</span>
-              </span>
-            ))}
-          </div>
-          <div className="mt-2 flex gap-4 text-xs text-gray-500">
-            <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-green-500" /> Found in CV ({found.length})</span>
-            <span className="flex items-center gap-1"><XCircle className="w-3 h-3 text-red-400" /> Missing ({missing.length})</span>
-          </div>
-        </div>
-      )}
-
-      <div>
-        <h4 className="font-semibold text-blue-900 mb-3">JD Alignment</h4>
-        {results.jdAlignment.alignmentSummary && (
-          <p className="text-sm text-gray-700 mb-4 leading-relaxed">{results.jdAlignment.alignmentSummary}</p>
-        )}
-        <div className="grid sm:grid-cols-2 gap-4">
-          {results.jdAlignment.matchedRequirements.length > 0 && (
-            <div className="rounded-lg bg-green-50 border border-green-200 p-4">
-              <p className="text-xs font-semibold text-green-700 mb-2 uppercase tracking-wide">Evidenced in CV</p>
-              <ul className="space-y-1">
-                {results.jdAlignment.matchedRequirements.map((req, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-sm text-green-800">
-                    <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" /> {req}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {results.jdAlignment.missingRequirements.length > 0 && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-4">
-              <p className="text-xs font-semibold text-red-700 mb-2 uppercase tracking-wide">Not Evidenced</p>
-              <ul className="space-y-1">
-                {results.jdAlignment.missingRequirements.map((req, idx) => (
-                  <li key={idx} className="flex items-start gap-2 text-sm text-red-800">
-                    <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /> {req}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${baseColor}`}>
+      {kw.foundInCv ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+      {kw.keyword}
+      <span className="opacity-60 text-[10px]">{KEYWORD_CATEGORY_LABEL[kw.category]}</span>
+      {kw.mandatory && <span className="text-[10px] font-bold text-red-600">★</span>}
+    </span>
   )
 }
 
-function AtsTab({ results }: { results: AnalyzeCvResult }) {
+function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
+  const keywords = results.atsCheck.extractedKeywords
+  const mandatoryMissing = keywords.filter((k) => k.mandatory && !k.foundInCv)
+  const foundCount = keywords.filter((k) => k.foundInCv).length
+  const totalCount = keywords.length
+
   return (
     <div className="space-y-6">
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
+        <p className="text-sm text-blue-900">
+          <span className="font-semibold">ATS Compatibility</span> is <span className="font-semibold">40%</span> of your overall score — the single largest dimension. It measures how well your CV would perform against an applicant tracking system that screens for specific requirements, technologies, and qualifications extracted from the job description.
+        </p>
+      </div>
+
       <div className={`rounded-xl border p-6 ${scoreBg(results.atsCheck.score)}`}>
         <div className="flex items-center justify-between mb-1">
           <div>
             <h4 className="font-semibold text-blue-900">ATS Compatibility Score</h4>
-            <p className="text-xs text-gray-500 mt-0.5">How well an applicant tracking system can parse this CV</p>
+            <p className="text-xs text-gray-500 mt-0.5">Recruitment-grade scoring across mandatory requirements, keyword coverage, and relevance signals</p>
           </div>
           <span className={`text-3xl font-bold ${scoreColor(results.atsCheck.score)}`}>
             {results.atsCheck.score}
@@ -243,6 +216,49 @@ function AtsTab({ results }: { results: AnalyzeCvResult }) {
         </div>
         <ScoreBar score={results.atsCheck.score} />
       </div>
+
+      {mandatoryMissing.length > 0 && (
+        <div className="rounded-lg bg-red-50 border border-red-200 p-4">
+          <p className="text-xs font-semibold text-red-700 mb-2 uppercase tracking-wide">Missing Mandatory Requirements</p>
+          <div className="flex flex-wrap gap-2">
+            {mandatoryMissing.map((k, idx) => (
+              <AtsKeywordChip key={`mand-${idx}`} kw={k} />
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-red-600">Mandatory items are binary — missing any one of these is an immediate disqualifier for most ATS filters.</p>
+        </div>
+      )}
+
+      {keywords.length > 0 && (
+        <div>
+          <h4 className="font-semibold text-blue-900 mb-2">Extracted Keywords</h4>
+          <p className="text-xs text-gray-500 mb-3">
+            Every requirement, tool, and qualification the employer is screening for — mapped against your CV. {foundCount}/{totalCount} found.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {keywords.map((kw, idx) => <AtsKeywordChip key={idx} kw={kw} />)}
+          </div>
+        </div>
+      )}
+
+      {results.atsCheck.relevanceSignals.length > 0 && (
+        <div>
+          <h4 className="font-semibold text-blue-900 mb-3">Relevance Signals</h4>
+          <div className="space-y-2">
+            {results.atsCheck.relevanceSignals.map((s, idx) => (
+              <div key={idx} className={`rounded-lg border p-4 ${s.score >= 7 ? 'bg-green-50 border-green-200' : s.score >= 5 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-blue-900">
+                    {s.signal.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </span>
+                  <span className={`text-lg font-bold ${impactColor(s.score)}`}>{s.score}<span className="text-xs text-gray-400">/10</span></span>
+                </div>
+                <p className="text-xs text-gray-700">{s.reasoning}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid sm:grid-cols-2 gap-4">
         {results.atsCheck.passed.length > 0 && (
@@ -271,6 +287,41 @@ function AtsTab({ results }: { results: AnalyzeCvResult }) {
         )}
       </div>
 
+      {(results.jdAlignment.matchedRequirements.length > 0 || results.jdAlignment.missingRequirements.length > 0) && (
+        <div>
+          <h4 className="font-semibold text-blue-900 mb-3">JD Requirement Alignment</h4>
+          {results.jdAlignment.alignmentSummary && (
+            <p className="text-sm text-gray-700 mb-4 leading-relaxed">{results.jdAlignment.alignmentSummary}</p>
+          )}
+          <div className="grid sm:grid-cols-2 gap-4">
+            {results.jdAlignment.matchedRequirements.length > 0 && (
+              <div className="rounded-lg bg-green-50 border border-green-200 p-4">
+                <p className="text-xs font-semibold text-green-700 mb-2 uppercase tracking-wide">Evidenced in CV</p>
+                <ul className="space-y-1">
+                  {results.jdAlignment.matchedRequirements.map((req, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-green-800">
+                      <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" /> {req}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {results.jdAlignment.missingRequirements.length > 0 && (
+              <div className="rounded-lg bg-red-50 border border-red-200 p-4">
+                <p className="text-xs font-semibold text-red-700 mb-2 uppercase tracking-wide">Not Evidenced</p>
+                <ul className="space-y-1">
+                  {results.jdAlignment.missingRequirements.map((req, idx) => (
+                    <li key={idx} className="flex items-start gap-2 text-sm text-red-800">
+                      <XCircle className="w-4 h-4 flex-shrink-0 mt-0.5" /> {req}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {(results.formatCheck.issues.length > 0 || results.formatCheck.suggestions.length > 0) && (
         <div>
           <h4 className="font-semibold text-blue-900 mb-3">Format & Consistency Check</h4>
@@ -292,29 +343,259 @@ function AtsTab({ results }: { results: AnalyzeCvResult }) {
   )
 }
 
-function BulletsTab({ results }: { results: AnalyzeCvResult }) {
+function bulletBorder(score: number): string {
+  if (score >= 7) return 'border-green-200 bg-green-50'
+  if (score >= 5) return 'border-amber-200 bg-amber-50'
+  return 'border-red-200 bg-red-50'
+}
+
+interface BulletRewriteState {
+  answers: string[]
+  rewriting: boolean
+  rewritten: string | null
+  error: string | null
+  personalizeOpen: boolean
+}
+
+function BulletCard({ bullet, bulletKey, targetRole, state, onAnswersChange, onRewrite, onCopySuggested, onCopyPersonalized, onTogglePersonalize, copiedSuggested, copiedPersonalized }: {
+  bullet: BulletEvaluation
+  bulletKey: string
+  targetRole: string
+  state: BulletRewriteState
+  onAnswersChange: (answers: string[]) => void
+  onRewrite: () => void
+  onCopySuggested: () => void
+  onCopyPersonalized: () => void
+  onTogglePersonalize: () => void
+  copiedSuggested: boolean
+  copiedPersonalized: boolean
+}) {
+  const hasAutoRewrite = bullet.autoRewrite.trim().length > 0
+  const hasQuestions = bullet.clarifyingQuestions.length > 0
+  const isWeak = hasAutoRewrite || hasQuestions
+
+  return (
+    <div className={`rounded-xl border p-5 ${bulletBorder(bullet.impactScore)}`}>
+      <div className="flex items-start justify-between gap-4 mb-2">
+        <p className="text-sm text-gray-800 italic flex-1">&ldquo;{bullet.original}&rdquo;</p>
+        <div className="flex-shrink-0 text-right">
+          <span className={`text-xl font-bold ${impactColor(bullet.impactScore)}`}>{bullet.impactScore}</span>
+          <span className="text-xs text-gray-400">/10</span>
+        </div>
+      </div>
+      <p className="text-xs text-gray-600">{bullet.feedback}</p>
+      {!bullet.hasImpact && (
+        <span className="inline-block mt-2 rounded-full bg-red-100 text-red-600 text-xs px-2 py-0.5 font-medium">No measurable impact</span>
+      )}
+
+      {isWeak && (
+        <div className="mt-4 space-y-3">
+          {/* OPTION 1 — Suggested rewrite (already prepared, no input needed) */}
+          {hasAutoRewrite && (
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div>
+                  <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Option 1 — Suggested Rewrite</p>
+                  <p className="text-[11px] text-green-600/80">Tightened using only what&apos;s already in your CV — no invented numbers.</p>
+                </div>
+                <button
+                  onClick={onCopySuggested}
+                  className="text-xs text-green-700 hover:text-green-900 font-medium flex-shrink-0"
+                >
+                  {copiedSuggested ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <p className="text-sm text-gray-800 leading-relaxed">{bullet.autoRewrite}</p>
+            </div>
+          )}
+
+          {/* OPTION 2 — Personalize with your answers */}
+          {hasQuestions && (
+            <div className="rounded-lg border border-blue-200 bg-white p-4">
+              <button
+                onClick={onTogglePersonalize}
+                className="w-full flex items-center justify-between text-left"
+              >
+                <div>
+                  <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide">Option 2 — Personalize It</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Answer a few quick questions and we&apos;ll rewrite using your real impact details.</p>
+                </div>
+                <span className="text-xs font-medium text-blue-600 flex-shrink-0">
+                  {state.personalizeOpen ? 'Hide' : 'Answer questions'}
+                </span>
+              </button>
+
+              {state.personalizeOpen && (
+                <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+                  {bullet.clarifyingQuestions.map((q, qIdx) => (
+                    <div key={`${bulletKey}-q-${qIdx}`}>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">{q}</label>
+                      <input
+                        type="text"
+                        value={state.answers[qIdx] ?? ''}
+                        onChange={(e) => {
+                          const next = [...state.answers]
+                          next[qIdx] = e.target.value
+                          onAnswersChange(next)
+                        }}
+                        placeholder="Your answer..."
+                        className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-3 pt-1">
+                    <button
+                      onClick={onRewrite}
+                      disabled={state.rewriting || !targetRole}
+                      className="inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-yellow-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {state.rewriting ? <Loader className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                      {state.rewriting ? 'Rewriting...' : 'Generate personalized rewrite'}
+                    </button>
+                    {state.error && <span className="text-xs text-red-600">{state.error}</span>}
+                  </div>
+
+                  {state.rewritten && (
+                    <div className="mt-3 rounded-lg border border-green-300 bg-green-50 p-4">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Personalized Rewrite</p>
+                        <button
+                          onClick={onCopyPersonalized}
+                          className="text-xs text-green-700 hover:text-green-900 font-medium"
+                        >
+                          {copiedPersonalized ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                      <p className="text-sm text-gray-800 leading-relaxed">{state.rewritten}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BulletsTab({ results, targetRole }: { results: AnalyzeCvResult; targetRole: string }) {
+  const [rewriteStates, setRewriteStates] = useState<Record<string, BulletRewriteState>>({})
+  const [copiedSuggestedKey, setCopiedSuggestedKey] = useState<string | null>(null)
+  const [copiedPersonalizedKey, setCopiedPersonalizedKey] = useState<string | null>(null)
+
   if (results.bulletEvaluations.length === 0) {
     return <p className="text-gray-500 text-sm">No bullet evaluations returned. Ensure the CV contains structured experience bullets.</p>
   }
 
-  const sorted = [...results.bulletEvaluations].sort((a: BulletEvaluation, b: BulletEvaluation) => a.impactScore - b.impactScore)
+  // Group by project, preserving original order within each project
+  const groups = new Map<string, { bullets: BulletEvaluation[]; originalIndices: number[] }>()
+  results.bulletEvaluations.forEach((b, idx) => {
+    const key = b.project || 'Other'
+    if (!groups.has(key)) groups.set(key, { bullets: [], originalIndices: [] })
+    const g = groups.get(key)!
+    g.bullets.push(b)
+    g.originalIndices.push(idx)
+  })
+
+  // Within each group, sort weakest → strongest so the bullets that need help surface first
+  for (const g of groups.values()) {
+    const paired = g.bullets.map((b, i) => ({ b, i: g.originalIndices[i] }))
+    paired.sort((a, b) => a.b.impactScore - b.b.impactScore)
+    g.bullets = paired.map((p) => p.b)
+    g.originalIndices = paired.map((p) => p.i)
+  }
+
+  const getState = (key: string, questionCount: number): BulletRewriteState =>
+    rewriteStates[key] ?? {
+      answers: Array(questionCount).fill(''),
+      rewriting: false,
+      rewritten: null,
+      error: null,
+      personalizeOpen: false,
+    }
+
+  function updateState(key: string, patch: Partial<BulletRewriteState>) {
+    setRewriteStates((prev) => ({ ...prev, [key]: { ...getState(key, 0), ...prev[key], ...patch } }))
+  }
+
+  async function handleRewrite(key: string, bullet: BulletEvaluation) {
+    const current = getState(key, bullet.clarifyingQuestions.length)
+    updateState(key, { rewriting: true, error: null, rewritten: null })
+    try {
+      const { rewritten } = await rewriteBullet({
+        original: bullet.original,
+        project: bullet.project,
+        feedback: bullet.feedback,
+        clarifyingQuestions: bullet.clarifyingQuestions,
+        answers: current.answers,
+        targetRole,
+      })
+      updateState(key, { rewriting: false, rewritten })
+    } catch (err) {
+      const message = err instanceof HttpClientError
+        ? err.payload.message
+        : err instanceof Error
+          ? err.message
+          : 'Failed to rewrite bullet.'
+      updateState(key, { rewriting: false, error: message })
+    }
+  }
+
+  async function handleCopySuggested(key: string, text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedSuggestedKey(key)
+      window.setTimeout(() => setCopiedSuggestedKey((k) => (k === key ? null : k)), 2000)
+    } catch {
+      // ignore clipboard failures
+    }
+  }
+
+  async function handleCopyPersonalized(key: string, text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedPersonalizedKey(key)
+      window.setTimeout(() => setCopiedPersonalizedKey((k) => (k === key ? null : k)), 2000)
+    } catch {
+      // ignore clipboard failures
+    }
+  }
+
+  const weakCount = results.bulletEvaluations.filter((b) => b.impactScore <= 6).length
 
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-gray-500">Bullets sorted from weakest to strongest. Impact score is 1–10.</p>
-      {sorted.map((bullet, idx) => (
-        <div key={idx} className={`rounded-xl border p-5 ${bullet.impactScore >= 7 ? 'border-green-200 bg-green-50' : bullet.impactScore >= 4 ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50'}`}>
-          <div className="flex items-start justify-between gap-4 mb-2">
-            <p className="text-sm text-gray-800 italic flex-1">"{bullet.original}"</p>
-            <div className="flex-shrink-0 text-right">
-              <span className={`text-xl font-bold ${impactColor(bullet.impactScore)}`}>{bullet.impactScore}</span>
-              <span className="text-xs text-gray-400">/10</span>
-            </div>
-          </div>
-          <p className="text-xs text-gray-600">{bullet.feedback}</p>
-          {!bullet.hasImpact && (
-            <span className="inline-block mt-2 rounded-full bg-red-100 text-red-600 text-xs px-2 py-0.5 font-medium">No measurable impact</span>
-          )}
+    <div className="space-y-6">
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
+        <p className="text-sm text-blue-900">
+          <span className="font-semibold">Bullet Impact</span> is <span className="font-semibold">35%</span> of your overall score. Bullets are grouped by project and sorted weakest first.
+          {weakCount > 0 && <> {weakCount} bullet{weakCount === 1 ? '' : 's'} need{weakCount === 1 ? 's' : ''} strengthening — answer the clarifying questions below and we&apos;ll rewrite them using your real details.</>}
+        </p>
+      </div>
+
+      {Array.from(groups.entries()).map(([project, group]) => (
+        <div key={project} className="space-y-3">
+          <h4 className="font-semibold text-blue-900 text-base border-b border-gray-200 pb-2">{project}</h4>
+          {group.bullets.map((bullet, localIdx) => {
+            const key = `${project}::${group.originalIndices[localIdx]}`
+            const state = getState(key, bullet.clarifyingQuestions.length)
+            return (
+              <BulletCard
+                key={key}
+                bullet={bullet}
+                bulletKey={key}
+                targetRole={targetRole}
+                state={state}
+                onAnswersChange={(answers) => updateState(key, { answers })}
+                onRewrite={() => handleRewrite(key, bullet)}
+                onCopySuggested={() => handleCopySuggested(key, bullet.autoRewrite)}
+                onCopyPersonalized={() => state.rewritten && handleCopyPersonalized(key, state.rewritten)}
+                onTogglePersonalize={() => updateState(key, { personalizeOpen: !state.personalizeOpen })}
+                copiedSuggested={copiedSuggestedKey === key}
+                copiedPersonalized={copiedPersonalizedKey === key}
+              />
+            )
+          })}
         </div>
       ))}
     </div>
@@ -392,10 +673,141 @@ function RewriteTab({ results, cvFile, onDownload, downloading, downloadError, d
   )
 }
 
-function ExpertReviewTab({ results }: { results: AnalyzeCvResult }) {
+function ActionPlanSection({ title, icon, items, emptyMessage }: {
+  title: string
+  icon: React.ReactNode
+  items: ActionPlanItem[]
+  emptyMessage?: string
+}) {
+  if (items.length === 0) {
+    if (!emptyMessage) return null
+    return (
+      <div>
+        <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">{icon}{title}</h4>
+        <p className="text-sm text-gray-500 italic">{emptyMessage}</p>
+      </div>
+    )
+  }
   return (
-    <div className="bg-blue-50 rounded-xl p-8">
-      <p className="text-gray-700 text-base leading-relaxed">{results.expertReview}</p>
+    <div>
+      <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">{icon}{title}</h4>
+      <div className="space-y-2">
+        {items.map((item, idx) => (
+          <div key={idx} className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <p className="text-sm font-semibold text-blue-900">{item.title}</p>
+            {item.description && <p className="text-xs text-gray-600 mt-1 leading-relaxed">{item.description}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const ANALYZING_STEPS = [
+  'Parsing your CV...',
+  'Extracting job requirements...',
+  'Running ATS & keyword analysis...',
+  'Scoring every experience bullet...',
+  'Generating rewrite suggestions...',
+  'Building your action plan...',
+]
+
+function AnalyzingPanel({ status }: { status: 'submitting' | 'running' }) {
+  const [stepIndex, setStepIndex] = useState(0)
+
+  // Rotate through the steps every 3s so the user sees movement while the
+  // async job is running in the background.
+  useRefInterval(() => {
+    setStepIndex((i) => (i + 1) % ANALYZING_STEPS.length)
+  }, 3000)
+
+  return (
+    <div className="bg-blue-900 rounded-2xl p-12 text-center text-white">
+      <div className="flex justify-center mb-6">
+        <div className="relative">
+          <div className="w-20 h-20 rounded-full border-4 border-blue-800 border-t-yellow-400 animate-spin" />
+          <Target className="w-8 h-8 text-yellow-400 absolute inset-0 m-auto" />
+        </div>
+      </div>
+      <h2 className="text-2xl font-serif font-semibold mb-2">
+        {status === 'submitting' ? 'Sending your CV...' : 'Analyzing your CV'}
+      </h2>
+      <p className="text-blue-200 text-base mb-6 max-w-md mx-auto">
+        Our AI is running a full recruitment-grade analysis. This usually takes 20–40 seconds — hang tight.
+      </p>
+      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-800 text-sm text-blue-100">
+        <Loader className="w-4 h-4 animate-spin text-yellow-400" />
+        <span className="transition-opacity duration-300">{ANALYZING_STEPS[stepIndex]}</span>
+      </div>
+      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-blue-200 max-w-xl mx-auto">
+        <div className="rounded-lg bg-blue-800/50 px-3 py-2"><strong className="text-yellow-400">CV Overview</strong><br />Section-by-section scoring</div>
+        <div className="rounded-lg bg-blue-800/50 px-3 py-2"><strong className="text-yellow-400">ATS Intelligence</strong><br />Keyword & requirement match</div>
+        <div className="rounded-lg bg-blue-800/50 px-3 py-2"><strong className="text-yellow-400">Action Plan</strong><br />What to do next</div>
+      </div>
+    </div>
+  )
+}
+
+// Lightweight setInterval wrapper that cleans itself up on unmount.
+function useRefInterval(callback: () => void, delay: number) {
+  const savedCallback = useRef(callback)
+  savedCallback.current = callback
+  useEffect(() => {
+    const id = window.setInterval(() => savedCallback.current(), delay)
+    return () => window.clearInterval(id)
+  }, [delay])
+}
+
+function ActionPlanTab({ plan }: { plan: ActionPlan }) {
+  const hasAnything =
+    plan.summary.trim().length > 0 ||
+    plan.projectsToBuild.length > 0 ||
+    plan.skillsToLearn.length > 0 ||
+    plan.certifications.length > 0 ||
+    plan.intermediateRoles.length > 0
+
+  if (!hasAnything) {
+    return <p className="text-gray-500 text-sm">No action plan returned.</p>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
+        <p className="text-sm text-blue-900">
+          Concrete next steps tailored to your gaps — specific projects to build, skills to acquire, certifications to pursue, and roles to target in the interim.
+        </p>
+      </div>
+      {plan.summary && (
+        <div className="bg-blue-900 rounded-xl p-6 text-white">
+          <p className="text-xs font-semibold text-yellow-400 mb-2 uppercase tracking-wide flex items-center gap-2">
+            <Target className="w-4 h-4" /> Strategic Summary
+          </p>
+          <p className="text-blue-100 text-base leading-relaxed">{plan.summary}</p>
+        </div>
+      )}
+      <ActionPlanSection
+        title="Projects to Build"
+        icon={<span className="text-yellow-500 font-bold">1.</span>}
+        items={plan.projectsToBuild}
+        emptyMessage="No portfolio gaps identified."
+      />
+      <ActionPlanSection
+        title="Skills to Learn"
+        icon={<span className="text-yellow-500 font-bold">2.</span>}
+        items={plan.skillsToLearn}
+      />
+      <ActionPlanSection
+        title="Certifications"
+        icon={<span className="text-yellow-500 font-bold">3.</span>}
+        items={plan.certifications}
+        emptyMessage="No certifications are strictly required for this role."
+      />
+      <ActionPlanSection
+        title="Intermediate Roles to Target"
+        icon={<span className="text-yellow-500 font-bold">4.</span>}
+        items={plan.intermediateRoles}
+        emptyMessage="No seniority gap detected — you can apply directly to the target role."
+      />
     </div>
   )
 }
@@ -410,16 +822,55 @@ export function CvOptimizerScreen() {
   const [cvParsing, setCvParsing] = useState(false)
   const [jdParsing, setJdParsing] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [downloadingRewrite, setDownloadingRewrite] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null)
 
-  const { tab, setTab, state, submit, reset, latestJob } = useCvOptimizer()
+  function validateForm(values: AnalyzeCvRequest): string[] {
+    const errors: string[] = []
+    if (!values.targetRole.trim()) {
+      errors.push('Please enter a target role so we know what to compare your CV against.')
+    }
+    if (values.currentCvText.trim().length < 30) {
+      errors.push('Please upload your CV or paste at least a few sentences of CV content.')
+    }
+    return errors
+  }
+
+  function handleSubmit() {
+    const errors = validateForm(form)
+    if (errors.length > 0) {
+      setValidationErrors(errors)
+      return
+    }
+    setValidationErrors([])
+    submit(form)
+  }
+
+  function friendlyServerError(message: string | undefined): string[] {
+    if (!message) return []
+    // Legacy Zod issues may leak through as a JSON array string — parse them.
+    const trimmed = message.trim()
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed) as Array<{ message?: string }>
+        const messages = parsed.map((i) => i?.message).filter((m): m is string => Boolean(m))
+        if (messages.length > 0) return messages
+      } catch {
+        // fall through to raw display
+      }
+    }
+    return [message]
+  }
+
+  const { tab, setTab, state, submit, reset } = useCvOptimizer()
   const isBusy = state.status === 'submitting' || state.status === 'running'
   const results = state.data
 
   function updateField<K extends keyof AnalyzeCvRequest>(key: K, value: AnalyzeCvRequest[K]) {
     setForm((current) => ({ ...current, [key]: value }))
+    if (validationErrors.length > 0) setValidationErrors([])
   }
 
   async function handleCvFile(file: File) {
@@ -479,15 +930,18 @@ export function CvOptimizerScreen() {
 
   function handleReset() {
     reset(); setForm(INITIAL_FORM); setCvFile(null); setCvFileName(null); setJdFileName(null); setParseError(null)
+    setValidationErrors([])
     setDownloadError(null); setDownloadNotice(null)
   }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-4xl font-serif font-bold text-blue-900 mb-2">CV Optimizer</h1>
-      <p className="text-gray-500 mb-8">Analyze your CV against a job description — get scores, keyword gaps, ATS check, bullet impact ratings, and rewrite suggestions.</p>
+      <p className="text-gray-500 mb-8">Upload your CV and a job description — our AI runs a full recruitment-grade analysis in seconds.</p>
 
-      {!results ? (
+      {isBusy && !results ? (
+        <AnalyzingPanel status={state.status === 'submitting' ? 'submitting' : 'running'} />
+      ) : !results ? (
         <div className="grid md:grid-cols-2 gap-8">
           {/* Left — inputs */}
           <div className="bg-gray-50 rounded-xl p-8 space-y-5">
@@ -510,24 +964,37 @@ export function CvOptimizerScreen() {
                 placeholder="Or paste the job description here..." className="min-h-28 w-full rounded-lg border border-gray-200 px-4 py-3 bg-white text-sm" />
             </div>
 
-            {(parseError || state.error) && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {parseError ?? state.error?.message}
-              </div>
-            )}
+            {(() => {
+              const messages: string[] = []
+              if (parseError) messages.push(parseError)
+              if (validationErrors.length > 0) messages.push(...validationErrors)
+              else if (state.error?.message) {
+                const details = state.error as { details?: { fieldErrors?: { message: string }[] } }
+                const fieldErrors = details.details?.fieldErrors?.map((f) => f.message) ?? []
+                if (fieldErrors.length > 0) messages.push(...fieldErrors)
+                else messages.push(...friendlyServerError(state.error.message))
+              }
+              if (messages.length === 0) return null
+              return (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {messages.length === 1 ? (
+                    <p>{messages[0]}</p>
+                  ) : (
+                    <ul className="space-y-1 list-disc list-inside">
+                      {messages.map((m, idx) => <li key={idx}>{m}</li>)}
+                    </ul>
+                  )}
+                </div>
+              )
+            })()}
 
-            <button onClick={() => submit(form)} disabled={isBusy || cvParsing || jdParsing}
+            <button onClick={handleSubmit} disabled={isBusy || cvParsing || jdParsing}
               className="w-full mt-2 px-6 py-3 bg-yellow-500 text-blue-900 rounded-lg font-semibold hover:bg-yellow-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               {isBusy ? (
                 <><Loader className="w-4 h-4 animate-spin" />{state.status === 'submitting' ? 'Submitting...' : 'Analyzing...'}</>
               ) : 'Analyze My CV'}
             </button>
 
-            {latestJob && (
-              <p className="text-xs text-gray-400 text-center">
-                Job <span className="font-mono">{latestJob.jobId.slice(0, 8)}…</span> · {latestJob.status}
-              </p>
-            )}
           </div>
 
           {/* Right — description + tips */}
@@ -535,20 +1002,22 @@ export function CvOptimizerScreen() {
             <div className="bg-blue-900 rounded-xl p-8 text-white">
               <h3 className="text-xl font-serif font-semibold mb-3">What this tool does</h3>
               <p className="text-blue-100 leading-relaxed mb-4">
-                Upload your CV and a job description — our AI compares them side by side across six dimensions.
+                Upload your CV and a job description — our AI runs a full recruitment-grade analysis in seconds.
               </p>
-              <ul className="space-y-2 text-blue-200 text-sm">
+              <ul className="space-y-3 text-blue-200 text-sm">
                 {[
-                  ['Section Scores', 'Scored feedback on skills, experience, alignment, and writing.'],
-                  ['Keywords & JD Fit', 'Every named technology and requirement from the JD, marked found or missing.'],
-                  ['ATS & Format', 'Applicant tracking system compatibility and format/typo issues.'],
-                  ['Bullet Impact', 'Semantic evaluation of every experience bullet — does it show real impact?'],
-                  ['Rewrite Suggestions', 'Side-by-side view of weak content and a stronger version to replace it.'],
-                  ['Expert Review', 'Holistic verdict from an AI career coach.'],
-                ].map(([title, desc], i) => (
+                  ['CV Overview', 'Your overall match score and a breakdown of how your CV performs across every dimension. See exactly where you stand before you apply.', '25% of total score'],
+                  ['ATS Compatibility', 'Every requirement, technology, and qualification the employer is screening for — mapped against your CV line by line. Know exactly what an Applicant Tracking System sees before a human ever does.', '40% of total score'],
+                  ['Bullet Impact', 'Every experience bullet analysed for real-world impact. Are you showing outcomes or just listing duties?', '35% of total score'],
+                  ['Rewrite Suggestions', 'Side-by-side view of weak content and a stronger AI-generated version, driven directly by the gaps found in your analysis.', 'unscored'],
+                  ['Action Plan', 'Concrete next steps tailored to your gaps. Specific projects to build, skills to acquire, certifications to pursue, and experiences to target — so you know exactly what to do before your next application.', 'unscored'],
+                ].map(([title, desc, weight], i) => (
                   <li key={i} className="flex gap-2">
                     <span className="text-yellow-400 font-bold mt-0.5">{i + 1}.</span>
-                    <span><strong className="text-white">{title}</strong> — {desc}</span>
+                    <div className="flex-1">
+                      <strong className="text-white">{title}</strong> — {desc}
+                      <div className="text-[10px] uppercase tracking-wide text-yellow-400 mt-0.5">{weight}</div>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -579,25 +1048,28 @@ export function CvOptimizerScreen() {
             </button>
           </div>
 
-          {/* Score header */}
-          <div className="grid sm:grid-cols-3 gap-4 mb-8">
+          {/* Score header: overall + 25/40/35 breakdown */}
+          <div className="grid sm:grid-cols-4 gap-4 mb-8">
             <div className={`rounded-xl border p-6 ${scoreBg(results.overallScore)}`}>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Overall Score</p>
               <p className={`text-4xl font-bold ${scoreColor(results.overallScore)}`}>{results.overallScore}<span className="text-lg text-gray-400">/100</span></p>
               <ScoreBar score={results.overallScore} />
+              <p className="text-[10px] text-gray-500 mt-2">Weighted composite of the three dimensions</p>
             </div>
-            <div className={`rounded-xl border p-6 ${scoreBg(results.atsCheck.score)}`}>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">ATS Score</p>
-              <p className={`text-4xl font-bold ${scoreColor(results.atsCheck.score)}`}>{results.atsCheck.score}<span className="text-lg text-gray-400">/100</span></p>
-              <ScoreBar score={results.atsCheck.score} />
+            <div className={`rounded-xl border p-6 ${scoreBg(results.scoreBreakdown.cvOverview)}`}>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">CV Overview <span className="text-gray-400">(25%)</span></p>
+              <p className={`text-4xl font-bold ${scoreColor(results.scoreBreakdown.cvOverview)}`}>{results.scoreBreakdown.cvOverview}<span className="text-lg text-gray-400">/100</span></p>
+              <ScoreBar score={results.scoreBreakdown.cvOverview} />
             </div>
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-6">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Keywords Found</p>
-              <p className="text-4xl font-bold text-blue-900">
-                {results.keywordHighlights.filter((k) => k.foundInCv).length}
-                <span className="text-lg text-gray-400">/{results.keywordHighlights.length}</span>
-              </p>
-              <p className="text-xs text-gray-500 mt-2">from the job description</p>
+            <div className={`rounded-xl border p-6 ${scoreBg(results.scoreBreakdown.atsAndKeywordIntelligence)}`}>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">ATS & Keywords <span className="text-gray-400">(40%)</span></p>
+              <p className={`text-4xl font-bold ${scoreColor(results.scoreBreakdown.atsAndKeywordIntelligence)}`}>{results.scoreBreakdown.atsAndKeywordIntelligence}<span className="text-lg text-gray-400">/100</span></p>
+              <ScoreBar score={results.scoreBreakdown.atsAndKeywordIntelligence} />
+            </div>
+            <div className={`rounded-xl border p-6 ${scoreBg(results.scoreBreakdown.bulletImpact)}`}>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Bullet Impact <span className="text-gray-400">(35%)</span></p>
+              <p className={`text-4xl font-bold ${scoreColor(results.scoreBreakdown.bulletImpact)}`}>{results.scoreBreakdown.bulletImpact}<span className="text-lg text-gray-400">/100</span></p>
+              <ScoreBar score={results.scoreBreakdown.bulletImpact} />
             </div>
           </div>
 
@@ -613,10 +1085,9 @@ export function CvOptimizerScreen() {
             ))}
           </div>
 
-          {tab === 'analysis' && <SectionScoresTab results={results} />}
-          {tab === 'keywords' && <KeywordsTab results={results} />}
-          {tab === 'ats' && <AtsTab results={results} />}
-          {tab === 'bullets' && <BulletsTab results={results} />}
+          {tab === 'overview' && <CvOverviewTab results={results} />}
+          {tab === 'ats' && <AtsIntelligenceTab results={results} />}
+          {tab === 'bullets' && <BulletsTab results={results} targetRole={form.targetRole} />}
           {tab === 'rewrite' && (
             <RewriteTab
               results={results}
@@ -627,7 +1098,7 @@ export function CvOptimizerScreen() {
               downloadNotice={downloadNotice}
             />
           )}
-          {tab === 'expert' && <ExpertReviewTab results={results} />}
+          {tab === 'action-plan' && <ActionPlanTab plan={results.actionPlan} />}
         </div>
       )}
     </div>

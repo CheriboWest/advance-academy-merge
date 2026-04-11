@@ -3,6 +3,8 @@ import type {
   AnalyzeCvRequest,
   AnalyzeCvResult,
   JobStatusResponse,
+  RewriteBulletRequest,
+  RewriteBulletResponse,
 } from '@advance-academy/contracts'
 import type { DreamCompanyInput, ProfileAnalysis, TargetRole, RoadmapResponse } from '@/types/dream-company'
 import type {
@@ -81,6 +83,16 @@ export function generateRewrittenCvWithBackend(formData: FormData): Promise<Resp
   return fetch(`${backendUrl}/api/cv-optimizer/generate-rewritten-cv`, {
     method: 'POST',
     body: formData,
+  })
+}
+
+export function rewriteBulletWithBackend(payload: RewriteBulletRequest) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchJson<RewriteBulletResponse>(`${backendUrl}/api/cv-optimizer/rewrite-bullet`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 30000,
   })
 }
 
