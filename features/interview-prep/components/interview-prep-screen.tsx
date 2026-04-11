@@ -29,7 +29,9 @@ import type { ViewName } from '@/shared/types/navigation'
 import type { PersonaId, InterviewStep } from '@/features/interview-prep/types'
 import { PERSONAS } from '@/data/personas'
 import { useInterview } from '@/hooks/use-interview'
+import type { InterviewMode } from '@/hooks/use-interview'
 import { IRSMeter } from '@/components/interview/irs-meter'
+import { MicButton } from '@/features/interview-prep/components/mic-button'
 import { irsScoreColor, irsScoreLabel } from '@/shared/utils/score-utils'
 
 interface InterviewPrepScreenProps {
@@ -71,6 +73,8 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
         <PersonaStep
           selectedPersona={interview.selectedPersona}
           onSelect={interview.setSelectedPersona}
+          mode={interview.mode}
+          onSelectMode={interview.setMode}
           onBack={() => interview.setStep('setup')}
           onStart={interview.startSession}
           loading={interview.loading}
@@ -80,6 +84,7 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
       {interview.step === 'interview' && interview.session && (
         <InterviewStepView
           session={interview.session}
+          mode={interview.mode}
           input={interview.input}
           setInput={interview.setInput}
           loading={interview.loading}
@@ -89,6 +94,8 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
           candidateAnswerCount={interview.candidateAnswerCount}
           onRequestCoach={interview.requestCoach}
           onSubmitJit={interview.submitJitClarification}
+          transcribeAudio={interview.transcribeAudio}
+          transcribing={interview.transcribing}
         />
       )}
 
@@ -476,12 +483,16 @@ function SetupStep({
 function PersonaStep({
   selectedPersona,
   onSelect,
+  mode,
+  onSelectMode,
   onBack,
   onStart,
   loading,
 }: {
   selectedPersona: PersonaId | null
   onSelect: (id: PersonaId) => void
+  mode: InterviewMode
+  onSelectMode: (mode: InterviewMode) => void
   onBack: () => void
   onStart: () => void
   loading: boolean
@@ -524,12 +535,34 @@ function PersonaStep({
 
       <div className="bg-blue-50 rounded-xl p-4 mb-8 flex items-center gap-4">
         <div className="flex items-center gap-3">
-          <div className="px-3 py-1.5 bg-blue-900 text-white rounded-lg text-sm font-medium">Text Mode</div>
-          <div className="px-3 py-1.5 bg-gray-200 text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onSelectMode('text')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              mode === 'text'
+                ? 'bg-blue-900 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            Text Mode
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelectMode('voice')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              mode === 'voice'
+                ? 'bg-blue-900 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
             <Mic className="w-3.5 h-3.5" /> Voice Mode
-            <span className="text-xs">(Coming Soon)</span>
-          </div>
+          </button>
         </div>
+        <p className="text-xs text-gray-600 ml-auto">
+          {mode === 'voice'
+            ? 'Speak your answers — we transcribe them for you.'
+            : 'Type your answers in the chat box.'}
+        </p>
       </div>
 
       <div className="flex items-center justify-between">
@@ -561,6 +594,7 @@ function PersonaStep({
 
 function InterviewStepView({
   session,
+  mode,
   input,
   setInput,
   loading,
@@ -570,8 +604,11 @@ function InterviewStepView({
   candidateAnswerCount,
   onRequestCoach,
   onSubmitJit,
+  transcribeAudio,
+  transcribing,
 }: {
   session: NonNullable<ReturnType<typeof useInterview>['session']>
+  mode: InterviewMode
   input: string
   setInput: (val: string) => void
   loading: boolean
@@ -581,6 +618,8 @@ function InterviewStepView({
   candidateAnswerCount: number
   onRequestCoach: (messageId: string) => Promise<void>
   onSubmitJit: (messageId: string, promptIndex: number, answer: string) => Promise<void>
+  transcribeAudio: (blob: Blob) => Promise<string>
+  transcribing: boolean
 }) {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -667,14 +706,28 @@ function InterviewStepView({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type your answer here... (Ctrl + Enter to send)"
-              disabled={loading}
+              placeholder={
+                mode === 'voice'
+                  ? 'Press Record to speak your answer, or type here... (Ctrl + Enter to send)'
+                  : 'Type your answer here... (Ctrl + Enter to send)'
+              }
+              disabled={loading || transcribing}
               rows={3}
               className="w-full text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none resize-none disabled:opacity-50"
             />
-            <div className="flex items-center justify-between mt-2">
+            <div className="flex items-center justify-between mt-2 gap-2">
               <span className="text-xs text-gray-400">{input.length} characters</span>
               <div className="flex items-center gap-2">
+                {mode === 'voice' && (
+                  <MicButton
+                    disabled={loading}
+                    transcribing={transcribing}
+                    onTranscribe={transcribeAudio}
+                    onTranscribed={(text) =>
+                      setInput(input.trim() ? `${input.trim()} ${text}` : text)
+                    }
+                  />
+                )}
                 <button
                   onClick={onEnd}
                   disabled={candidateAnswerCount < 1 || loading}
@@ -684,7 +737,7 @@ function InterviewStepView({
                 </button>
                 <button
                   onClick={onSend}
-                  disabled={!input.trim() || loading}
+                  disabled={!input.trim() || loading || transcribing}
                   className="flex items-center gap-1.5 px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Send className="w-3.5 h-3.5" /> Send

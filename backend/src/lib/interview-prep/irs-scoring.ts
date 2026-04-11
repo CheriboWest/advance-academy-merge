@@ -42,7 +42,15 @@ export async function scoreAnswer(
 
   let userPrompt = `INTERVIEW QUESTION: ${question}\n\nCANDIDATE ANSWER: ${answer}`;
   if (context) {
-    userPrompt = `JOB TITLE: ${context.jobTitle}\nCOMPANY: ${context.companyName}\nJOB DESCRIPTION: ${context.jobDescription}\n\nCANDIDATE CV SUMMARY: ${context.cvText.substring(0, 1500)}\n\n${userPrompt}`;
+    const cvText = context.cvText.slice(0, 8000);
+    userPrompt =
+      `=== JOB BEING INTERVIEWED FOR ===\n` +
+      `Title: ${context.jobTitle}\n` +
+      `Company: ${context.companyName}\n` +
+      `Job Description (the role's requirements — NOT things the candidate claimed):\n"""\n${context.jobDescription}\n"""\n\n` +
+      `=== CANDIDATE'S CV (the ONLY source of claims the candidate has made) ===\n"""\n${cvText}\n"""\n\n` +
+      `When judging Integrity, compare the answer ONLY against the CV section above. Do not treat Job Description text as claims the candidate made.\n\n` +
+      userPrompt;
   }
 
   const response = await anthropic.messages.create({

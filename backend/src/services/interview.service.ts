@@ -20,16 +20,27 @@ import type {
 } from '../types/interview-prep.js';
 
 function buildContextPreamble(context: InterviewContext): string {
+  const cvText = context.cvText.slice(0, 12000);
   return `
-CANDIDATE CONTEXT:
-- Job Title: ${context.jobTitle}
-- Company: ${context.companyName}${context.companyUrl ? ` (${context.companyUrl})` : ''}
-- Job Description: ${context.jobDescription}
-- Candidate CV Summary: ${context.cvText.substring(0, 2000)}
-${context.extraLinks ? `- Additional Links: ${context.extraLinks}` : ''}
+=== JOB BEING INTERVIEWED FOR ===
+Title: ${context.jobTitle}
+Company: ${context.companyName}${context.companyUrl ? ` (${context.companyUrl})` : ''}
+Job Description (requirements, responsibilities — NOT claims the candidate made):
+"""
+${context.jobDescription}
+"""
 
-Use this context to tailor your questions to the specific role, company, and candidate background.
-Focus on competencies relevant to this job description.`;
+=== CANDIDATE'S CV (the ONLY source of claims the candidate has actually made) ===
+"""
+${cvText}
+"""
+${context.extraLinks ? `\nAdditional candidate links: ${context.extraLinks}\n` : ''}
+=== RULES FOR YOUR QUESTIONS ===
+1. Tailor questions to the job above, but base any reference to "what the candidate said/wrote/claims" ONLY on the CV section — never on the Job Description.
+2. Do NOT paraphrase, quote, or attribute Job Description text to the candidate. The JD is the role's requirements, not the candidate's statements.
+3. If the CV does not mention a specific skill, project, or metric that the JD asks for, you may ask the candidate to explain how they would meet that requirement — but phrase it as a gap to explore, not as a claim to challenge.
+4. Only challenge or "dig into" claims that actually appear verbatim or clearly in the CV section.
+5. Ask one question at a time.`;
 }
 
 export async function startInterviewSession(body: StartSessionBody): Promise<StartSessionResponse> {
