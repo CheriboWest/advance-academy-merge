@@ -49,6 +49,7 @@ The full list of variables the backend reads:
 | `SUPABASE_URL` | *(empty)* | **Required** for Interview Prep + CV Library persistence |
 | `SUPABASE_SERVICE_ROLE_KEY` | *(empty)* | **Required** for Interview Prep + CV Library persistence (server-side only — never expose to the browser) |
 | `MVP_USER_ID` | `00000000-0000-0000-0000-000000000000` | Owns all Supabase rows until real auth is wired in |
+| `VOYAGE_API_KEY` | *(empty)* | Optional. Enables pgvector similarity search in the CV Library (bullet merge suggestions). Free tier at [dash.voyageai.com](https://dash.voyageai.com) includes 200M tokens of `voyage-3.5-lite` — plenty for this workload. Without it, upload still works but the Resolve Bullets step shows no candidates. |
 
 ### Frontend — `.env.local` (optional)
 

@@ -42,7 +42,8 @@ The frontend is the Next.js application at the repo root. It is a single-page Ap
 │       ├── interview/sessions/[id]/route.ts            (proxy: detail)
 │       ├── interview-prep/extract-job-from-url/route.ts (proxy: Jina + LLM)
 │       ├── evaluate/route.ts                           (proxy: final report)
-│       └── cv-library/                                  (proxies: versions, bullets, gaps, jit-clarification)
+│       ├── cv-library/                                  (proxies: versions — two-phase upload, bullets/:id/similar, bullets/merge, gaps, jit-clarification, backfill-embeddings)
+│       └── coach-understanding/                         (proxies: generate, reports, reports/:id)
 ├── features/                         Feature modules
 │   ├── home/                         Landing page
 │   ├── cv-optimizer/

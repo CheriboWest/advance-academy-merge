@@ -142,7 +142,9 @@ The app has **two storage layers**:
 
 - **Supabase Postgres** — backs Interview Prep and the CV Library. The backend talks to it via `backend/src/lib/supabase.ts` (`getSupabase()`, `getMvpUserId()`). Tables (see `supabase/migrations/`):
   - `interview_sessions`, `interview_questions`, `answer_assessments`, `answer_coaching` — interview transcripts + IRS scores + per-answer coaching
-  - `cv_versions`, `cv_bullets`, `bullet_gaps`, `bullet_artifacts` — the CV Library knowledge base
+  - `cv_versions`, `cv_bullets`, `cv_version_bullets`, `bullet_gaps`, `bullet_artifacts` — the CV Library knowledge base. `cv_bullets` is a **user-scoped pool**: bullets belong to a `user_id`, not a `cv_version_id`, and multiple CV versions reference the same bullet via the `cv_version_bullets` junction table (M:N). This is what makes a single gap/artifact visible across every CV the user uploads — see [CV_KNOWLEDGE_BASE.md](./CV_KNOWLEDGE_BASE.md) for the design rationale.
+  - `cv_bullets.bullet_embedding` is a `vector(1024)` column (pgvector) populated by Voyage `voyage-3.5-lite`. Used for cross-CV similarity search during the two-phase upload flow.
+  - `coach_understanding_reports` — persisted markdown reports for the "AI Coach's Understanding About My Background" feature.
   - `companies`, `job_targets`, `candidate_profiles`, etc. — supporting tables
 - **In-memory `Map` (single process)** — used by **CV Optimizer** only. `POST /api/cv-optimizer/analyze` returns `202` + a `jobId`; the client polls `GET /api/cv-optimizer/jobs/:jobId`.
 

@@ -15,6 +15,8 @@ The backend is a Fastify + TypeScript workspace at `backend/`. It is LLM-powered
 | PDF parsing | `pdf-parse` |
 | DOCX parsing | `mammoth` |
 | Database | `@supabase/supabase-js` (Interview Prep + CV Library only) |
+| Vector search | `pgvector` Postgres extension, enabled in migration `003` |
+| Embeddings | Voyage AI `voyage-3.5-lite` (1024 dims) via plain `fetch` — no SDK. Used by CV Library for cross-CV similarity search. |
 | URL fetching | `fetch` against `https://r.jina.ai/` (Outreach + CV Library) |
 | Dev runner | `tsx` |
 
@@ -45,7 +47,8 @@ backend/src/
 │   ├── interview-prep.ts                POST /api/interview-prep/extract-job-from-url
 │   ├── interview.ts                     POST /api/interview, POST /api/evaluate, GET /api/interview/sessions[/:id]
 │   ├── coach-answer.ts                  POST /api/interview/coach-answer
-│   └── cv-library.ts                    /api/cv-library/* (versions, bullets, gaps, artifacts, jit-clarification)
+│   ├── coach-understanding.ts           POST /api/coach-understanding/generate, GET /reports[/:id]
+│   └── cv-library.ts                    /api/cv-library/* (versions — two-phase upload, finalize, bullets/similar, bullets/merge, gaps, artifacts, jit-clarification, backfill-embeddings)
 ├── services/                            Business logic
 │   ├── system.service.ts
 │   ├── llm.service.ts                   HTTP JSON mode, generateJson()
@@ -56,11 +59,13 @@ backend/src/
 │   ├── job-extraction.service.ts        Jina + LLM → structured ExtractedJob
 │   ├── interview.service.ts             startInterviewSession / sendInterviewMessage / evaluateInterview
 │   ├── feedback-engine.service.ts       Final-report LLM call
-│   ├── cv-knowledge.service.ts          CV Library: parse → bullets → gaps → artifacts
-│   └── coach-answer.service.ts          Grounded "enhanced answer" coach
+│   ├── cv-knowledge.service.ts          CV Library: two-phase upload, pgvector similarity search, bullet merge, user-scoped bullet pool
+│   ├── coach-answer.service.ts          Grounded "enhanced answer" coach — queries the whole user pool, not one CV version
+│   └── coach-understanding.service.ts   Markdown "AI Coach Understanding" reports (profile + duplicate detection + gap analysis)
 ├── lib/                                 Pure helpers
 │   ├── llm-anthropic.ts                 Anthropic SDK wrapper (assertLlmConfigured / createAnthropicClient / getFeatureModel)
 │   ├── supabase.ts                      Supabase service-role client + getMvpUserId()
+│   ├── voyage.ts                        Voyage embedding HTTP client — embedText / embedTexts / isVoyageConfigured
 │   ├── dream-company/prompts.ts
 │   ├── outreach/prompts.ts
 │   ├── cv-knowledge/prompts.ts          Bullet extraction, gap generation, summarize-with-quotes, coach prompt
@@ -78,7 +83,7 @@ backend/src/
 
 1. **Load env** — `loadBackendEnvFile()` looks for `.env` in the cwd, then `backend/.env`, and calls Node's native `process.loadEnvFile`.
 2. **Configure CORS** — reads `FRONTEND_URL`, splits on commas, passes to `@fastify/cors`.
-3. **Register routes** — `registerSystemRoutes` → `registerCvOptimizerRoutes` → `registerDreamCompanyRoutes` → `registerOutreachRoutes` → `registerInterviewPrepRoutes` → `registerCvLibraryRoutes` → `registerCoachAnswerRoutes` → `registerInterviewRoutes`.
+3. **Register routes** — `registerSystemRoutes` → `registerCvOptimizerRoutes` → `registerDreamCompanyRoutes` → `registerOutreachRoutes` → `registerInterviewPrepRoutes` → `registerCvLibraryRoutes` → `registerCoachAnswerRoutes` → `registerInterviewRoutes` → `registerCoachUnderstandingRoutes`.
 4. **Listen** — `0.0.0.0:PORT` (default `4000`).
 
 If you add a new route module, **you must call it here** or the routes will never be reachable.
