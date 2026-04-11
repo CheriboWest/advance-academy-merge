@@ -5,9 +5,10 @@ import {
   getCvAnalysisJob,
   getAnalyzeTemplate,
   extractFileText,
+  rewriteBulletWithAnswers,
 } from '../services/cv-optimizer.service.js';
 import { generateRewrittenCvFile } from '../services/cv-rewrite-file.service.js';
-import type { AnalyzeCvRequest, RewriteSuggestion } from '@advance-academy/contracts/cv-optimizer';
+import type { AnalyzeCvRequest, RewriteBulletRequest, RewriteSuggestion } from '@advance-academy/contracts/cv-optimizer';
 
 export async function registerCvOptimizerRoutes(app: FastifyInstance) {
   app.get('/api/cv-optimizer/template', async () => getAnalyzeTemplate());
@@ -116,6 +117,40 @@ export async function registerCvOptimizerRoutes(app: FastifyInstance) {
     const job = await createCvAnalysisJob(body);
 
     return reply.code(202).send(job);
+  });
+
+  app.post<{ Body: RewriteBulletRequest }>('/api/cv-optimizer/rewrite-bullet', async (request, reply) => {
+    const body = request.body as RewriteBulletRequest;
+
+    if (!body?.original || !body?.targetRole) {
+      return reply.code(400).send({
+        code: 'INVALID_REQUEST',
+        message: 'original and targetRole are required.',
+      });
+    }
+
+    try {
+      const result = await rewriteBulletWithAnswers({
+        original: body.original,
+        project: body.project ?? 'Other',
+        feedback: body.feedback ?? '',
+        clarifyingQuestions: Array.isArray(body.clarifyingQuestions) ? body.clarifyingQuestions : [],
+        answers: Array.isArray(body.answers) ? body.answers : [],
+        targetRole: body.targetRole,
+      });
+      return result;
+    } catch (error) {
+      const statusCode = error && typeof error === 'object' && 'statusCode' in error
+        ? Number((error as { statusCode?: number }).statusCode)
+        : undefined;
+      if (statusCode === 503) {
+        return reply.code(503).send({ code: 'LLM_UNAVAILABLE', message: error instanceof Error ? error.message : 'LLM unavailable' });
+      }
+      return reply.code(500).send({
+        code: 'REWRITE_FAILED',
+        message: error instanceof Error ? error.message : 'Failed to rewrite bullet.',
+      });
+    }
   });
 
   app.get<{ Params: { jobId: string } }>('/api/cv-optimizer/jobs/:jobId', async (request, reply) => {

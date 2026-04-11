@@ -5,6 +5,8 @@ import type {
   AnalyzeCvRequest,
   AnalyzeCvResult,
   JobStatusResponse,
+  RewriteBulletRequest,
+  RewriteBulletResponse,
   RewriteSuggestion,
 } from '@advance-academy/contracts'
 import { fetchFormDataJson, fetchJson, HttpClientError } from '@/shared/api/http-client'
@@ -29,6 +31,14 @@ export function parseFileForCvOptimizer(file: File) {
   formData.append('file', file)
 
   return fetchFormDataJson<{ text: string }>('/api/cv-optimizer/parse-cv', formData, { timeoutMs: 60000 })
+}
+
+export function rewriteBullet(payload: RewriteBulletRequest) {
+  return fetchJson<RewriteBulletResponse>('/api/cv-optimizer/rewrite-bullet', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 30000,
+  })
 }
 
 export interface GenerateRewrittenCvResult {

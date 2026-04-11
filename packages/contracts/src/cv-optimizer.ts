@@ -20,9 +20,27 @@ export interface KeywordHighlight {
 
 export interface BulletEvaluation {
   original: string
+  project: string         // Role / project / company this bullet belongs to
   hasImpact: boolean
-  impactScore: number  // 1–10
+  impactScore: number     // 1–10
   feedback: string
+  /** Auto-generated rewrite for weak bullets, derived from the original CV content only (no invented metrics). Empty string when the bullet is already strong. */
+  autoRewrite: string
+  /** Targeted questions to extract missing impact/responsibility context. Empty when the bullet is already strong. */
+  clarifyingQuestions: string[]
+}
+
+export interface RewriteBulletRequest {
+  original: string
+  project: string
+  feedback: string
+  clarifyingQuestions: string[]
+  answers: string[]       // Aligned by index with clarifyingQuestions
+  targetRole: string
+}
+
+export interface RewriteBulletResponse {
+  rewritten: string
 }
 
 export interface RewriteSuggestion {

@@ -18,6 +18,8 @@ import type {
   FormatCheck,
   JdAlignment,
   KeywordHighlight,
+  RewriteBulletRequest,
+  RewriteBulletResponse,
   RewriteSuggestion,
   ScoreBreakdown,
 } from '@advance-academy/contracts/cv-optimizer';
@@ -611,7 +613,15 @@ function normalizeResult(_targetRole: string, raw: Partial<AnalyzeCvResult>): Om
       issues: safeArray<string>(rawFmt.issues),
       suggestions: safeArray<string>(rawFmt.suggestions),
     },
-    bulletEvaluations: safeArray<BulletEvaluation>(raw.bulletEvaluations),
+    bulletEvaluations: safeArray<BulletEvaluation>(raw.bulletEvaluations).map((b) => ({
+      original: safeString(b?.original),
+      project: safeString(b?.project, 'Other'),
+      hasImpact: Boolean(b?.hasImpact),
+      impactScore: Math.max(1, Math.min(10, Math.round(Number(b?.impactScore ?? 0)))),
+      feedback: safeString(b?.feedback),
+      autoRewrite: safeString(b?.autoRewrite),
+      clarifyingQuestions: safeArray<string>(b?.clarifyingQuestions).filter((q) => typeof q === 'string' && q.trim().length > 0),
+    })).filter((b) => b.original.length > 0),
     rewriteSuggestions: safeArray<RewriteSuggestion>(raw.rewriteSuggestions),
     jdAlignment: {
       matchedRequirements: safeArray<string>(rawAlignment.matchedRequirements),
@@ -637,7 +647,15 @@ The JSON must match this exact structure:
     "suggestions": [string]
   },
   "bulletEvaluations": [
-    { "original": string, "hasImpact": boolean, "impactScore": <integer 1–10>, "feedback": string }
+    {
+      "original": string,
+      "project": string,
+      "hasImpact": boolean,
+      "impactScore": <integer 1–10>,
+      "feedback": string,
+      "autoRewrite": string,
+      "clarifyingQuestions": [string]
+    }
   ],
   "rewriteSuggestions": [
     { "section": string, "current": string, "suggested": string, "reason": string }
@@ -654,6 +672,9 @@ Rules:
 - keywordHighlights: extract every named technology, tool, language, framework, and method from the JD; mark each as found or missing in the CV; classify as required_skill, tech_stack, or nice_to_have
 - formatCheck: flag any typos, inconsistent capitalisation, inconsistent date formats, punctuation issues, or missing section headers
 - bulletEvaluations: evaluate every experience bullet in the CV. Score impact 1–10. Be strict — vague bullets score 1–4. These feed the "Bullet Impact" dimension of the composite score.
+  - "project" MUST identify the role, project, or company the bullet belongs to. Use the exact heading from the CV (e.g. "Software Engineer — Acme Corp", "Personal Project: Portfolio Site"). If no project context exists, use "Other".
+  - "autoRewrite": for ANY bullet scoring 6 or below, produce ONE rewritten version that immediately improves the bullet using ONLY information present in the original CV text. Start with a strong action verb, tighten the wording, surface any latent impact already mentioned. **Do NOT invent metrics, percentages, team sizes, dollar amounts, or outcomes that are not in the original.** If the original has no quantifiable detail, focus on stronger phrasing, clearer scope, and tighter language. One bullet, no leading symbol, ≤30 words. For bullets scoring 7+, return an empty string.
+  - "clarifyingQuestions": for ANY bullet scoring 6 or below, produce 2–4 targeted questions asking the candidate for the missing impact details that would make the bullet truly strong. Questions must be concrete and answerable (e.g. "What percentage did conversion improve?", "How many users did this affect?", "What was the measurable outcome?"). For bullets scoring 7+, return an empty array. Never ask open-ended or generic questions.
 - rewriteSuggestions: provide 3–6 concrete rewrites targeting the weakest bullets and summary. Show the original and improved version side by side with the reason
 - jdAlignment: list specific JD requirements that are clearly evidenced in the CV vs clearly absent
 - ATS scoring is handled by a separate dedicated pipeline — do NOT produce an atsCheck field.
@@ -786,6 +807,75 @@ export async function createCvAnalysisJob(body: AnalyzeCvRequest): Promise<Analy
 
 export function getCvAnalysisJob(jobId: string) {
   return cvAnalysisJobs.get(jobId) ?? null;
+}
+
+// ─── File parsing ─────────────────────────────────────────────────────────────
+
+// ─── Bullet rewrite with user-supplied answers ─────────────────────────────
+
+const BULLET_REWRITE_PROMPT = `You rewrite weak CV bullet points into strong, impact-driven bullets using a candidate's own answers to clarifying questions.
+
+Return ONLY a valid JSON object — no markdown, no explanation:
+{
+  "rewritten": string
+}
+
+Rules:
+- Use ONLY information the candidate actually provided in their answers. Do not invent numbers, percentages, timelines, team sizes, or outcomes. If the candidate did not provide a metric, do not add one.
+- Preserve the technical accuracy of the original bullet. Do not contradict it.
+- Start with a strong action verb (built, led, delivered, optimised, reduced, shipped, migrated, etc.).
+- Follow the standard impact formula where possible: [action verb] + [what you did] + [measurable outcome or scope] + [tools/tech if relevant].
+- Keep it to ONE single bullet, no more than ~30 words. No bullet symbol at the start.
+- If the candidate's answers are blank or uninformative, do your best with the original bullet and feedback — but still do not invent metrics.
+- Do not wrap the output in quotes.`;
+
+export async function rewriteBulletWithAnswers(body: RewriteBulletRequest): Promise<RewriteBulletResponse> {
+  if (!getLlmConfig('cvOptimizer').enabled) {
+    throw Object.assign(new Error('LLM is not configured.'), { statusCode: 503 });
+  }
+
+  assertLlmConfigured('cvOptimizer');
+  const anthropic = createAnthropicClient();
+  const model = getFeatureModel('cvOptimizer');
+
+  const qa = body.clarifyingQuestions
+    .map((q, i) => `Q: ${q}\nA: ${body.answers[i]?.trim() || '(no answer provided)'}`)
+    .join('\n\n');
+
+  const userPrompt = [
+    `TARGET ROLE: ${body.targetRole}`,
+    `PROJECT / ROLE: ${body.project}`,
+    '',
+    '=== ORIGINAL BULLET ===',
+    body.original,
+    '',
+    '=== REVIEWER FEEDBACK ===',
+    body.feedback,
+    '',
+    '=== CANDIDATE ANSWERS TO CLARIFYING QUESTIONS ===',
+    qa || '(none)',
+  ].join('\n');
+
+  const response = await anthropic.messages.create({
+    model,
+    max_tokens: 512,
+    system: `${todayInstruction()}\n\n${BULLET_REWRITE_PROMPT}`,
+    messages: [{ role: 'user', content: userPrompt }],
+  });
+
+  const block = response.content[0];
+  if (block.type !== 'text') {
+    throw new Error('LLM returned no text content.');
+  }
+
+  const parsed = JSON.parse(stripJsonFences(block.text)) as { rewritten?: string };
+  const rewritten = typeof parsed.rewritten === 'string' ? parsed.rewritten.trim() : '';
+
+  if (!rewritten) {
+    throw new Error('LLM did not return a rewritten bullet.');
+  }
+
+  return { rewritten };
 }
 
 // ─── File parsing ─────────────────────────────────────────────────────────────
