@@ -14,7 +14,7 @@ Run from the repo root (npm workspaces; `backend` is a workspace):
 - `npm run typecheck --workspace backend` — backend type check only
 - `npx tsc --noEmit` (from repo root) — frontend type check
 
-There is no test runner configured. Env: copy `.env.local.example` → `.env.local` (frontend, mainly `BACKEND_URL`) and `backend/.env.example` → `backend/.env` (`LLM_API_KEY`, `FRONTEND_URL`, optional `LLM_TIMEOUT_MS`, plus `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` for the interview-prep + CV Library features that persist data).
+There is no test runner configured. Env: copy `.env.local.example` → `.env.local` (frontend, mainly `BACKEND_URL`) and `backend/.env.example` → `backend/.env` (`LLM_API_KEY`, `FRONTEND_URL`, optional `LLM_TIMEOUT_MS`, plus `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` for the interview-prep + CV Library features that persist data, and `GROQ_API_KEY` for Interview Prep voice-mode transcription via Groq Whisper).
 
 ## Architecture
 

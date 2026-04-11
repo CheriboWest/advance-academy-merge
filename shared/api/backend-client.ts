@@ -342,6 +342,15 @@ export function getInterviewSessionWithBackend(id: string) {
   })
 }
 
+export function transcribeInterviewAudioWithBackend(formData: FormData) {
+  const { backendUrl } = getServerEnv()
+  return fetchFormDataJson<{ text: string }>(
+    `${backendUrl}/api/interview/transcribe`,
+    formData,
+    { timeoutMs: 60000 },
+  )
+}
+
 // ── Coach Understanding Reports ──────────────────────────────────────────────
 
 export function generateCoachUnderstandingWithBackend() {

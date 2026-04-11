@@ -28,6 +28,8 @@ function saveSessions(sessions: InterviewSession[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
 }
 
+export type InterviewMode = 'text' | 'voice'
+
 export function useInterview() {
   const [step, setStep] = useState<InterviewStep>('setup')
   const [context, setContext] = useState<InterviewContext>({
@@ -39,10 +41,12 @@ export function useInterview() {
     extraLinks: '',
   })
   const [selectedPersona, setSelectedPersona] = useState<PersonaId | null>(null)
+  const [mode, setMode] = useState<InterviewMode>('text')
   const [session, setSession] = useState<InterviewSession | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [input, setInput] = useState('')
+  const [transcribing, setTranscribing] = useState(false)
 
   // DB session ID tracked via ref (doesn't need to trigger re-renders)
   const dbSessionIdRef = useRef<string | null>(null)
@@ -310,6 +314,43 @@ export function useInterview() {
     await evaluateSession(session)
   }, [session, evaluateSession])
 
+  const transcribeAudio = useCallback(async (blob: Blob): Promise<string> => {
+    setTranscribing(true)
+    setError(null)
+    try {
+      const formData = new FormData()
+      const extension = blob.type.includes('webm')
+        ? 'webm'
+        : blob.type.includes('ogg')
+          ? 'ogg'
+          : blob.type.includes('mp4')
+            ? 'mp4'
+            : 'webm'
+      formData.append('file', blob, `answer.${extension}`)
+
+      const res = await fetch('/api/interview/transcribe', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as
+          | { message?: string; error?: string }
+          | null
+        throw new Error(data?.message || data?.error || 'Transcription failed')
+      }
+
+      const data = (await res.json()) as { text?: string }
+      return (data.text ?? '').trim()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Transcription failed'
+      setError(message)
+      throw err
+    } finally {
+      setTranscribing(false)
+    }
+  }, [])
+
   const reset = useCallback(() => {
     setStep('setup')
     setContext({
@@ -321,10 +362,12 @@ export function useInterview() {
       extraLinks: '',
     })
     setSelectedPersona(null)
+    setMode('text')
     setSession(null)
     setLoading(false)
     setError(null)
     setInput('')
+    setTranscribing(false)
     dbSessionIdRef.current = null
   }, [])
 
@@ -343,6 +386,8 @@ export function useInterview() {
     updateContext,
     selectedPersona,
     setSelectedPersona,
+    mode,
+    setMode,
     session,
     loading,
     error,
@@ -356,5 +401,7 @@ export function useInterview() {
     candidateAnswerCount,
     requestCoach,
     submitJitClarification,
+    transcribeAudio,
+    transcribing,
   }
 }
