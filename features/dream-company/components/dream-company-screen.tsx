@@ -7,21 +7,29 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  Star,
   Briefcase,
   ChevronRight,
   Target,
+  ExternalLink,
+  Sparkles,
+  Check,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { useDreamCompany, STEP_LABELS } from '@/features/dream-company/hooks/use-dream-company'
-import type { DreamCompanyInput, DreamCompanyResult, Company } from '@/types/dream-company'
+import type {
+  DreamCompanyInput,
+  ProfileAnalysis,
+  TargetRole,
+  ExaJobListing,
+  CareerRoadmap,
+} from '@/types/dream-company'
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -65,8 +73,21 @@ export function DreamCompanyScreen() {
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { result, loading, error, currentStep, generateFromProfile, uploadCV, reset } =
-    useDreamCompany()
+  const {
+    analysis,
+    roles,
+    selectedRoles,
+    jobs,
+    roadmap,
+    loading,
+    error,
+    currentStep,
+    generateFromProfile,
+    toggleRole,
+    buildRoadmap,
+    uploadCV,
+    reset,
+  } = useDreamCompany()
 
   const updateField = useCallback((field: keyof DreamCompanyInput, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -88,7 +109,7 @@ export function DreamCompanyScreen() {
         setInputMode('manual')
       }
     },
-    [uploadCV]
+    [uploadCV],
   )
 
   const handleDrop = useCallback(
@@ -98,7 +119,7 @@ export function DreamCompanyScreen() {
       const file = e.dataTransfer.files[0]
       if (file) handleFileSelect(file)
     },
-    [handleFileSelect]
+    [handleFileSelect],
   )
 
   const handleSubmit = useCallback(() => {
@@ -112,6 +133,7 @@ export function DreamCompanyScreen() {
     setInputMode('manual')
   }, [reset])
 
+  const hasResults = analysis !== null
   const canSubmit = form.degree && form.workExperience && form.skills && form.location
 
   return (
@@ -122,11 +144,11 @@ export function DreamCompanyScreen() {
           Dream Company Finder
         </h1>
         <p className="text-lg text-gray-600">
-          Input your career profile and discover your ideal companies, roles, and career roadmap.
+          Input your career profile, discover your ideal roles, and find real job opportunities.
         </p>
       </div>
 
-      <div className={`grid gap-8 ${result ? 'lg:grid-cols-[400px_1fr]' : 'max-w-2xl'}`}>
+      <div className={`grid gap-8 ${hasResults ? 'lg:grid-cols-[400px_1fr]' : 'max-w-2xl'}`}>
         {/* ─── LEFT PANEL — Input Form ─── */}
         <div className="space-y-6">
           {/* Mode Toggle */}
@@ -214,7 +236,6 @@ export function DreamCompanyScreen() {
                   onChange={(e) => updateField('degree', e.target.value)}
                 />
               </div>
-
               <div>
                 <Label htmlFor="workExperience">Work Experience *</Label>
                 <Textarea
@@ -225,7 +246,6 @@ export function DreamCompanyScreen() {
                   onChange={(e) => updateField('workExperience', e.target.value)}
                 />
               </div>
-
               <div>
                 <Label htmlFor="skills">Skills *</Label>
                 <Input
@@ -236,7 +256,6 @@ export function DreamCompanyScreen() {
                 />
                 <p className="text-xs text-gray-500 mt-1">Separate skills with commas</p>
               </div>
-
               <div>
                 <Label htmlFor="interests">Interests</Label>
                 <Input
@@ -246,7 +265,6 @@ export function DreamCompanyScreen() {
                   onChange={(e) => updateField('interests', e.target.value)}
                 />
               </div>
-
               <div>
                 <Label htmlFor="targetSalary">Target Salary</Label>
                 <Input
@@ -256,7 +274,6 @@ export function DreamCompanyScreen() {
                   onChange={(e) => updateField('targetSalary', e.target.value)}
                 />
               </div>
-
               <div>
                 <Label htmlFor="location">Location *</Label>
                 <Input
@@ -277,10 +294,18 @@ export function DreamCompanyScreen() {
             </div>
           )}
 
-          {/* Submit / Loading / Reset */}
-          {result ? (
+          {/* Submit / Picking / Loading / Reset */}
+          {currentStep === 'done' ? (
             <Button onClick={handleReset} variant="outline" className="w-full">
               Start New Search
+            </Button>
+          ) : currentStep === 'picking' ? (
+            <Button
+              onClick={buildRoadmap}
+              disabled={loading || selectedRoles.length === 0}
+              className="w-full bg-yellow-500 hover:bg-yellow-400 text-blue-900 font-semibold h-12 text-base"
+            >
+              Build My Roadmap ({selectedRoles.length} selected)
             </Button>
           ) : (
             <Button
@@ -294,36 +319,33 @@ export function DreamCompanyScreen() {
                   {STEP_LABELS[currentStep]}
                 </span>
               ) : (
-                'Find My Dream Companies'
+                'Find My Dream Roles'
               )}
             </Button>
           )}
 
           {/* Step Progress */}
-          {loading && (
+          {(loading || currentStep === 'picking') && (
             <div className="space-y-3">
               <StepIndicator step="analyzing" current={currentStep} label="Analyzing profile" />
-              <StepIndicator
-                step="building-matrix"
-                current={currentStep}
-                label="Building company matrix"
-              />
-              <StepIndicator
-                step="finding-roles"
-                current={currentStep}
-                label="Finding target roles"
-              />
-              <StepIndicator
-                step="building-roadmap"
-                current={currentStep}
-                label="Building career roadmap"
-              />
+              <StepIndicator step="generating-roles" current={currentStep} label="Finding matching roles" />
+              <StepIndicator step="building-roadmap" current={currentStep} label="Searching jobs & building roadmap" />
             </div>
           )}
         </div>
 
         {/* ─── RIGHT PANEL — Results ─── */}
-        {result && <ResultsPanel result={result} />}
+        {hasResults && (
+          <ResultsPanel
+            analysis={analysis}
+            roles={roles}
+            selectedRoles={selectedRoles}
+            jobs={jobs}
+            roadmap={roadmap}
+            currentStep={currentStep}
+            onToggleRole={toggleRole}
+          />
+        )}
       </div>
     </div>
   )
@@ -331,19 +353,16 @@ export function DreamCompanyScreen() {
 
 // ─── Step Indicator ──────────────────────────────────────────
 
-function StepIndicator({
-  step,
-  current,
-  label,
-}: {
-  step: string
-  current: string
-  label: string
-}) {
-  const steps = ['analyzing', 'building-matrix', 'finding-roles', 'building-roadmap']
+function StepIndicator({ step, current, label }: { step: string; current: string; label: string }) {
+  const steps = ['analyzing', 'generating-roles', 'building-roadmap']
   const stepIdx = steps.indexOf(step)
   const currentIdx = steps.indexOf(current)
-  const isComplete = currentIdx > stepIdx
+  const effectiveCurrentIdx =
+    current === 'picking' ? steps.indexOf('generating-roles') + 0.5
+    : current === 'done' ? steps.length
+    : currentIdx
+
+  const isComplete = effectiveCurrentIdx > stepIdx
   const isActive = current === step
 
   return (
@@ -361,11 +380,7 @@ function StepIndicator({
       </div>
       <span
         className={`text-sm ${
-          isActive
-            ? 'text-blue-900 font-medium'
-            : isComplete
-              ? 'text-green-700'
-              : 'text-gray-400'
+          isActive ? 'text-blue-900 font-medium' : isComplete ? 'text-green-700' : 'text-gray-400'
         }`}
       >
         {label}
@@ -377,53 +392,70 @@ function StepIndicator({
 
 // ─── Results Panel ───────────────────────────────────────────
 
-function ResultsPanel({ result }: { result: DreamCompanyResult }) {
+function ResultsPanel({
+  analysis,
+  roles,
+  selectedRoles,
+  jobs,
+  roadmap,
+  currentStep,
+  onToggleRole,
+}: {
+  analysis: ProfileAnalysis
+  roles: TargetRole[] | null
+  selectedRoles: TargetRole[]
+  jobs: ExaJobListing[] | null
+  roadmap: CareerRoadmap | null
+  currentStep: string
+  onToggleRole: (role: TargetRole) => void
+}) {
+  const hasRoadmap = roadmap !== null
+
   return (
     <Tabs defaultValue="analysis" className="min-w-0">
-      <TabsList className="w-full grid grid-cols-4">
+      <TabsList className={`w-full grid ${hasRoadmap ? 'grid-cols-3' : roles ? 'grid-cols-2' : 'grid-cols-1'}`}>
         <TabsTrigger value="analysis">Profile</TabsTrigger>
-        <TabsTrigger value="matrix">Companies</TabsTrigger>
-        <TabsTrigger value="roles">Roles</TabsTrigger>
-        <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
+        {roles && <TabsTrigger value="roles">Roles</TabsTrigger>}
+        {hasRoadmap && <TabsTrigger value="roadmap">Roadmap & Jobs</TabsTrigger>}
       </TabsList>
 
       <TabsContent value="analysis">
-        <ProfileAnalysisTab analysis={result.analysis} />
+        <ProfileAnalysisTab analysis={analysis} />
       </TabsContent>
-      <TabsContent value="matrix">
-        <CompanyMatrixTab matrix={result.matrix} />
-      </TabsContent>
-      <TabsContent value="roles">
-        <TargetRolesTab roles={result.roles} />
-      </TabsContent>
-      <TabsContent value="roadmap">
-        <CareerRoadmapTab roadmap={result.roadmap} />
-      </TabsContent>
+      {roles && (
+        <TabsContent value="roles">
+          <RolesTab
+            roles={roles}
+            selectedRoles={selectedRoles}
+            currentStep={currentStep}
+            onToggleRole={onToggleRole}
+          />
+        </TabsContent>
+      )}
+      {hasRoadmap && (
+        <TabsContent value="roadmap">
+          <RoadmapAndJobsTab roadmap={roadmap} jobs={jobs} />
+        </TabsContent>
+      )}
     </Tabs>
   )
 }
 
 // ─── Profile Analysis Tab ────────────────────────────────────
 
-function ProfileAnalysisTab({ analysis }: { analysis: DreamCompanyResult['analysis'] }) {
+function ProfileAnalysisTab({ analysis }: { analysis: ProfileAnalysis }) {
   return (
     <div className="space-y-6 mt-4">
-      {/* Header Row */}
       <div className="flex flex-wrap items-center gap-4">
-        <Badge
-          className={MARKET_LEVEL_COLORS[analysis.marketLevel] || 'bg-gray-100 text-gray-800'}
-        >
+        <Badge className={MARKET_LEVEL_COLORS[analysis.marketLevel] || 'bg-gray-100 text-gray-800'}>
           {analysis.marketLevel.toUpperCase()}
         </Badge>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <span>
-            {analysis.salaryRange.currency} {analysis.salaryRange.min.toLocaleString()} -{' '}
-            {analysis.salaryRange.max.toLocaleString()}
-          </span>
-        </div>
+        <span className="text-sm text-gray-600">
+          {analysis.salaryRange.currency} {analysis.salaryRange.min.toLocaleString()} -{' '}
+          {analysis.salaryRange.max.toLocaleString()}
+        </span>
       </div>
 
-      {/* Readiness Score */}
       <div className="flex items-center gap-6">
         <ReadinessRing score={analysis.readinessScore} />
         <div className="flex-1 min-w-0">
@@ -432,19 +464,16 @@ function ProfileAnalysisTab({ analysis }: { analysis: DreamCompanyResult['analys
         </div>
       </div>
 
-      {/* Unique Value Proposition */}
       <div className="border-l-4 border-yellow-500 bg-yellow-50 rounded-r-lg p-4">
         <p className="text-sm font-medium text-gray-900 mb-1">Unique Value Proposition</p>
         <p className="text-sm text-gray-700 italic">{analysis.uniqueValueProposition}</p>
       </div>
 
-      {/* Market Level Rationale */}
       <div>
         <p className="text-sm font-medium text-gray-900 mb-1">Market Level Rationale</p>
         <p className="text-sm text-gray-600">{analysis.marketLevelRationale}</p>
       </div>
 
-      {/* Strengths */}
       <div>
         <h3 className="text-sm font-semibold text-gray-900 mb-3">Core Strengths</h3>
         <div className="space-y-3">
@@ -460,7 +489,6 @@ function ProfileAnalysisTab({ analysis }: { analysis: DreamCompanyResult['analys
         </div>
       </div>
 
-      {/* Gaps */}
       <div>
         <h3 className="text-sm font-semibold text-gray-900 mb-3">Critical Gaps</h3>
         <div className="space-y-3">
@@ -470,9 +498,7 @@ function ProfileAnalysisTab({ analysis }: { analysis: DreamCompanyResult['analys
               <div>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium">{g.gap}</p>
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                    {g.urgency}
-                  </Badge>
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">{g.urgency}</Badge>
                 </div>
                 <p className="text-xs mt-1 opacity-80">{g.impact}</p>
               </div>
@@ -496,18 +522,7 @@ function ReadinessRing({ score }: { score: number }) {
     <div className="relative w-24 h-24 shrink-0">
       <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
         <circle cx="40" cy="40" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="6" />
-        <circle
-          cx="40"
-          cy="40"
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-1000"
-        />
+        <circle cx="40" cy="40" r={radius} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} className="transition-all duration-1000" />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
         <span className="text-xl font-bold text-gray-900">{score}</span>
@@ -516,196 +531,181 @@ function ReadinessRing({ score }: { score: number }) {
   )
 }
 
-// ─── Company Matrix Tab ──────────────────────────────────────
+// ─── Roles Tab (Multi-Select) ───────────────────────────────
 
-function CompanyMatrixTab({ matrix }: { matrix: DreamCompanyResult['matrix'] }) {
-  return (
-    <div className="space-y-8 mt-4">
-      <TierSection
-        tier={1}
-        label={matrix.tier1.label}
-        description={matrix.tier1.description}
-        companies={matrix.tier1.companies}
-      />
-      <TierSection
-        tier={2}
-        label={matrix.tier2.label}
-        description={matrix.tier2.description}
-        companies={matrix.tier2.companies}
-      />
-      <TierSection
-        tier={3}
-        label={matrix.tier3.label}
-        description={matrix.tier3.description}
-        companies={matrix.tier3.companies}
-      />
-    </div>
-  )
-}
-
-function TierSection({
-  tier,
-  label,
-  description,
-  companies,
+function RolesTab({
+  roles,
+  selectedRoles,
+  currentStep,
+  onToggleRole,
 }: {
-  tier: 1 | 2 | 3
-  label: string
-  description: string
-  companies: Company[]
+  roles: TargetRole[]
+  selectedRoles: TargetRole[]
+  currentStep: string
+  onToggleRole: (role: TargetRole) => void
 }) {
-  const tierStyles = {
-    1: 'border-l-4 border-yellow-500',
-    2: 'border-l-4 border-blue-500',
-    3: 'border-l-4 border-gray-400',
-  }
+  const isPicking = currentStep === 'picking'
 
   return (
-    <div>
-      <div className="mb-4">
-        <div className="flex items-center gap-2 mb-1">
-          {tier === 1 && <Star className="w-5 h-5 text-yellow-500" />}
-          <h3 className="text-lg font-semibold text-blue-900">{label}</h3>
-          <Badge
-            variant={tier === 1 ? 'default' : 'outline'}
-            className={tier === 1 ? 'bg-yellow-500 text-blue-900' : ''}
-          >
-            Tier {tier}
-          </Badge>
+    <div className="space-y-6 mt-4">
+      {isPicking && (
+        <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-200">
+          <Briefcase className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+          <p className="text-sm text-blue-800">
+            Select the roles you want to pursue, then click &quot;Build My Roadmap&quot; to search for real jobs and generate your personalized career plan.
+          </p>
         </div>
-        <p className="text-sm text-gray-600">{description}</p>
-      </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        {companies.map((company, i) => (
-          <Card key={i} className={`${tierStyles[tier]} ${tier === 1 ? 'shadow-md' : ''}`}>
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-base">{company.name}</CardTitle>
-                  <CardDescription>{company.industry}</CardDescription>
+        {roles.map((role, i) => {
+          const isSelected = selectedRoles.some((r) => r.title === role.title && r.level === role.level)
+
+          return (
+            <Card
+              key={i}
+              className={`transition-all ${
+                isPicking ? 'cursor-pointer' : ''
+              } ${isSelected ? 'ring-2 ring-yellow-500 bg-yellow-50/50' : isPicking ? 'hover:border-gray-300' : ''}`}
+              onClick={() => isPicking && onToggleRole(role)}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base">{role.title}</CardTitle>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isSelected && (
+                      <div className="w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center">
+                        <Check className="w-3 h-3 text-blue-900" />
+                      </div>
+                    )}
+                    <Badge variant="outline">{role.level}</Badge>
+                  </div>
                 </div>
-                <Briefcase className="w-4 h-4 text-gray-400 shrink-0" />
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div>
-                <span className="font-medium text-gray-700">Likely Role: </span>
-                <span className="text-gray-600">{company.likelyRole}</span>
-              </div>
-              <div>
-                <span className="font-medium text-gray-700">Why: </span>
-                <span className="text-gray-600">{company.why}</span>
-              </div>
-              <div>
-                <span className="font-medium text-gray-700">Challenge: </span>
-                <span className="text-gray-600">{company.challenge}</span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ─── Target Roles Tab ────────────────────────────────────────
-
-function TargetRolesTab({ roles }: { roles: DreamCompanyResult['roles'] }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-2 mt-4">
-      {roles.map((role, i) => (
-        <Card key={i}>
-          <CardHeader className="pb-2">
-            <div className="flex items-start justify-between gap-2">
-              <CardTitle className="text-base">{role.title}</CardTitle>
-              <Badge variant="outline">{role.level}</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-gray-700">Fit Score</span>
-                <span className="text-xs font-bold text-blue-900">{role.fitScore}%</span>
-              </div>
-              <Progress value={role.fitScore} className="h-2" />
-            </div>
-            <p className="text-sm text-gray-600">{role.fitReason}</p>
-            <div className="flex items-center justify-between">
-              <Badge className={DEMAND_COLORS[role.demandLevel]}>{role.demandLevel} demand</Badge>
-              <span className="text-sm font-medium text-gray-900">{role.avgSalary}</span>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  )
-}
-
-// ─── Career Roadmap Tab ──────────────────────────────────────
-
-function CareerRoadmapTab({ roadmap }: { roadmap: DreamCompanyResult['roadmap'] }) {
-  return (
-    <div className="relative mt-4">
-      {/* Timeline line */}
-      <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gray-200" />
-
-      <div className="space-y-8">
-        {roadmap.phases.map((phase, i) => (
-          <div key={i} className="relative pl-14">
-            {/* Timeline node */}
-            <div className="absolute left-2.5 w-5 h-5 rounded-full bg-blue-900 border-4 border-white shadow" />
-
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-3 mb-1">
-                  <Badge className="bg-blue-900 text-white">Phase {phase.phase}</Badge>
-                  <span className="text-sm text-gray-500">{phase.duration}</span>
-                </div>
-                <CardTitle className="text-lg">{phase.goal}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Actions */}
+              <CardContent className="space-y-3">
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                    Actions
-                  </p>
-                  <ul className="space-y-2">
-                    {phase.actions.map((action, j) => (
-                      <li key={j} className="flex items-start gap-2 text-sm text-gray-700">
-                        <ChevronRight className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
-                        {action}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Skills */}
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                    Skills to Build
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {phase.skills.map((skill, j) => (
-                      <Badge key={j} variant="secondary">
-                        {skill}
-                      </Badge>
-                    ))}
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-gray-700">Fit Score</span>
+                    <span className="text-xs font-bold text-blue-900">{role.fitScore}%</span>
                   </div>
+                  <Progress value={role.fitScore} className="h-2" />
                 </div>
-
-                {/* Milestone */}
-                <div className="flex items-start gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
-                  <Target className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold text-green-800">Milestone</p>
-                    <p className="text-sm text-green-700">{phase.milestone}</p>
-                  </div>
+                <p className="text-sm text-gray-600">{role.fitReason}</p>
+                <div className="flex items-center justify-between">
+                  <Badge className={DEMAND_COLORS[role.demandLevel]}>{role.demandLevel} demand</Badge>
+                  <span className="text-sm font-medium text-gray-900">{role.avgSalary}</span>
                 </div>
               </CardContent>
             </Card>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Roadmap & Jobs Tab ─────────────────────────────────────
+
+function RoadmapAndJobsTab({ roadmap, jobs }: { roadmap: CareerRoadmap; jobs: ExaJobListing[] | null }) {
+  return (
+    <div className="space-y-8 mt-4">
+      {/* Future You Card */}
+      <Card className="border-2 border-yellow-300 bg-gradient-to-br from-yellow-50 to-amber-50">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-yellow-600" />
+            <CardTitle className="text-lg font-serif text-blue-900">The Person You Will Become</CardTitle>
           </div>
-        ))}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-gray-800 leading-relaxed">{roadmap.futureYou.personTheyWillBecome}</p>
+          <div className="border-t border-yellow-200 pt-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">What You Will Achieve</p>
+            <p className="text-sm text-gray-700 leading-relaxed">{roadmap.futureYou.achievementSummary}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Currently Hiring */}
+      {jobs && jobs.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
+            <Briefcase className="w-5 h-5" />
+            Currently Hiring
+          </h3>
+          <div className="grid gap-3">
+            {jobs.map((job, i) => (
+              <a
+                key={i}
+                href={job.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-start justify-between gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-blue-900 truncate">{job.title}</p>
+                  {job.snippet && <p className="text-xs text-gray-600 mt-1 line-clamp-2">{job.snippet}</p>}
+                </div>
+                <ExternalLink className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Career Roadmap Phases */}
+      <div className="relative">
+        <h3 className="text-lg font-semibold text-blue-900 mb-6 flex items-center gap-2">
+          <Target className="w-5 h-5" />
+          Career Roadmap
+        </h3>
+
+        <div className="absolute left-5 top-14 bottom-0 w-0.5 bg-gray-200" />
+
+        <div className="space-y-8">
+          {roadmap.phases.map((phase, i) => (
+            <div key={i} className="relative pl-14">
+              <div className="absolute left-2.5 w-5 h-5 rounded-full bg-blue-900 border-4 border-white shadow" />
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3 mb-1">
+                    <Badge className="bg-blue-900 text-white">Phase {phase.phase}</Badge>
+                    <span className="text-sm text-gray-500">{phase.duration}</span>
+                  </div>
+                  <CardTitle className="text-lg">{phase.goal}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Actions</p>
+                    <ul className="space-y-2">
+                      {phase.actions.map((action, j) => (
+                        <li key={j} className="flex items-start gap-2 text-sm text-gray-700">
+                          <ChevronRight className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
+                          {action}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Skills to Build</p>
+                    <div className="flex flex-wrap gap-2">
+                      {phase.skills.map((skill, j) => (
+                        <Badge key={j} variant="secondary">{skill}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
+                    <Target className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-green-800">Milestone</p>
+                      <p className="text-sm text-green-700">{phase.milestone}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

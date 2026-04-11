@@ -18,22 +18,6 @@ export interface ProfileAnalysis {
   readinessNote: string
 }
 
-export interface Company {
-  name: string
-  industry: string
-  why: string
-  likelyRole: string
-  challenge: string
-  hiringSignal: string
-  tier: 1 | 2 | 3
-}
-
-export interface CompanyMatrix {
-  tier1: { label: string; description: string; companies: Company[] }
-  tier2: { label: string; description: string; companies: Company[] }
-  tier3: { label: string; description: string; companies: Company[] }
-}
-
 export interface TargetRole {
   title: string
   level: string
@@ -41,6 +25,23 @@ export interface TargetRole {
   fitReason: string
   demandLevel: 'high' | 'medium' | 'low'
   avgSalary: string
+}
+
+export interface ExaJobListing {
+  title: string
+  url: string
+  snippet: string
+  publishedDate?: string
+}
+
+export interface RoadmapResponse {
+  jobs: ExaJobListing[]
+  roadmap: CareerRoadmap
+}
+
+export interface FutureYou {
+  personTheyWillBecome: string
+  achievementSummary: string
 }
 
 export interface RoadmapPhase {
@@ -53,14 +54,16 @@ export interface RoadmapPhase {
 }
 
 export interface CareerRoadmap {
+  futureYou: FutureYou
   phases: RoadmapPhase[]
 }
 
 export interface DreamCompanyResult {
   profile: DreamCompanyInput
   analysis: ProfileAnalysis
-  matrix: CompanyMatrix
   roles: TargetRole[]
-  roadmap: CareerRoadmap
-  generatedAt: Date
+  selectedRoles?: TargetRole[]
+  jobs?: ExaJobListing[]
+  roadmap?: CareerRoadmap
+  generatedAt: string
 }

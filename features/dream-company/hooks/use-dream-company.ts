@@ -1,86 +1,108 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import type { DreamCompanyInput, DreamCompanyResult } from '@/types/dream-company'
-import { generateDreamCompanies, parseCV } from '@/features/dream-company/api/frontend-client'
+import type {
+  DreamCompanyInput,
+  ProfileAnalysis,
+  TargetRole,
+  ExaJobListing,
+  CareerRoadmap,
+} from '@/types/dream-company'
+import { analyzeProfile, generateRoles, generateRoadmap, parseCV } from '@/features/dream-company/api/frontend-client'
 
 export type DreamCompanyStep =
   | 'idle'
   | 'analyzing'
-  | 'building-matrix'
-  | 'finding-roles'
+  | 'generating-roles'
+  | 'picking'
   | 'building-roadmap'
   | 'done'
 
-const STEP_SEQUENCE: DreamCompanyStep[] = [
-  'analyzing',
-  'building-matrix',
-  'finding-roles',
-  'building-roadmap',
-]
-
-const STEP_LABELS: Record<DreamCompanyStep, string> = {
+export const STEP_LABELS: Record<DreamCompanyStep, string> = {
   idle: '',
   analyzing: 'Analyzing your profile...',
-  'building-matrix': 'Building company matrix...',
-  'finding-roles': 'Finding target roles...',
-  'building-roadmap': 'Building career roadmap...',
+  'generating-roles': 'Finding matching roles...',
+  picking: 'Select roles to continue',
+  'building-roadmap': 'Searching jobs & building roadmap...',
   done: 'Complete!',
 }
 
-const STEP_INTERVAL_MS = 8000
-
-export { STEP_LABELS }
-
 export function useDreamCompany() {
-  const [result, setResult] = useState<DreamCompanyResult | null>(null)
+  const [analysis, setAnalysis] = useState<ProfileAnalysis | null>(null)
+  const [roles, setRoles] = useState<TargetRole[] | null>(null)
+  const [selectedRoles, setSelectedRoles] = useState<TargetRole[]>([])
+  const [jobs, setJobs] = useState<ExaJobListing[] | null>(null)
+  const [roadmap, setRoadmap] = useState<CareerRoadmap | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentStep, setCurrentStep] = useState<DreamCompanyStep>('idle')
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const clearStepTimer = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
-  }, [])
-
-  const startStepSimulation = useCallback(() => {
-    let stepIndex = 0
-    setCurrentStep(STEP_SEQUENCE[0])
-
-    intervalRef.current = setInterval(() => {
-      stepIndex++
-      if (stepIndex < STEP_SEQUENCE.length) {
-        setCurrentStep(STEP_SEQUENCE[stepIndex])
-      } else {
-        clearStepTimer()
-      }
-    }, STEP_INTERVAL_MS)
-  }, [clearStepTimer])
+  const profileRef = useRef<DreamCompanyInput | null>(null)
 
   const generateFromProfile = useCallback(
     async (profile: DreamCompanyInput): Promise<void> => {
+      profileRef.current = profile
       setLoading(true)
       setError(null)
-      setResult(null)
-
-      startStepSimulation()
+      setAnalysis(null)
+      setRoles(null)
+      setSelectedRoles([])
+      setJobs(null)
+      setRoadmap(null)
+      setCurrentStep('analyzing')
 
       try {
-        const data = await generateDreamCompanies(profile)
-        setResult(data)
-        setCurrentStep('done')
+        // Step 1: Profile Analysis
+        const analysisResult = await analyzeProfile(profile)
+        setAnalysis(analysisResult)
+        setCurrentStep('generating-roles')
+
+        // Step 2: Target Roles
+        const rolesResult = await generateRoles(profile, analysisResult)
+        setRoles(rolesResult)
+        setCurrentStep('picking')
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error occurred')
         setCurrentStep('idle')
       } finally {
-        clearStepTimer()
         setLoading(false)
       }
     },
-    [startStepSimulation, clearStepTimer]
+    [],
+  )
+
+  const toggleRole = useCallback((role: TargetRole) => {
+    setSelectedRoles((prev) => {
+      const exists = prev.some((r) => r.title === role.title && r.level === role.level)
+      return exists
+        ? prev.filter((r) => !(r.title === role.title && r.level === role.level))
+        : [...prev, role]
+    })
+  }, [])
+
+  const buildRoadmap = useCallback(
+    async (): Promise<void> => {
+      const profile = profileRef.current
+      if (!profile || !analysis || selectedRoles.length === 0) return
+
+      setLoading(true)
+      setError(null)
+      setCurrentStep('building-roadmap')
+
+      try {
+        // Step 3: Exa job search + Roadmap
+        const result = await generateRoadmap(profile, analysis, selectedRoles)
+        setJobs(result.jobs)
+        setRoadmap(result.roadmap)
+        setCurrentStep('done')
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unknown error occurred')
+        setCurrentStep('picking')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [analysis, selectedRoles],
   )
 
   const uploadCV = useCallback(async (file: File): Promise<DreamCompanyInput | null> => {
@@ -103,19 +125,29 @@ export function useDreamCompany() {
   }, [])
 
   const reset = useCallback(() => {
-    clearStepTimer()
-    setResult(null)
+    profileRef.current = null
+    setAnalysis(null)
+    setRoles(null)
+    setSelectedRoles([])
+    setJobs(null)
+    setRoadmap(null)
     setLoading(false)
     setError(null)
     setCurrentStep('idle')
-  }, [clearStepTimer])
+  }, [])
 
   return {
-    result,
+    analysis,
+    roles,
+    selectedRoles,
+    jobs,
+    roadmap,
     loading,
     error,
     currentStep,
     generateFromProfile,
+    toggleRole,
+    buildRoadmap,
     uploadCV,
     reset,
   }

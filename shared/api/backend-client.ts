@@ -4,7 +4,7 @@ import type {
   AnalyzeCvResult,
   JobStatusResponse,
 } from '@advance-academy/contracts'
-import type { DreamCompanyInput, DreamCompanyResult } from '@/types/dream-company'
+import type { DreamCompanyInput, ProfileAnalysis, TargetRole, RoadmapResponse } from '@/types/dream-company'
 import type {
   EnrichmentRequest,
   EnrichmentResponse,
@@ -33,10 +33,30 @@ export function getCvAnalysisJobFromBackend(jobId: string) {
   })
 }
 
-export function generateDreamCompaniesWithBackend(payload: { profile: DreamCompanyInput }) {
+export function analyzeProfileWithBackend(payload: { profile: DreamCompanyInput }) {
   const { backendUrl } = getServerEnv()
 
-  return fetchJson<DreamCompanyResult>(`${backendUrl}/api/dream-company/generate`, {
+  return fetchJson<ProfileAnalysis>(`${backendUrl}/api/dream-company/analyze`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 60000,
+  })
+}
+
+export function generateRolesWithBackend(payload: { profile: DreamCompanyInput; analysis: ProfileAnalysis }) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchJson<TargetRole[]>(`${backendUrl}/api/dream-company/roles`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 120000,
+  })
+}
+
+export function generateRoadmapWithBackend(payload: { profile: DreamCompanyInput; analysis: ProfileAnalysis; selectedRoles: TargetRole[] }) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchJson<RoadmapResponse>(`${backendUrl}/api/dream-company/roadmap`, {
     method: 'POST',
     body: JSON.stringify(payload),
     timeoutMs: 120000,

@@ -2,24 +2,29 @@
  * Dream Company — service called from routes only.
  * Uses lib/dream-company/prompts (all prompt builders) and lib/llm-anthropic (Anthropic SDK).
  */
-import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 import type {
   DreamCompanyInput,
   ProfileAnalysis,
-  CompanyMatrix,
   TargetRole,
   CareerRoadmap,
-  DreamCompanyResult,
+  ExaJobListing,
+  RoadmapResponse,
 } from '../types/dream-company.js';
 import {
   buildCareerRoadmapPrompt,
-  buildCompanyMatrixPrompt,
+  buildDreamCompanyCvParseInstructions,
   buildDreamCompanyCvParsePrompt,
   buildProfileAnalysisPrompt,
   buildTargetRolesPrompt,
 } from '../lib/dream-company/prompts.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
+import { getExaClient } from '../lib/exa-client.js';
+
+const EXA_OPTIONS = {
+  useAutoprompt: true,
+  type: "fast"
+} as const;
 
 function cleanJsonResponse(text: string): string {
   return text
@@ -45,62 +50,68 @@ export function validateDreamCompanyProfile(profile: DreamCompanyInput | undefin
   return missing;
 }
 
-export async function generateDreamCompanyReport(
+export async function generateProfileAnalysis(
   profile: DreamCompanyInput,
-): Promise<DreamCompanyResult> {
+): Promise<ProfileAnalysis> {
   assertLlmConfigured('dreamCompany');
   const anthropic = createAnthropicClient();
   const model = getFeatureModel('dreamCompany');
-  const systemMessage = 'You are a career intelligence engine. Return only valid JSON.';
 
-  const analysisResponse = await anthropic.messages.create({
+  const response = await anthropic.messages.create({
     model,
     max_tokens: 4096,
-    system: systemMessage,
+    system: 'You are a career intelligence engine. Return only valid JSON.',
     messages: [{ role: 'user', content: buildProfileAnalysisPrompt(profile) }],
   });
 
-  let analysis: ProfileAnalysis;
   try {
-    analysis = JSON.parse(extractText(analysisResponse));
+    return JSON.parse(extractText(response));
   } catch {
     throw Object.assign(new Error('Failed to parse LLM response'), { step: 'profileAnalysis' });
   }
+}
 
-  const matrixResponse = await anthropic.messages.create({
+export async function generateTargetRoles(
+  profile: DreamCompanyInput,
+  analysis: ProfileAnalysis,
+): Promise<TargetRole[]> {
+  assertLlmConfigured('dreamCompany');
+  const anthropic = createAnthropicClient();
+  const model = getFeatureModel('dreamCompany');
+
+  const response = await anthropic.messages.create({
     model,
     max_tokens: 4096,
-    system: systemMessage,
-    messages: [{ role: 'user', content: buildCompanyMatrixPrompt(profile, analysis) }],
-  });
-
-  let matrix: CompanyMatrix;
-  try {
-    matrix = JSON.parse(extractText(matrixResponse));
-  } catch {
-    throw Object.assign(new Error('Failed to parse LLM response'), { step: 'companyMatrix' });
-  }
-
-  const rolesResponse = await anthropic.messages.create({
-    model,
-    max_tokens: 4096,
-    system: systemMessage,
+    system: 'You are a career intelligence engine. Return only valid JSON.',
     messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
   });
 
-  let roles: TargetRole[];
   try {
-    roles = JSON.parse(extractText(rolesResponse));
+    return JSON.parse(extractText(response));
   } catch {
     throw Object.assign(new Error('Failed to parse LLM response'), { step: 'targetRoles' });
   }
+}
 
-  const roadmapResponse = await anthropic.messages.create({
-    model,
-    max_tokens: 4096,
-    system: systemMessage,
-    messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis) }],
-  });
+export async function generateRoadmapWithJobs(
+  profile: DreamCompanyInput,
+  analysis: ProfileAnalysis,
+  selectedRoles: TargetRole[],
+): Promise<RoadmapResponse> {
+  assertLlmConfigured('dreamCompany');
+  const anthropic = createAnthropicClient();
+  const model = getFeatureModel('dreamCompany');
+
+  // Exa search + LLM roadmap in parallel
+  const [jobs, roadmapResponse] = await Promise.all([
+    searchJobsForRoles(selectedRoles, profile),
+    anthropic.messages.create({
+      model,
+      max_tokens: 4096,
+      system: 'You are a career intelligence engine. Return only valid JSON.',
+      messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, []) }],
+    }),
+  ]);
 
   let roadmap: CareerRoadmap;
   try {
@@ -109,14 +120,28 @@ export async function generateDreamCompanyReport(
     throw Object.assign(new Error('Failed to parse LLM response'), { step: 'careerRoadmap' });
   }
 
-  return {
-    profile,
-    analysis,
-    matrix,
-    roles,
-    roadmap,
-    generatedAt: new Date().toISOString(),
-  };
+  return { jobs, roadmap };
+}
+
+async function searchJobsForRoles(
+  selectedRoles: TargetRole[],
+  profile: DreamCompanyInput,
+): Promise<ExaJobListing[]> {
+  try {
+    const exa = getExaClient();
+    const roleTitles = selectedRoles.map((r) => r.title).join(' OR ');
+    const query = `${roleTitles} hiring ${profile.location}`;
+    const searchResponse = await exa.searchAndContents(query, EXA_OPTIONS);
+
+    return searchResponse.results.map((result: { title: string | null; url: string; text?: string; publishedDate?: string }) => ({
+      title: result.title ?? result.url,
+      url: result.url,
+      snippet: (result.text ?? '').slice(0, 200),
+      publishedDate: result.publishedDate ?? undefined,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string): Promise<Record<string, unknown>> {
@@ -127,35 +152,57 @@ export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string)
     throw Object.assign(new Error('Only PDF and DOCX files are supported'), { statusCode: 400 });
   }
 
-  let extractedText: string;
-
-  if (isPdf) {
-    const pdfData = await pdfParse(buffer);
-    extractedText = pdfData.text;
-  } else {
-    const result = await mammoth.extractRawText({ buffer });
-    extractedText = result.value;
-  }
-
-  if (!extractedText.trim()) {
-    throw Object.assign(new Error('Could not extract text from the uploaded file'), { statusCode: 422 });
-  }
-
   assertLlmConfigured('dreamCompany');
   const anthropic = createAnthropicClient();
   const model = getFeatureModel('dreamCompany');
 
-  const response = await anthropic.messages.create({
-    model,
-    max_tokens: 2048,
-    system: 'You are a CV parser. Extract career information and return only valid JSON.',
-    messages: [
-      {
-        role: 'user',
-        content: buildDreamCompanyCvParsePrompt(extractedText),
-      },
-    ],
-  });
+  let response;
+
+  if (isPdf) {
+    response = await anthropic.messages.create({
+      model,
+      max_tokens: 2048,
+      system: 'You are a CV parser. Extract career information and return only valid JSON.',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: buffer.toString('base64'),
+              },
+            },
+            {
+              type: 'text',
+              text: buildDreamCompanyCvParseInstructions(),
+            },
+          ],
+        },
+      ],
+    });
+  } else {
+    const result = await mammoth.extractRawText({ buffer });
+    const extractedText = result.value;
+
+    if (!extractedText.trim()) {
+      throw Object.assign(new Error('Could not extract text from the uploaded file'), { statusCode: 422 });
+    }
+
+    response = await anthropic.messages.create({
+      model,
+      max_tokens: 2048,
+      system: 'You are a CV parser. Extract career information and return only valid JSON.',
+      messages: [
+        {
+          role: 'user',
+          content: buildDreamCompanyCvParsePrompt(extractedText),
+        },
+      ],
+    });
+  }
 
   const block = response.content[0];
   if (block.type !== 'text') {

@@ -1,12 +1,35 @@
 'use client'
 
-import type { DreamCompanyInput, DreamCompanyResult } from '@/types/dream-company'
+import type { DreamCompanyInput, ProfileAnalysis, TargetRole, RoadmapResponse } from '@/types/dream-company'
 import { fetchFormDataJson, fetchJson } from '@/shared/api/http-client'
 
-export async function generateDreamCompanies(profile: DreamCompanyInput): Promise<DreamCompanyResult> {
-  return fetchJson<DreamCompanyResult>('/api/dream-company/generate', {
+export async function analyzeProfile(profile: DreamCompanyInput): Promise<ProfileAnalysis> {
+  return fetchJson<ProfileAnalysis>('/api/dream-company/analyze', {
     method: 'POST',
     body: JSON.stringify({ profile }),
+    timeoutMs: 60000,
+  })
+}
+
+export async function generateRoles(
+  profile: DreamCompanyInput,
+  analysis: ProfileAnalysis,
+): Promise<TargetRole[]> {
+  return fetchJson<TargetRole[]>('/api/dream-company/roles', {
+    method: 'POST',
+    body: JSON.stringify({ profile, analysis }),
+    timeoutMs: 60000,
+  })
+}
+
+export async function generateRoadmap(
+  profile: DreamCompanyInput,
+  analysis: ProfileAnalysis,
+  selectedRoles: TargetRole[],
+): Promise<RoadmapResponse> {
+  return fetchJson<RoadmapResponse>('/api/dream-company/roadmap', {
+    method: 'POST',
+    body: JSON.stringify({ profile, analysis, selectedRoles }),
     timeoutMs: 120000,
   })
 }
