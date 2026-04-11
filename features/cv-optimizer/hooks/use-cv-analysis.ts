@@ -54,10 +54,10 @@ export function useCvAnalysisJob(jobId: string | null) {
   })
 }
 
-export type CvOptimizerTab = 'analysis' | 'keywords' | 'ats' | 'bullets' | 'rewrite' | 'expert'
+export type CvOptimizerTab = 'overview' | 'ats' | 'bullets' | 'rewrite' | 'action-plan'
 
 export function useCvOptimizer() {
-  const [tab, setTab] = useState<CvOptimizerTab>('analysis')
+  const [tab, setTab] = useState<CvOptimizerTab>('overview')
   const [jobId, setJobId] = useState<string | null>(null)
   const submitMutation = useSubmitCvAnalysis()
   const jobQuery = useCvAnalysisJob(jobId)
@@ -135,14 +135,14 @@ export function useCvOptimizer() {
   }, [state.status])
 
   function submit(values: AnalyzeCvRequest) {
-    setTab('analysis')
+    setTab('overview')
     submitMutation.mutate(values)
   }
 
   function reset() {
     clearStoredJobId()
     setJobId(null)
-    setTab('analysis')
+    setTab('overview')
     submitMutation.reset()
   }
 

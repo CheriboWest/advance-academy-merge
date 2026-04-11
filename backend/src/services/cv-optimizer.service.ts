@@ -6,21 +6,38 @@ import { randomUUID } from 'node:crypto';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 import type {
+  ActionPlan,
+  ActionPlanItem,
   AnalyzeCvAcceptedResponse,
   AnalyzeCvRequest,
   AnalyzeCvResult,
   AtsCheck,
+  AtsExtractedKeyword,
+  AtsRelevanceSignal,
   BulletEvaluation,
   FormatCheck,
   JdAlignment,
   KeywordHighlight,
   RewriteSuggestion,
+  ScoreBreakdown,
 } from '@advance-academy/contracts/cv-optimizer';
 import type { ApiErrorResponse, JobStatusResponse } from '@advance-academy/contracts/jobs';
 import { getLlmConfig } from '../config/llm.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 
 const cvAnalysisJobs = new Map<string, JobStatusResponse<AnalyzeCvResult>>();
+
+// ─── Date injection helper ───────────────────────────────────────────────────
+
+/**
+ * Every prompt that evaluates CV content must be told today's date so Claude
+ * doesn't flag legitimate past dates as "future" or "unrealistic". Injected
+ * dynamically at call time — never baked into the prompt constants.
+ */
+function todayInstruction(): string {
+  const today = new Date().toISOString().split('T')[0];
+  return `Today's date is ${today}. Evaluate all dates in the CV relative to this date. Do not flag any date before today as future or unrealistic.`;
+}
 
 // ─── Template ─────────────────────────────────────────────────────────────────
 
@@ -98,24 +115,24 @@ function buildFallbackAnalysis(body: AnalyzeCvRequest): AnalyzeCvResult {
     },
   ];
 
-  const overallScore = Math.round(sections.reduce((s, sec) => s + sec.score, 0) / sections.length);
+  const atsCheck: AtsCheck = {
+    score: 0,
+    issues: ['LLM not configured — ATS check unavailable.'],
+    passed: [],
+    extractedKeywords: [],
+    relevanceSignals: [],
+  };
+  const bulletEvaluations: BulletEvaluation[] = [];
+  const { overallScore, breakdown } = computeCompositeScore(sections, atsCheck, bulletEvaluations);
 
   return {
     overallScore,
+    scoreBreakdown: breakdown,
     sections,
-    expertReview: [
-      `This CV shows a solid starting point for a ${targetRole} application.`,
-      hasMetrics
-        ? 'The document already includes some measurable impact, which helps credibility.'
-        : 'The biggest improvement area is adding measurable achievements and clearer outcomes.',
-      hasJobDescription
-        ? 'Because a job description was provided, this analysis can be extended into job-specific tailoring.'
-        : 'Once you provide a target job description, this endpoint can evolve into a more tailored review.',
-    ].join(' '),
     keywordHighlights: [],
-    atsCheck: { score: 0, issues: ['LLM not configured — ATS check unavailable.'], passed: [] },
+    atsCheck,
     formatCheck: { issues: [], suggestions: ['Enable LLM to get format and typo analysis.'] },
-    bulletEvaluations: [],
+    bulletEvaluations,
     rewriteSuggestions: [],
     jdAlignment: {
       matchedRequirements: [],
@@ -124,6 +141,431 @@ function buildFallbackAnalysis(body: AnalyzeCvRequest): AnalyzeCvResult {
         ? 'Enable LLM for a detailed JD alignment analysis.'
         : 'No job description provided.',
     },
+    actionPlan: {
+      summary: `Action plan unavailable — enable the LLM to generate recommendations for the ${targetRole} role. Until then, focus on adding measurable outcomes to every bullet and listing a clear target job description.`,
+      projectsToBuild: [],
+      skillsToLearn: [],
+      certifications: [],
+      intermediateRoles: [],
+    },
+  };
+}
+
+// ─── ATS Dimension 1 — Keyword extraction from JD ───────────────────────────
+
+const ATS_KEYWORD_EXTRACTION_PROMPT = `You are an ATS keyword extraction engine. Given a job description, extract every relevant keyword and classify it.
+
+Return ONLY a valid JSON object — no markdown, no explanation:
+{
+  "keywords": [
+    {
+      "keyword": string,
+      "category": "job_title" | "tool_or_technical_skill" | "hard_skill" | "industry_term" | "certification" | "seniority_indicator" | "mandatory_requirement",
+      "mandatory": boolean
+    }
+  ]
+}
+
+Categories:
+- job_title: exact and closely related job titles mentioned
+- tool_or_technical_skill: named software, frameworks, programming languages, platforms, libraries (e.g. "React", "Postgres", "Figma", "Salesforce", "Kubernetes")
+- hard_skill: specific, verifiable technical methodologies (e.g. "financial modelling", "A/B testing", "statistical regression", "SEO", "penetration testing"). Must be concrete enough that you could test whether a candidate actually has it.
+- industry_term: domain-specific vocabulary (e.g. "KYC", "CI/CD", "GDPR", "FDA submission", "underwriting")
+- certification: named certifications or qualifications (e.g. "CFA", "AWS Solutions Architect", "PMP", "CPA")
+- seniority_indicator: words indicating level (e.g. "senior", "lead", "junior", "principal")
+- mandatory_requirement: non-negotiable requirements like driving licence, visa status, DBS check, right to work, specific degree requirements
+
+CRITICAL — DO NOT extract generic soft skills or vague competencies. The following are EXAMPLES OF KEYWORDS TO EXCLUDE:
+- "communication skills", "verbal communication", "written communication"
+- "teamwork", "team player", "collaboration"
+- "leadership", "leadership skills"
+- "problem solving", "problem-solving skills", "critical thinking"
+- "attention to detail", "organised", "self-motivated", "proactive"
+- "fast-paced environment", "time management", "multitasking"
+- "passion for", "interest in", "enthusiastic"
+- any generic adjective or trait an ATS cannot reliably screen on
+
+Only extract skills that are concrete, named, and testable. If a JD says "strong communication skills and experience with Salesforce CRM", extract "Salesforce CRM" — NOT "communication skills".
+
+Rules:
+- mandatory must be true ONLY for items that are clearly non-negotiable (driving licence, visa, DBS, right to work, specific degree). All other keywords are mandatory: false.
+- Extract every meaningful SPECIFIC keyword. Do not invent keywords not in the JD. Quality over quantity — five precise keywords beat fifty vague ones.
+- If no JD is provided, return {"keywords": []}.`;
+
+async function extractAtsKeywords(
+  jobDescription: string | undefined,
+  targetRole: string,
+): Promise<AtsExtractedKeyword[]> {
+  const jdText = jobDescription?.trim();
+  if (!jdText) return [];
+
+  assertLlmConfigured('cvOptimizer');
+  const anthropic = createAnthropicClient();
+  const model = getFeatureModel('cvOptimizer');
+
+  const response = await anthropic.messages.create({
+    model,
+    max_tokens: 2048,
+    system: `${todayInstruction()}\n\n${ATS_KEYWORD_EXTRACTION_PROMPT}`,
+    messages: [{
+      role: 'user',
+      content: `TARGET ROLE: ${targetRole}\n\n=== JOB DESCRIPTION ===\n${jdText}`,
+    }],
+  });
+
+  const block = response.content[0];
+  if (block.type !== 'text') return [];
+
+  const parsed = JSON.parse(stripJsonFences(block.text)) as { keywords?: unknown[] };
+  const raw = Array.isArray(parsed.keywords) ? parsed.keywords : [];
+
+  return raw
+    .filter((k): k is Record<string, unknown> => k !== null && typeof k === 'object')
+    .map((k) => ({
+      keyword: String(k.keyword ?? ''),
+      category: String(k.category ?? 'hard_skill') as AtsExtractedKeyword['category'],
+      mandatory: Boolean(k.mandatory),
+      foundInCv: false, // filled in by dimension 2
+    }))
+    .filter((k) => k.keyword.length > 0);
+}
+
+// ─── ATS Dimension 2 — Relevance and experience scoring from CV ─────────────
+
+const ATS_RELEVANCE_SCORING_PROMPT = `You are an ATS relevance scoring engine. You will receive a CV, a target role, and a list of extracted keywords from the job description.
+
+You must evaluate two things:
+
+1. For EACH keyword, determine whether it is present in the CV. A keyword is "found" if it appears in a real task description, experience bullet, or skills section. Mere proximity does not count — the candidate must demonstrably have the skill or meet the requirement.
+
+2. Score the following relevance signals, each 1–10 with a one-sentence reasoning:
+   - job_history_relevance: are past roles in the same or adjacent domain as the target role?
+   - job_stability: average tenure per role. Flag anything under 12 months as a risk signal.
+   - seniority_match: compare the candidate's most recent role level against the target. Flag mismatches (e.g. intern applying for senior).
+   - industry_match: same industry, adjacent, or unrelated?
+   - keyword_context_quality: are keywords used in real task descriptions or just listed in a bare skills section? Context usage scores higher.
+   - job_title_match: does any previous job title directly or closely match the target role?
+
+Return ONLY a valid JSON object:
+{
+  "keywordMatches": [
+    { "keyword": string, "foundInCv": boolean }
+  ],
+  "signals": [
+    { "signal": string, "score": <integer 1–10>, "reasoning": string }
+  ]
+}
+
+Rules:
+- keywordMatches must contain one entry per keyword provided in the input — same order, same spelling.
+- Mandatory requirements (driving licence, visa, DBS, degree) are binary: found or not. No partial credit.
+- signals must contain exactly 6 entries for the 6 signals listed above.
+- Do not invent facts. Score only what is demonstrably present in the CV.`;
+
+interface AtsRelevanceResult {
+  keywordMatches: { keyword: string; foundInCv: boolean }[];
+  signals: { signal: string; score: number; reasoning: string }[];
+}
+
+async function scoreAtsRelevance(
+  cvText: string,
+  targetRole: string,
+  keywords: AtsExtractedKeyword[],
+): Promise<AtsRelevanceResult> {
+  if (keywords.length === 0) {
+    return { keywordMatches: [], signals: [] };
+  }
+
+  assertLlmConfigured('cvOptimizer');
+  const anthropic = createAnthropicClient();
+  const model = getFeatureModel('cvOptimizer');
+
+  const keywordList = keywords.map((k) =>
+    `- "${k.keyword}" (category: ${k.category}, mandatory: ${k.mandatory})`,
+  ).join('\n');
+
+  const response = await anthropic.messages.create({
+    model,
+    max_tokens: 2048,
+    system: `${todayInstruction()}\n\n${ATS_RELEVANCE_SCORING_PROMPT}`,
+    messages: [{
+      role: 'user',
+      content: [
+        `TARGET ROLE: ${targetRole}`,
+        '',
+        '=== CV ===',
+        cvText,
+        '',
+        '=== EXTRACTED KEYWORDS ===',
+        keywordList,
+      ].join('\n'),
+    }],
+  });
+
+  const block = response.content[0];
+  if (block.type !== 'text') return { keywordMatches: [], signals: [] };
+
+  const parsed = JSON.parse(stripJsonFences(block.text)) as Partial<AtsRelevanceResult>;
+  return {
+    keywordMatches: Array.isArray(parsed.keywordMatches) ? parsed.keywordMatches : [],
+    signals: Array.isArray(parsed.signals) ? parsed.signals : [],
+  };
+}
+
+// ─── ATS score computation ──────────────────────────────────────────────────
+
+function computeAtsScore(
+  keywords: AtsExtractedKeyword[],
+  signals: AtsRelevanceSignal[],
+): { score: number; issues: string[]; passed: string[] } {
+  const issues: string[] = [];
+  const passed: string[] = [];
+
+  // Keyword coverage scoring (50% of total)
+  const mandatory = keywords.filter((k) => k.mandatory);
+  const nonMandatory = keywords.filter((k) => !k.mandatory);
+
+  const mandatoryFound = mandatory.filter((k) => k.foundInCv).length;
+  const mandatoryTotal = mandatory.length;
+  const nonMandatoryFound = nonMandatory.filter((k) => k.foundInCv).length;
+  const nonMandatoryTotal = nonMandatory.length;
+
+  // Mandatory: binary penalty — each missing mandatory item is a hard deduction
+  const mandatoryScore = mandatoryTotal > 0
+    ? (mandatoryFound / mandatoryTotal) * 100
+    : 100;
+
+  // Non-mandatory: percentage coverage
+  const keywordCoverage = nonMandatoryTotal > 0
+    ? (nonMandatoryFound / nonMandatoryTotal) * 100
+    : 100;
+
+  if (mandatoryTotal > 0 && mandatoryFound < mandatoryTotal) {
+    const missing = mandatory.filter((k) => !k.foundInCv).map((k) => k.keyword);
+    issues.push(`Missing mandatory requirements: ${missing.join(', ')}`);
+  }
+  if (mandatoryTotal > 0 && mandatoryFound === mandatoryTotal) {
+    passed.push(`All ${mandatoryTotal} mandatory requirements met`);
+  }
+
+  if (nonMandatoryTotal > 0) {
+    const pct = Math.round(keywordCoverage);
+    if (pct >= 70) {
+      passed.push(`Keyword coverage: ${nonMandatoryFound}/${nonMandatoryTotal} (${pct}%)`);
+    } else {
+      issues.push(`Low keyword coverage: ${nonMandatoryFound}/${nonMandatoryTotal} (${pct}%)`);
+    }
+  }
+
+  // Relevance signals scoring (50% of total) — average of 6 signals mapped to 0–100
+  const signalScores = signals.map((s) => Math.min(10, Math.max(1, s.score)));
+  const avgSignal = signalScores.length > 0
+    ? signalScores.reduce((a, b) => a + b, 0) / signalScores.length
+    : 5;
+  const signalScore = (avgSignal / 10) * 100;
+
+  for (const s of signals) {
+    if (s.score <= 4) {
+      issues.push(`${formatSignalName(s.signal)}: ${s.reasoning}`);
+    } else if (s.score >= 7) {
+      passed.push(`${formatSignalName(s.signal)}: ${s.reasoning}`);
+    }
+  }
+
+  // Final score: 30% mandatory + 30% keyword coverage + 40% relevance signals
+  const weightedScore = mandatoryTotal > 0
+    ? (mandatoryScore * 0.3) + (keywordCoverage * 0.3) + (signalScore * 0.4)
+    : (keywordCoverage * 0.5) + (signalScore * 0.5);
+
+  return {
+    score: Math.round(Math.max(0, Math.min(100, weightedScore))),
+    issues,
+    passed,
+  };
+}
+
+function formatSignalName(signal: string): string {
+  return signal
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ─── Build full ATS check from two dimensions ───────────────────────────────
+
+async function buildAtsCheck(body: AnalyzeCvRequest): Promise<AtsCheck> {
+  // Dimension 1: extract keywords from JD
+  const keywords = await extractAtsKeywords(body.jobDescription, body.targetRole);
+
+  // Dimension 2: score relevance against CV
+  const relevance = await scoreAtsRelevance(body.currentCvText, body.targetRole, keywords);
+
+  // Merge keyword match results back into the keyword list
+  for (const match of relevance.keywordMatches) {
+    const kw = keywords.find((k) => k.keyword.toLowerCase() === match.keyword.toLowerCase());
+    if (kw) kw.foundInCv = match.foundInCv;
+  }
+
+  // Normalize signals
+  const relevanceSignals: AtsRelevanceSignal[] = (relevance.signals ?? [])
+    .filter((s): s is { signal: string; score: number; reasoning: string } =>
+      typeof s.signal === 'string' && typeof s.score === 'number' && typeof s.reasoning === 'string',
+    )
+    .map((s) => ({
+      signal: s.signal,
+      score: Math.min(10, Math.max(1, Math.round(s.score))),
+      reasoning: s.reasoning,
+    }));
+
+  const { score, issues, passed } = computeAtsScore(keywords, relevanceSignals);
+
+  return {
+    score,
+    issues,
+    passed,
+    extractedKeywords: keywords,
+    relevanceSignals,
+  };
+}
+
+// ─── Action Plan — forward-looking recommendation engine ─────────────────────
+
+const ACTION_PLAN_PROMPT = `You are a career coach generating a concrete action plan for a candidate who has just had their CV evaluated against a target role.
+
+You will receive the full evaluation result — section scores, ATS keyword gaps, relevance signals, bullet impact, and JD alignment. Use this to generate a **forward-looking, actionable** plan.
+
+Return ONLY a valid JSON object — no markdown, no explanation:
+{
+  "summary": string,
+  "projectsToBuild": [ { "title": string, "description": string } ],
+  "skillsToLearn": [ { "title": string, "description": string } ],
+  "certifications": [ { "title": string, "description": string } ],
+  "intermediateRoles": [ { "title": string, "description": string } ]
+}
+
+Rules:
+- summary: 2–3 sentences framing the candidate's biggest gaps and the strategic direction of the plan.
+- projectsToBuild: 2–5 specific portfolio project types that would directly close the gaps found. Every project must name a concrete build (e.g. "Build a React dashboard consuming a REST API with role-based auth"), not a vague theme ("learn frontend").
+- skillsToLearn: 2–5 specific skills the candidate should develop to meet the target role. Each must include WHY it matters for THIS role (reference the gap it closes).
+- certifications: 0–4 certifications that are genuinely recognised for the target role's industry. Do not invent certifications. If none are relevant, return an empty array.
+- intermediateRoles: ONLY populate if there is a clear seniority mismatch (e.g. candidate is junior/intern but applying for senior). In that case, list 2–4 realistic stepping-stone roles (title + why it bridges the gap). If there is no seniority gap, return an empty array.
+- Every recommendation must be specific and actionable. No generic verdicts. No platitudes. No "keep working hard" filler.
+- Do not repeat bullet-level rewrite suggestions — those live in a separate section.`;
+
+interface ActionPlanEvaluationContext {
+  targetRole: string;
+  jobDescription?: string;
+  sections: AnalyzeCvResult['sections'];
+  atsCheck: AtsCheck;
+  bulletEvaluations: BulletEvaluation[];
+  jdAlignment: JdAlignment;
+  keywordHighlights: KeywordHighlight[];
+}
+
+function buildActionPlanFallback(): ActionPlan {
+  return {
+    summary: 'Action plan unavailable — LLM not configured.',
+    projectsToBuild: [],
+    skillsToLearn: [],
+    certifications: [],
+    intermediateRoles: [],
+  };
+}
+
+function normalizeActionPlanItems(raw: unknown): ActionPlanItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((r): r is Record<string, unknown> => r !== null && typeof r === 'object')
+    .map((r) => ({
+      title: typeof r.title === 'string' ? r.title.trim() : '',
+      description: typeof r.description === 'string' ? r.description.trim() : '',
+    }))
+    .filter((i) => i.title.length > 0);
+}
+
+async function generateActionPlan(context: ActionPlanEvaluationContext): Promise<ActionPlan> {
+  assertLlmConfigured('cvOptimizer');
+  const anthropic = createAnthropicClient();
+  const model = getFeatureModel('cvOptimizer');
+
+  const evaluationSummary = {
+    targetRole: context.targetRole,
+    hasJobDescription: Boolean(context.jobDescription?.trim()),
+    sections: context.sections.map((s) => ({ title: s.title, score: s.score, feedback: s.feedback })),
+    atsScore: context.atsCheck.score,
+    atsIssues: context.atsCheck.issues,
+    atsPassed: context.atsCheck.passed,
+    extractedKeywords: context.atsCheck.extractedKeywords.map((k) => ({
+      keyword: k.keyword,
+      category: k.category,
+      mandatory: k.mandatory,
+      foundInCv: k.foundInCv,
+    })),
+    relevanceSignals: context.atsCheck.relevanceSignals,
+    bulletImpact: {
+      total: context.bulletEvaluations.length,
+      weak: context.bulletEvaluations.filter((b) => b.impactScore <= 4).length,
+      averageScore: context.bulletEvaluations.length > 0
+        ? Math.round((context.bulletEvaluations.reduce((s, b) => s + b.impactScore, 0) / context.bulletEvaluations.length) * 10) / 10
+        : 0,
+    },
+    jdAlignment: context.jdAlignment,
+    missingKeywords: context.keywordHighlights.filter((k) => !k.foundInCv).map((k) => k.keyword),
+  };
+
+  const response = await anthropic.messages.create({
+    model,
+    max_tokens: 2048,
+    system: `${todayInstruction()}\n\n${ACTION_PLAN_PROMPT}`,
+    messages: [{
+      role: 'user',
+      content: [
+        `TARGET ROLE: ${context.targetRole}`,
+        '',
+        '=== EVALUATION RESULT ===',
+        JSON.stringify(evaluationSummary, null, 2),
+      ].join('\n'),
+    }],
+  });
+
+  const block = response.content[0];
+  if (block.type !== 'text') return buildActionPlanFallback();
+
+  const parsed = JSON.parse(stripJsonFences(block.text)) as Partial<ActionPlan>;
+  return {
+    summary: typeof parsed.summary === 'string' ? parsed.summary.trim() : '',
+    projectsToBuild: normalizeActionPlanItems(parsed.projectsToBuild),
+    skillsToLearn: normalizeActionPlanItems(parsed.skillsToLearn),
+    certifications: normalizeActionPlanItems(parsed.certifications),
+    intermediateRoles: normalizeActionPlanItems(parsed.intermediateRoles),
+  };
+}
+
+// ─── Composite score computation ────────────────────────────────────────────
+
+function computeCompositeScore(
+  sections: AnalyzeCvResult['sections'],
+  atsCheck: AtsCheck,
+  bulletEvaluations: BulletEvaluation[],
+): { overallScore: number; breakdown: ScoreBreakdown } {
+  const cvOverview = sections.length > 0
+    ? Math.round(sections.reduce((s, sec) => s + sec.score, 0) / sections.length)
+    : 0;
+
+  const atsAndKeywordIntelligence = atsCheck.score;
+
+  const bulletImpact = bulletEvaluations.length > 0
+    ? Math.round((bulletEvaluations.reduce((s, b) => s + b.impactScore, 0) / bulletEvaluations.length) * 10)
+    : 0;
+
+  const overallScore = Math.round(
+    cvOverview * 0.25 +
+    atsAndKeywordIntelligence * 0.40 +
+    bulletImpact * 0.35,
+  );
+
+  return {
+    overallScore: Math.max(0, Math.min(100, overallScore)),
+    breakdown: { cvOverview, atsAndKeywordIntelligence, bulletImpact },
   };
 }
 
@@ -146,7 +588,7 @@ function safeNumber(val: unknown, fallback = 0): number {
   return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : fallback;
 }
 
-function normalizeResult(targetRole: string, raw: Partial<AnalyzeCvResult>): AnalyzeCvResult {
+function normalizeResult(_targetRole: string, raw: Partial<AnalyzeCvResult>): Omit<AnalyzeCvResult, 'atsCheck' | 'actionPlan' | 'overallScore' | 'scoreBreakdown'> & { atsCheck?: AtsCheck } {
   const sections = safeArray<AnalyzeCvResult['sections'][number]>(raw.sections)
     .map((s) => ({
       title: safeString(s?.title),
@@ -159,20 +601,12 @@ function normalizeResult(targetRole: string, raw: Partial<AnalyzeCvResult>): Ana
     throw new Error('LLM result did not include any valid sections.');
   }
 
-  const rawAts = (raw.atsCheck ?? {}) as Partial<AtsCheck>;
   const rawFmt = (raw.formatCheck ?? {}) as Partial<FormatCheck>;
   const rawAlignment = (raw.jdAlignment ?? {}) as Partial<JdAlignment>;
 
   return {
-    overallScore: safeNumber(raw.overallScore),
     sections,
-    expertReview: safeString(raw.expertReview, `This CV has been reviewed for the ${targetRole} role.`),
     keywordHighlights: safeArray<KeywordHighlight>(raw.keywordHighlights),
-    atsCheck: {
-      score: safeNumber(rawAts.score),
-      issues: safeArray<string>(rawAts.issues),
-      passed: safeArray<string>(rawAts.passed),
-    },
     formatCheck: {
       issues: safeArray<string>(rawFmt.issues),
       suggestions: safeArray<string>(rawFmt.suggestions),
@@ -192,19 +626,12 @@ You will receive a CV and optionally a Job Description. Analyze the CV thoroughl
 
 The JSON must match this exact structure:
 {
-  "overallScore": <integer 0–100>,
   "sections": [
     { "title": string, "score": <integer 0–100>, "feedback": string }
   ],
-  "expertReview": string,
   "keywordHighlights": [
     { "keyword": string, "foundInCv": boolean, "category": "required_skill" | "tech_stack" | "nice_to_have" }
   ],
-  "atsCheck": {
-    "score": <integer 0–100>,
-    "issues": [string],
-    "passed": [string]
-  },
   "formatCheck": {
     "issues": [string],
     "suggestions": [string]
@@ -223,14 +650,15 @@ The JSON must match this exact structure:
 }
 
 Rules:
-- sections: produce exactly 4 items covering Technical Skills, Experience, Role Alignment, Writing Impact
+- sections: produce exactly 4 items covering Technical Skills, Experience, Role Alignment, Writing Impact. These feed the "CV Overview" dimension of the composite score.
 - keywordHighlights: extract every named technology, tool, language, framework, and method from the JD; mark each as found or missing in the CV; classify as required_skill, tech_stack, or nice_to_have
-- atsCheck: evaluate for ATS compatibility (no tables, no graphics, standard headings, correct date formats, measurable content). Score 0–100. List specific issues and what passed
 - formatCheck: flag any typos, inconsistent capitalisation, inconsistent date formats, punctuation issues, or missing section headers
-- bulletEvaluations: evaluate every experience bullet in the CV. Score impact 1–10. Be strict — vague bullets score 1–4
+- bulletEvaluations: evaluate every experience bullet in the CV. Score impact 1–10. Be strict — vague bullets score 1–4. These feed the "Bullet Impact" dimension of the composite score.
 - rewriteSuggestions: provide 3–6 concrete rewrites targeting the weakest bullets and summary. Show the original and improved version side by side with the reason
 - jdAlignment: list specific JD requirements that are clearly evidenced in the CV vs clearly absent
-- expertReview: 3–5 sentence holistic verdict, referencing specific evidence from the CV
+- ATS scoring is handled by a separate dedicated pipeline — do NOT produce an atsCheck field.
+- Overall score is computed downstream from three dimensions (CV Overview 25%, ATS Compatibility 40%, Bullet Impact 35%) — do NOT produce an overallScore field.
+- An Action Plan is generated in a separate call — do NOT produce an expertReview or actionPlan field here.
 - Do not invent facts. Do not be encouraging if the CV is weak. Score what is actually present.`;
 
 async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeCvResult | null> {
@@ -250,18 +678,68 @@ async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeCvResult
       : '(No job description provided — evaluate the CV against the target role only.)',
   ].join('\n');
 
-  const response = await anthropic.messages.create({
-    model,
-    max_tokens: 4096,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: userPrompt }],
-  });
+  // Run main analysis and ATS scoring in parallel
+  const [mainResponse, atsCheck] = await Promise.all([
+    anthropic.messages.create({
+      model,
+      max_tokens: 4096,
+      system: `${todayInstruction()}\n\n${SYSTEM_PROMPT}`,
+      messages: [{ role: 'user', content: userPrompt }],
+    }),
+    buildAtsCheck(body).catch((err) => {
+      console.error('ATS scoring failed, falling back to basic ATS check.', err);
+      return null;
+    }),
+  ]);
 
-  const block = response.content[0];
+  const block = mainResponse.content[0];
   if (block.type !== 'text') return null;
 
   const raw = JSON.parse(stripJsonFences(block.text)) as Partial<AnalyzeCvResult>;
-  return normalizeResult(body.targetRole.trim(), raw);
+  const partial = normalizeResult(body.targetRole.trim(), raw);
+
+  // ATS comes from the dedicated pipeline — fall back to an empty ATS check if it failed.
+  const finalAtsCheck: AtsCheck = atsCheck ?? {
+    score: 0,
+    issues: ['ATS scoring pipeline failed — score unavailable.'],
+    passed: [],
+    extractedKeywords: [],
+    relevanceSignals: [],
+  };
+
+  const { overallScore, breakdown } = computeCompositeScore(
+    partial.sections,
+    finalAtsCheck,
+    partial.bulletEvaluations,
+  );
+
+  // Action Plan call — runs AFTER we have the full evaluation context so
+  // Claude can produce targeted, gap-aware recommendations.
+  const actionPlan = await generateActionPlan({
+    targetRole: body.targetRole.trim(),
+    jobDescription: body.jobDescription,
+    sections: partial.sections,
+    atsCheck: finalAtsCheck,
+    bulletEvaluations: partial.bulletEvaluations,
+    jdAlignment: partial.jdAlignment,
+    keywordHighlights: partial.keywordHighlights,
+  }).catch((err) => {
+    console.error('Action plan generation failed.', err);
+    return buildActionPlanFallback();
+  });
+
+  return {
+    overallScore,
+    scoreBreakdown: breakdown,
+    sections: partial.sections,
+    keywordHighlights: partial.keywordHighlights,
+    atsCheck: finalAtsCheck,
+    formatCheck: partial.formatCheck,
+    bulletEvaluations: partial.bulletEvaluations,
+    rewriteSuggestions: partial.rewriteSuggestions,
+    jdAlignment: partial.jdAlignment,
+    actionPlan,
+  };
 }
 
 // ─── Job runner ───────────────────────────────────────────────────────────────
