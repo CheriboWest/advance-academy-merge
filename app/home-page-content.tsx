@@ -10,8 +10,9 @@ import { CvOptimizerScreen } from '@/features/cv-optimizer/components/cv-optimiz
 import { InterviewPrepScreen } from '@/features/interview-prep/components/interview-prep-screen'
 import { InterviewHistoryScreen } from '@/features/interview-prep/components/interview-history-screen'
 import { DreamCompanyScreen } from '@/features/dream-company/components/dream-company-screen'
+import { CvLibraryScreen } from '@/features/cv-library/components/cv-library-screen'
 
-const VIEWS_FROM_QUERY = new Set<string>(['home', 'outreach', 'cv', 'interview', 'history', 'companies'])
+const VIEWS_FROM_QUERY = new Set<string>(['home', 'outreach', 'cv', 'interview', 'history', 'companies', 'cv-library'])
 
 function viewFromSearchParams(searchParams: URLSearchParams | null): ViewName {
   const raw = searchParams?.get('view')
@@ -44,6 +45,9 @@ export function HomePageContent() {
       )}
       {currentView === 'cv' && (
         <CvOptimizerScreen />
+      )}
+      {currentView === 'cv-library' && (
+        <CvLibraryScreen />
       )}
       {currentView === 'interview' && (
         <InterviewPrepScreen onNavigate={handleNavigate} />

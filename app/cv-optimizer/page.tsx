@@ -15,6 +15,10 @@ export default function CvOptimizerPage() {
         router.push('/cv-optimizer')
         return
       }
+      if (view === 'cv-library') {
+        router.push('/cv-library')
+        return
+      }
       if (view === 'companies') {
         router.push('/dream-company')
         return
