@@ -1,0 +1,1377 @@
+[
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/music-streaming-design/cmkra8zdb0nez08adtw0l4gj0",
+    "question": "Design Amazon Music"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/movie-ticket-booking/cmkpq7a4i06nr08ad7rgacbmn",
+    "question": "Design a movie ticket booking system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/large-model-distribution/cmkxbumw501pk08ad4wrda4pv",
+    "question": "Design a large model file distribution system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/difficult-customer-interaction/cm5ya868n0013rfqrcouj567z",
+    "question": "Describe a difficult interaction you had with a customer."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/job-scheduler-design/cmhawpyo4019p08adtchx9ak7",
+    "question": "Tell me about a time you had to design a job scheduler or similar system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/chat-analytics-dashboard/cmlhd2x5707mm08adzc662tjl",
+    "question": "Design an analytics dashboard for an AI chat app"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/beverage-vending-system/cmkr2w9l80cph08adwuu5vnfh",
+    "question": "Design a vending machine system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/flatten-multilevel-list/cm5eguhab02cc838oz8f42ptb",
+    "question": "Leetcode 430. Flatten a Multilevel Doubly Linked List"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/complicated-coworker-relationship/cm6u35qy4000i3b6zqto83e74",
+    "question": "Tell me about a complicated relationship you had with a coworker"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/cards-sum-15/cmj313k1c05rj08adjuwctql8",
+    "question": "Card Game: Find Three Cards Summing to 15"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/train-booking-holidays/cmcxo5lbn043dad0846vbdk8o",
+    "question": "Design a Train Reservation System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/coding-interview-platform/cmhi1hhbh05wt08ad2knqdyh2",
+    "question": "Design CoderPad"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/manager-feedback-response/cmku2gez30sm208adn716ew6p",
+    "question": "Tell me about a time you received critical feedback from your manager. How did you respond to it, and what did you learn?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-department-conflict/cm5ehcf6e059b838ok8og7kvc",
+    "question": "Can you share an example where you resolved a significant conflict between different teams or departments in your organization?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/project-deadline-management/cm6jwykvf00owui4b1nqfga32",
+    "question": "Explain how you managed a project with strict deadlines"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/unique-characters-subset/cmjdgvdgd00bn08adhvz1s58g",
+    "question": "Maximize Unique Characters from Word List"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/maze-pathfinding/cmjblpyx805lb08adyf94sxfz",
+    "question": "Maze Pathfinding Algorithm"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/words-containing-substrings/cmkfv40so037h08ad3ahpr6ek",
+    "question": "Find Words That Contain Other Words as Substrings"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/instacart-product-catalogue/cmhgnzbtb01ga08advm5tar01",
+    "question": "Design Instacart product catalogue"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/devbox-cloud-containers/cmlmzqhv503px08adrpjczqzc",
+    "question": "Design a devbox system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/log-storage-service/cmlmtgqnf0khb08adauyyd1rf",
+    "question": "Design a log storage service"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/knn-classifier-optimization/cmlpx43jl0ktp08ad0a4lo76w",
+    "question": "Implement and Optimize a K-Nearest Neighbors Classifier"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/ticket-booking-service/cm5g8rogj000013omsh2wi26a",
+    "question": "Design a Ticket Booking System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-member-credit/cm6jwyksb00olui4bibfxqcv0",
+    "question": "How would you handle a situation where one team member takes all the credit for a group project"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/crossword-solver-service/cmlod05pd0p4z08adovgk5l1h",
+    "question": "Design a crossword puzzle service"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/realtime-event-classification/cmhqdz4i300my08adooe9mvaw",
+    "question": "Design a real-time event classification system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/transaction-processing-system/cmi2gkes0020p08ad3wwvx1d4",
+    "question": "Design a transaction processing system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/token-balance-tracking/cmlod3rnm0pj107adhum3e477",
+    "question": "Design a credit tracking service for user token balances"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/coaching-example/cm5onxydf00093b6pvv0lo29m",
+    "question": "Describe a time when you had to coach someone"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/image-transform-pipeline/cmj4jzavk00je08adwpqygvow",
+    "question": "Image Transform Pipeline with Scaling"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/influence-peer-goal/cm5ya89b1002lrfqrhrlc59ke",
+    "question": "Describe a time when you needed to influence a peer who had a differing opinion about a shared goal."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/work-collaboration-story/cm7duae3n00wlgd7zpcpaupt9",
+    "question": "Tell me about a time you had to work closely with someone."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/decision-incomplete-information/cm5ehcf6e059i838oim6mi9mo",
+    "question": "Can you describe a time when you had to make a decision with incomplete information? What was the situation, and how did you handle it?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/stakeholder-communication-technical/cmm6kq3fe0slg08admp8rf995",
+    "question": "How do you communicate with stakeholders who don&#x27;t have the same kind of technical understanding?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/teammates-conflict-resolution/cm6jwyl1100p7ui4bkmhhy3rt",
+    "question": "Discuss a time when you had conflicting perspectives with teammates and how you handled it"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/location-menus-pricing/cmi3quwzg02mg07ad9blftp07",
+    "question": "Design a fast food restaurant chain management system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/duplicate-files/cmcp5xlxu01f8ad08kg84xro8",
+    "question": "Find duplicated files"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/tough-decision-situation/cm6jwyksd00omui4bfvkpyrdy",
+    "question": "Describe a situation where you had to make a tough decision and what factors you considered"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/career-development-mentorship/cm5ya8b8i003irfqrjkeolqor",
+    "question": "Tell me about a time when you helped one of your team members develop their career."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/api-gateway-design/cmi7ehcp402t108adh7as55gb",
+    "question": "Design an API Gateway"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/offer-subscription-system/cmi7qoka2009008ad6tm1csdb",
+    "question": "Design an e-commerce offer subscription system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/stock-ticker-counts/cmif5kzvz00ia08adgqkx20cs",
+    "question": "Design a stock ticker tracking system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/call-text-survey/cmihot31t02sb08adbxic4tsa",
+    "question": "Design a call to text message survey generator"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/authentication-session/cmlod4ttu0pa608ad89vm8qkj",
+    "question": "Authentication Manager"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/monster-game-system/cmkq1swdr0fh807adwlyp760o",
+    "question": "Monster Game"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/pipeline-tasks-stages/cmazmemqc00013b6wnvg3uz1y",
+    "question": "Design a Ci/Cd Pipeline"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/linux-troubleshooting-system/cmm6mcm3f0trx0eadwrfsdzb0",
+    "question": "Design a Linux troubleshooting system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/llm-inference-system/cmmclzsc301v507adlk1botm4",
+    "question": "Building a Large-Scale LLM Serving System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/top-k-exceptions/cmaitjrxw012jad08t3lxmoy7",
+    "question": "Design a Top-K Exceptions System from Logs Across Services"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/medical-records-streaming/cmiq9nin3004609ad1bp71rqv",
+    "question": "Design a healthcare platform"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/message-queue-dlq/cmlp4dtw80frf08adc5p5yjn7",
+    "question": "Design Asynchronous Message Queue with DLQ"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/advent-code-day7/cmjrr2k5v07zc08ado2pqgd2l",
+    "question": "Advent of Code Day 7 Variation"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/distributed-task-scheduler/cmgil7yj102hu08adykf6m450",
+    "question": "Design a distributed task scheduler"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/photo-video-sharing/cmj6ojcve04vc08ad7uu28z8d",
+    "question": "Design Instagram for a new mobile device OS"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/fleet-geofence-notifications/cmjan4cr203dk08adryyo5h4x",
+    "question": "Design a geofence notification system for vehicle fleets"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/prompt-playground/cmjd4xmkg04nf08adwd3m0bvs",
+    "question": "Design a prompt playground"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/betting-slip-feed/cmk5t0s8c09dc08ad78c19goh",
+    "question": "Design a sports betting slip sharing feed"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/facebook-posts-storage/cmk73ne1c061107add4hkakgy",
+    "question": "Design a Facebook posts storage system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/gcp-data-migration/cmgjodbag04hl08ad8h12hlh1",
+    "question": "Design a data migration service for GCP"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/word-break-ii/cm5eh7nrh04qw838oxwnsy261",
+    "question": "Leetcode 140. Word Break II"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/log-structured-kv/cmja1fu92035f07ad8ihz3k7h",
+    "question": "Design a Database like Bitcask"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/ipv4-address-iterator/cmg8pwhzz00hh08adsezwfgvw",
+    "question": "IPv4 Address Iterator"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/rag-ingestion-pipeline/cmhf7yl9701os08adtcpxgu37",
+    "question": "Design an end-to-end RAG application with ingestion pipeline"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/rover-2d-navigation/cmml4xl9203dk09addygku1vx",
+    "question": "Rover CLI Navigation System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/technical-project-overview/cmmmozzdx00ht07ade785rs7k",
+    "question": "Past Project Technical Overview"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/friend-recommendation-system/cmmjgcgav052c0eadi8f91wl8",
+    "question": "Friend Recommendation System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/student-teacher-messaging/cmje4uws104gm07adctyttbi7",
+    "question": "Design a message delivery system between student and teacher"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/flower-disease-spread/cmhykoavb02w108adtuubkyzp",
+    "question": "Disease Spread in Flower Grid"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/smart-alarm-system/cmmbkgqcp1qnt09ad9i70hfdw",
+    "question": "Design a smart alarm system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/linkedin-quota-manager/cm8eyjbap0203tqqt6y0b2sy5",
+    "question": "Design a Quota Manager for LinkedIn APIs"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/post-tag-storage/cmk73p76d061t07adp64y79ez",
+    "question": "Design a Facebook post storage and query system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/photo-storage-sharing/cmkbgr2qp08d108adu0khqo6o",
+    "question": "Design Google Photos"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/leetcode-1236-web-crawler/cm5eguhad02yq838onz7xeyjk",
+    "question": "Leetcode 1236. Web Crawler"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/csv-duplicate-removal/cmn5asc8p068e0ead4bzoiifj",
+    "question": "CSV Duplicate Record Removal"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/csv-ingestion-pipeline/cmn5o8c6s095o08adq9z04qiq",
+    "question": "CSV Parser for Data Ingestion and Classification"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/location-autocomplete-uber/cmksoh1v11z9609adupc39hl8",
+    "question": "Design an autocomplete search system for Uber"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/service-deployment-system/cmh28z8gj01uz08adpxk12m12",
+    "question": "Design a service deployment system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/binary-linked-list/cm5eguhae0308838o32slo8ah",
+    "question": "Leetcode 1290. Convert Binary Number in a Linked List to Integer"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/word-processing/cmnfwqru20aw70fad7q532e09",
+    "question": "Word Processing"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/metrics-monitoring-alerts/cm6k7xmwh024f11hvvc0uq1e5",
+    "question": "Design a System Metrics Monitoring and Alerting Platform"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/linked-list-binary-tree/cm5eguhae032d838obupn5vhz",
+    "question": "Leetcode 1367. Linked List in Binary Tree"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/missed-commitment-example/cm5ya89gt002orfqrp7ow7f5i",
+    "question": "Give me an example of a time when you were not able to meet a commitment."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/coworker-conflict-resolution/cm5ehcf6e0599838oop9wivfq",
+    "question": "Tell me about a time you had a conflict with a coworker. How did you resolve it?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/change-direction-concerns/cm5ya88yu002frfqr7x9uwafh",
+    "question": "Tell me about a time when you had to communicate a change in direction that you anticipated people would have concerns with."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/tough-feedback-example/cm5ya8957002irfqrdd7b2gt8",
+    "question": "Give me an example of a tough or critical piece of feedback you received."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/project-retrospective/cmhi4bw8t00in08ad69k6nx5p",
+    "question": "Tell me about one project you are proud of and how you would do it differently if you could redo it"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/project-team-success/cmjezb2om02j008ad6ux8xkgz",
+    "question": "Project you are most proud of"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/logging-rate-limiting-aggregation/cmngssoui03dv08ad7frmgtw5",
+    "question": "Design a Logging Library with Severity Filtering, Rate Limiting, and Aggregation"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/employee-underperformance/cm73qnhcq00033b6rmrv2qdhv",
+    "question": "Tell me about a time you had to deal with underperformance"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/proactive-issue-resolution/cm5ya862i0010rfqr2zo1ypdp",
+    "question": "Tell me about a time when you saw an issue that would impact your team and took a proactive approach to solve it."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/diversity-inclusion/cm7c7lee500003b6pohofxv87",
+    "question": "What do you think of diversity and inclusivity?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/cloud-storage-system/cmjkdbhzt060p07adqmgzqdfa",
+    "question": "Design a cloud storage system like Amazon S3"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/project-tight-deadline/cm5ya87lh001rrfqr8yfx3ns7",
+    "question": "Give me an example of a time when you were able to deliver an important project under a tight deadline."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/idea-mistake-discovery/cm5ya84uu000frfqregmaqdfo",
+    "question": "Tell me about a time when you discovered that your idea was not the best course of action."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/personal-professional-achievements/cm7c7otsw00043b6pv5fxi2h3",
+    "question": "What are the proudest things you have achieved in the past couple of years, either professionally or personally"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/changing-requirements-project/cm5ehcf6e059h838op4fgiik2",
+    "question": "Tell me about a project where the requirements were not clear or kept changing. How did you adapt and maintain productivity?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-leadership-adaptation/cm5ehcf6e059k838owxamieq8",
+    "question": "Tell me about a time when you had to adapt your leadership style to suit a specific team or situation. How did you do it and what was the outcome?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/customer-feedback-example/cm5ya86qt001crfqrg77bqiki",
+    "question": "Give me an example of a time when you asked for customer feedback."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/restaurant-booking-service/cm6quatd204qcv55h3308vp46",
+    "question": "Design a Restaurant Booking Service"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/group-decision-commitment/cm5ya8b1o003frfqraz30x92v",
+    "question": "Give me an example of a time you committed to a group decision even though you disagreed."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/bitwise-guess-number/cm5eguhaj04ec838oa35or8a3",
+    "question": "Leetcode 3094. Guess the Number Using Bitwise Questions II"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/subarray-or-k/cm5eguhaj04ed838o3lzyjp78",
+    "question": "Leetcode 3095. Shortest Subarray With OR at Least K I"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/tight-deadline-action/cm6jwyd0100n3ui4bmlw329bb",
+    "question": "Describe a situation where you had to show bias for action in a tight deadline scenario"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/gather-information-immediate-response/cm5ya85q4000urfqr17h83ynt",
+    "question": "Tell me about a time when you had to gather information and respond immediately to a situation."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/problem-solving-approach/cm6zhccg1000h3b6q12uwmzhr",
+    "question": "Describe your approach to solving new and unfamiliar problems, including any strategies or methodologies you use."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/stretch-assignment/cm5ya8cyl004crfqrj8iv2q4y",
+    "question": "Describe a time when you took on work outside of your comfort area."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/project-failure-retrospective/cm730xpyt00023b6r54v44ctj",
+    "question": "Tell me about a project where you failed"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/diverse-opinions-customer/cm6zh4tcb00083b6qkkhpcwll",
+    "question": "Can you tell me about a time you had to handle a group of diverse opinions, and how it helped the customer?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/difficult-work-relationship/cm7c6z1dp0007356rsihy8trq",
+    "question": "Tell me about your most difficult working relationship"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/customer-service-story/cm5ya86el0016rfqrourant14",
+    "question": "Tell me about a time when you went above and beyond for a customer."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/unpopular-project-example/cm9qhu63p0015ad089cs7dux1",
+    "question": "Tell me about an unpopular project you worked on"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/multithreaded-file-copy/cmn6zwicx0yx807adtbpejt58",
+    "question": "Multithreaded File Copy Command"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/router-placement-houses/cmnkylpex1ma30eadzc61ob3d",
+    "question": "Minimum Cost Router Placement Among Houses"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/metric-monitoring-system/cmnm5iirk11ab0dad9zpv2pik",
+    "question": "Metric Monitoring System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/realtime-event-messages/cm6jx05f80109ui4bmto6tgo7",
+    "question": "Design a Real-Time Event Message System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/manager-decision-disagreement/cm5ehcf6e059a838oalybqmyb",
+    "question": "What was a situation where you didn&#x27;t agree with your manager or superior&#x27;s decision?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/positive-leadership-style/cm6jwztd500xhui4btkbjhgz5",
+    "question": "Describe one positive leadership/managerial style you liked from one of your previous managers and how did that affect your workstyle"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/anticipate-customer-need/cm5ya86ku0019rfqrgtfsae93",
+    "question": "Give me an example of when you were able to anticipate a customer need with a solution/product they didn&#x27;t know they needed/wanted yet."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/strategic-decision-uncertainty/cm5ya846i0003rfqrheht1txe",
+    "question": "Tell me about a strategic decision you had to make without clear data or benchmarks."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-manager-conflict/cm753sab300033b64k16jvsjp",
+    "question": "Tell me about a conflict you had to resolve among teams and one that you had with your manager."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/customer-request-mismatch/cm5ya8733001irfqrj2wxxwqa",
+    "question": "Tell me about a time when a customer came to you for something that wouldn&#x27;t actually address their need."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/challenge-status-quo/cm5ya8bxf003urfqr6e4j9a76",
+    "question": "Tell me about a time when you were unsatisfied with the status quo."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/last-constructive-criticism/cm5ehcf6e059l838o8zot1vkk",
+    "question": "What is the last constructive criticism you received?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/above-beyond-help/cm6jx0jmc0141ui4b2wfelwo3",
+    "question": "Describe going above and beyond to help someone"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/novel-approach-example/cm5ya8e4w004xrfqrsx8c3d4o",
+    "question": "Give me an example of a time you proposed a novel approach to a problem."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-goal-misalignment/cm5ya89my002rrfqr4lux3nyt",
+    "question": "Tell me about a time when your team&#x27;s goals were out of alignment with another team you relied on in order to meet your goal."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/lru-cache-service/cmnm5ik6y11v708adxz2bt9qz",
+    "question": "LRU Cache Service"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/mobile-os-rollout/cmddj4pl0016mad08991msz51",
+    "question": "Design a system to rollout new versions of a mobile OS to devices worldwide"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/management-experience/cmjezaddj02iv08ad5rm88mc7",
+    "question": "Tell me about your management experience"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/unexpected-innovation-example/cm6okr9af000z3b6spk8ezpyd",
+    "question": "Tell me about a time you innovated something that you never expected"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/communication-failure-example/cm5ehcf6e059n838oznzszwbo",
+    "question": "Tell me about a situation where poor communication led to a problem."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/investigate-complex-problem/cm5ya88ae0023rfqrjpb46nld",
+    "question": "Tell me about a time when you were trying to understand a complex problem on your team and you had to dig into the details to figure it out."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/management-colleagues-conflict/cm6jx14k7017tui4byat6jfzq",
+    "question": "Tell me about a time when you had to go against management or your colleagues"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/project-pride/cm5ehcf6e059c838okykjrwwq",
+    "question": "What project are you most proud of?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/partner-disagreement/cmawilclj0145ad082w5v937p",
+    "question": "Tell me about a time you disagreed with a cross-functional partner."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/customer-business-balance/cm5ya87fs001orfqrpnyx7f26",
+    "question": "Tell me about a time when you had to balance the needs of the customer with the needs of the business."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/unclear-requirements-project/cm5euuaq900033b6s8om7q4gi",
+    "question": "Describe a project with unclear or changing requirements and your approach to maintaining productivity."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-conflict-example/cm6jx149g017hui4buet658sy",
+    "question": "Tell me about a time when you had disagreements with your colleagues"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/deny-customer-request/cm5ya879l001lrfqrybxhuh8d",
+    "question": "Tell me about a time when you&#x27;ve had to push back or say no to a customer request."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/exceeded-customer-expectations/cm6jwyd8300nhui4b5k6efvx6",
+    "question": "Describe a time when you exceeded customer expectations"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/nearly-missed-commitment/cm5ya8dgw004lrfqr7s64hqlv",
+    "question": "Describe a time when you didn&#x27;t think you were going to meet a commitment you promised."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/merge-linked-lists/cm5eguhaf03ar838oi81aa077",
+    "question": "Leetcode 1669. Merge In Between Linked Lists"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/password-reset-system/cmjxx8grr054e08ad89haxp4a",
+    "question": "Design a password reset system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/insufficient-data-decision/cm5ya83ws0000rfqra3izsvhg",
+    "question": "Tell me about a time when you didn&#x27;t have enough data to make the right decision."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/recent-learning/cm6jwzhqi00vdui4blfshx90t",
+    "question": "Describe one thing you have learned recently"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/merchant-payout-system/cm9sy6o5x004nad08hwz07r6s",
+    "question": "Design a Merchant Payout System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/peer-taught-skill/cmg01y28t014p08adhbrexe6t",
+    "question": "Tell me about a specific skill you developed by learning from a peer or manager"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/department-direction-change/cm5ya8dz1004urfqrx65bdeak",
+    "question": "Give me an example of how you have changed the direction or view of a specific function/department and helped them embrace a new way of thinking."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/initiative-opportunity/cm5ya8dsz004rrfqrigawxzak",
+    "question": "Tell me about time when you were working on an initiative or goal and saw an opportunity to do something much bigger or better than the initial focus."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/leetflex-banned-accounts/cm5eguhaf03cx838o0l5pa0y4",
+    "question": "Leetcode 1747. Leetflex Banned Accounts"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/code-vulnerability-analysis/cmbnz366601db08adj3htsltq",
+    "question": "Design a Code Vulnerability Analysis System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/presence-service-api/cmkhmd76u02p408ado7y9h2vm",
+    "question": "Design a Presence Service API"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/communication-style-change/cm6zhfo4i000l3b6qps1051y2",
+    "question": "Tell me about a time you had to change your communication style to solve a problem."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/work-conflict-perspectives/cmbhko677005iad09y02ykfyv",
+    "question": "Tell me about a conflict you had at work."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/remove-duplicates-linked-list/cm5eguhaf03fe838oxyhmsrvy",
+    "question": "Leetcode 1836. Remove Duplicates From an Unsorted Linked List"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/navigation-routing-traffic/cm6i9u0oh00rmjx73lr1pjtlu",
+    "question": "Design a Navigation/Mapping System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/youtube-likes-system/cmlawmhni06gs09adzzfyz7f5",
+    "question": "Design YouTube Likes System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/google-slowest-query/cmdj4mw0801blad0810r3tfos",
+    "question": "Design a distributed system for getting the slowest query from Google search"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/user-referral-reward/cm8n3oq3a00002e6jcpto5u3o",
+    "question": "Design a user referral system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/company-improvement-initiative/cmb3id4lu00073b6yp1mv9xv5",
+    "question": "Tell me about a time when you spot an opportunity to improve your company, and you drive that"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/customer-change-initiative/cm6zhf3ld000k3b6qzz50539s",
+    "question": "Tell me about a change you made that was customer-focused."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/career-accomplishment/cm6jwzwaa00xvui4b4jr2nucy",
+    "question": "Tell me about one of the biggest accomplishments in your career so far."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/teammate-advocacy-work/cm6jx0jx8014dui4bp5vs0pru",
+    "question": "Describe advocating for a team mate to help them fit in at work"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/project-challenge-overcome/cm5ehcf6e059g838o0d99jh0j",
+    "question": "Describe a challenging situation where a project or initiative under your leadership wasn&#x27;t going as planned and how you persevered to overcome the situation."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/calculated-risk-speed/cm5ya857b000lrfqr7qozg7p7",
+    "question": "Give me an example of a calculated risk that you have taken where speed was critical."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/limited-resources-project/cm5ya8a550030rfqrib3qm2pv",
+    "question": "Describe a time when you had to get a project or initiative completed with limited resources."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/good-work-day/cm64emi21000l3d5zduoak41v",
+    "question": "Tell me about a really good day at work"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/complex-problem-solution/cm5ya8c9k0040rfqr5of7sc59",
+    "question": "Give me an example of a complex problem you solved with a simple solution."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-work-styles/cm6jx0kdw014tui4b19yqvv87",
+    "question": "Describe working with team members with different work styles"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/waste-reduction-example/cm5ya89z6002xrfqr84j7f5bi",
+    "question": "Give me an example of how you have helped save costs or eliminate waste within your role or organization."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-skill-gap/cmacor6i500imad08qipmwc9i",
+    "question": "Tell me about a time when you realized a skill gap in your team"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/experiment-poc-project/cm6jx0dtt012zui4bbbxtxd72",
+    "question": "Tell me about the experiment project or POC you worked on"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/missed-project-deadline/cm64elslu000k3d5zi3aqpu9g",
+    "question": "Tell me about a time where you failed to deliver a project on time"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/solve-organization-problem/cm5ya88t0002crfqrijzjvxt2",
+    "question": "Walk me through a big problem or issue in your organization that you helped to solve."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/overcome-setback-example/cm5ehcf6e059d838o2l2fhwy4",
+    "question": "Give an example of a situation where you had to overcome a significant setback or obstacle to achieve a goal"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/project-choice-challenges/cmcqxx50y00zgad077sn031qi",
+    "question": "Tell me about a project of your choice and its challenges"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/prioritize-help-requests/cm6jwyfaz00nrui4bxju4n70i",
+    "question": "What will you do if multiple people approach you for help or advice at the same time?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/moving-average-stream/cm5eh7nri04wm838ohohaia3c",
+    "question": "Leetcode 346. Moving Average from Data Stream"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/work-challenge-overcome/cm5ehcf6e059e838odnttc7l3",
+    "question": "What is the hardest challenge you&#x27;ve overcome at work?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/problem-analysis/cm5ya88my0029rfqrn93midsi",
+    "question": "Tell me about a problem you had to solve that required in-depth thought and analysis."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/unfavorable-solution-example/cm6zhdl16000i3b6qalylhfz7",
+    "question": "Tell me about a time you gave an unfavorable solution to solve a problem."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/solved-unexpected-problem/cm6zh5mri00093b6q9k0eqa6d",
+    "question": "Tell me about an unexpected problem that you solved in an unconventional way, ahead of the customer asking"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/peer-conflict-mistake/cmhi43hil00do08adu39yy3cd",
+    "question": "Tell me about a time when you had a conflict with a peer and you were wrong"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-shield-drama/cm6k0rujn000b3b630j0et9k4",
+    "question": "Tell me about a time you helped to build a team or helped a team re-org"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/challenge-norms/cm6jwyaio00m3ui4bzmv65ygx",
+    "question": "Tell about a time when you had to go against the norm and push for a change"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-goal-reassessment/cm5ya884f0020rfqrre3xwklv",
+    "question": "Tell me about a time when you or your team were more than half way to meeting a goal when you realized it may not be the right goal."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/change-colleague-opinion/cm6jx0jvr0149ui4bxu052o43",
+    "question": "Describe changing a colleague&#x27;s opinion from negative to positive"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/learning-strategies/cm6jw3ivs003ddar9libc6m9d",
+    "question": "How do you approach learning new things?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/project-pushback-story/cmd36jl7u09u4ad08jwec9q4i",
+    "question": "Tell me about a time you received pushback on a project"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/quality-customer-service/cm5ya8br9003rrfqrvflm2jt7",
+    "question": "Describe a time when you refused to compromise your standards around quality/customer service."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/engineer-promotion-story/cm6ffp48000033b6prbe7nexz",
+    "question": "Tell me a time you helped an engineer promote"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/product-simplification/cm6zh6utw000b3b6qjhnm0oqh",
+    "question": "Tell me about a complicated product that you made simpler"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/cross-team-initiative/cm5ya8daj004irfqr4mygiseu",
+    "question": "Tell me about a time when you took on something significant outside your area of responsibility."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/unpopular-stance-meeting/cm5ya8auw003crfqreclaxmu9",
+    "question": "Describe a time when you took an unpopular stance in a meeting with peers and your leader."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/critical-project-example/cm6jwxh0000h5ui4bu8bap3x9",
+    "question": "Tell me about a time when you had to deal with a critical project, and why was it critical"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/obstacles-goal-achievement/cm5ya87rt001urfqr75beyd44",
+    "question": "Tell me about a time when you had significant, unanticipated obstacles to overcome in achieving a key goal."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/helping-struggling-teammate/cm6xpc7fc00053b6qumu7m33l",
+    "question": "Tell me about a time when someone on your team was struggling and how you helped them"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-problem-discovery/cm5ya89ta002urfqro8i1cby5",
+    "question": "Tell me about a time when you uncovered a significant problem in your team."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/employee-development-investment/cm5ya8bf1003lrfqr4iq8vaos",
+    "question": "Tell me about a time when you invested in an employee&#x27;s development."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/complex-project-experience/cm6jwyd6m00ndui4b9m8e6l4b",
+    "question": "Describe experience working on a complex project"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/poc-product-drop/cm6jx0drf012uui4b1fndh05h",
+    "question": "Tell me about a time when you did some POC but the product decided to drop it"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/teammate-claims-credit/cm6jwyfb400nsui4bz4ary280",
+    "question": "How would you handle a teammate taking all the credit for a team project during a presentation everyone contributed to?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/professional-development-goals/cm5ehcf6e059m838ohs1rvib8",
+    "question": "What are you trying to improve most (professionally)"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/medicine-ads-detection/cmkmut6xb00wz09adyhmcz5f1",
+    "question": "Design a machine learning system for detecting prohibited medicine advertisements"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/global-ip-blocking/cm9auesuf00ioad072gonjah8",
+    "question": "Design a Distributed Blocking/Denylist System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/describe-job-role/cm6ffodsw00013b6pt5izxwps",
+    "question": "Tell me about your job and role"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/simplify-customer-experience/cm5ya8clz0046rfqrcc9ufqrs",
+    "question": "Tell me about a time when you were able to make something simpler for customers."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/innovative-project/cm5ya8cfc0043rfqra3nu5ras",
+    "question": "Describe the most innovative thing you&#x27;ve done."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/goal-setting-approach/cm6jwztkm00xlui4bgjkrbp96",
+    "question": "Tell me about a time you set a goal for yourself and how you approached achieving it"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/challenging-problem/cm5ya8d4m004frfqryeklsn98",
+    "question": "Tell me about a time when you didn&#x27;t know what to do next or how to solve a challenging problem."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/decision-multiple-sources/cm5ya84cm0006rfqrgk1jjiqz",
+    "question": "Tell me about a time when you made a difficult decision with input from many different sources."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/exceeded-goal-example/cm5ya87y6001xrfqrhw461ftp",
+    "question": "Tell me about a time when you not only met a goal but considerably exceeded expectations."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/manager-conflict-resolution/cmhi44aii00e508adf41y22w9",
+    "question": "Tell me about a time when you had a conflict with your manager and you were wrong"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/perspectives-problem-solution/cm5ya8516000irfqrdurp0qmj",
+    "question": "Describe a time when you brought different perspectives together to solve a problem."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/team-feedback-example/cm5ya8bld003orfqr9gcyg1ou",
+    "question": "Give me an example of a time you provided feedback to develop the strengths of someone on your team."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/acted-without-manager/cm71cr0od000f3t63kporg8ev",
+    "question": "Tell me about a time you did something without discussing with your manager first"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/simplification-knowledge-gap/cm6jww7hz00ahui4bprl59e6y",
+    "question": "Describe a situation where you tried to simplify something but lacked the necessary knowledge"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/manage-multiple-priorities/cm6jwztb900x9ui4bcf62frtb",
+    "question": "How do you manage multiple priorities, do you like to be in a place where priorities keep changing or prefer doing the same thing repeatedly."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/judgment-error/cm5ya84oq000crfqr8uligo10",
+    "question": "Tell me about a time when you made an error in judgment."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/independent-business-decision/cm5ya85jp000rrfqr9s1pxgpi",
+    "question": "Describe a situation where you made an important business decision without consulting your manager."
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/beyond-resume/cm6zh0pli00063b6qv9jqq5hv",
+    "question": "Tell me something about yourself I won&#x27;t find on your resume"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/openai-work-motivation/cmhf5kjws00vx08ad4b1e37z2",
+    "question": "Why do you want to work at OpenAI?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/banking-account-system/cml9zuj3s05s608adbj86dndi",
+    "question": "Design a Banking System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/weighted-random-pick/cm5eguhab02f2838ox5omc14t",
+    "question": "Leetcode 528. Random Pick with Weight"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/separate-squares-i/55ab7839-b63b-494b-b842-d3bf74dde1c9",
+    "question": "Leetcode 3453. Separate Squares I"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/3d-model-rendering/cmkou77om0kjv08adwzqoc2xb",
+    "question": "Design a 3D to 2D rendering service"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/leave-current-company/cmkpqdgxl06z408adinwurrth",
+    "question": "Why do you want to leave your current company?"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/tesla-supercharger-service/cmigcol8104jx08ado0cfay5w",
+    "question": "Design a Tesla Supercharger service"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/notification-system-scale/cm758vf17024kalw2qn7e57xs",
+    "question": "Design a Notification System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/photo-search-backend/cmikmkva406q908adb5780xku",
+    "question": "Design a photo search application"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/messenger-chat-system/cm4szunov00303g2e2gomqo2j",
+    "question": "Design a Chat/Messaging System"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/mapreduce-shuffle-service/cmm2b6v6001lw0eadzd6fim9u",
+    "question": "Design a MapReduce Shuffler"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/sort-students-kth-score/cm5eguhah03z3838ovjl1nw3m",
+    "question": "Leetcode 2545. Sort the Students by Their Kth Score"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/airline-reservation-system/cmjwof69302ca08addznw8ty2",
+    "question": "Design an airline reservation system"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/split-circular-list/cm5eguhah042o838otdy8wqfl",
+    "question": "Leetcode 2674. Split a Circular Linked List"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/middle-linked-list/cm5eguhac02oq838ojq3o2f7j",
+    "question": "Leetcode 876. Middle of the Linked List"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/equal-value-index/cm5eguhag03lj838ouzl6oqit",
+    "question": "Leetcode 2057. Smallest Index With Equal Value"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/rank-transform-matrix/cm5eguhae039q838oiybo8cxp",
+    "question": "Leetcode 1632. Rank Transform of a Matrix"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/harshad-number/cm5eguhaj04eh838opzv49oi1",
+    "question": "Leetcode 3099. Harshad Number"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/maximum-score-spliced-array/cm5eguhah03sv838ofborx55e",
+    "question": "Leetcode 2321. Maximum Score Of Spliced Array"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/equal-digit-sum/cm5eguhah03tg838or9k44daf",
+    "question": "Leetcode 2342. Max Sum of a Pair With Equal Sum of Digits"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/minimum-operations-subsequence/cm5eguhaf03bz838o6yy4hbrf",
+    "question": "Leetcode 1713. Minimum Operations to Make a Subsequence"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/minimum-groups-assignment/cm5eguhai0498838oib7fv64c",
+    "question": "Leetcode 2910. Minimum Number of Groups to Create a Valid Assignment"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/lines-cover-points/cm5eguhag03o6838ozxyh3azy",
+    "question": "Leetcode 2152. Minimum Number of Lines to Cover Points"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/ways-buy-pens-pencils/cm5eguhag03qm838oxi4kuprz",
+    "question": "Leetcode 2240. Number of Ways to Buy Pens and Pencils"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/valid-word-square/cm5eguhab02c4838o5m6dc615",
+    "question": "Leetcode 422. Valid Word Square"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/minimum-cost-walk/cm5eguhaj04eq838o6b03r48b",
+    "question": "Leetcode 3108. Minimum Cost Walk in Weighted Graph"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/number-of-ways-to-assign-edge-weights-ii/32c09a1d-fcf8-4bec-a320-4732647d908e",
+    "question": "Leetcode 3559. Number of Ways to Assign Edge Weights II"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/minimum-total-cost-arrays/cm5eguhah03xt838o5jfdjts9",
+    "question": "Leetcode 2499. Minimum Total Cost to Make Arrays Unequal"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/reduction-operations-array/cm5eguhaf03gt838odwgx5lqn",
+    "question": "Leetcode 1887. Reduction Operations to Make the Array Elements Equal"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/alice-bob-flower-game/cm5eguhai04cb838ozfqukuet",
+    "question": "Leetcode 3021. Alice and Bob Playing Flower Game"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/count-root-nodes/cm5eguhah0403838o871jf7n8",
+    "question": "Leetcode 2581. Count Number of Possible Root Nodes"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/safe-invest-countries/cm5eguhae0363838oot42d2mm",
+    "question": "Leetcode 1501. Countries You Can Safely Invest In"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/word-crossword-placement/cm5eguhag03kg838oey0z0lda",
+    "question": "Leetcode 2018. Check if Word Can Be Placed In Crossword"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/even-odd-bits/cm5eguhah040h838on2bvvl31",
+    "question": "Leetcode 2595. Number of Even and Odd Bits"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/crud-rest-apis/cmevr29pa00h608adntw2hgek",
+    "question": "Implement CRUD REST APIs"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/number-of-longest-increasing-subsequence/90b2fbce-ce5e-4748-91d9-1bb334fc3043",
+    "question": "Leetcode 673. Number of Longest Increasing Subsequence"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/design-todo-list/cm5eguhah040c838oojteafyc",
+    "question": "Leetcode 2590. Design a Todo List"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/mark-array-elements/cm5eguhaj04dy838ordbc41d9",
+    "question": "Leetcode 3080. Mark Elements on Array by Performing Queries"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/max-score-words/cm5eguhad02z9838ohz0cjkg2",
+    "question": "Leetcode 1255. Maximum Score Words Formed by Letters"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/no-zero-integers/cm5eguhae030z838oo7hyqzrz",
+    "question": "Leetcode 1317. Convert Integer to the Sum of Two No-Zero Integers"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/black-white-balls/cm5eguhai04a0838ojgzrbk3g",
+    "question": "Leetcode 2938. Separate Black and White Balls"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/power-sum-subsequences/cm5eguhaj04e0838o8w0g5tws",
+    "question": "Leetcode 3082. Find the Sum of the Power of All Subsequences"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/unique-email-addresses/cm5eguhac02q7838o80w171ws",
+    "question": "Leetcode 929. Unique Email Addresses"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/minimum-deletions-array-divisible/cm5eguhah03ti838oado2qoji",
+    "question": "Leetcode 2344. Minimum Deletions to Make Array Divisible"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/maze-paths-same-room/cm5eguhag03m3838ooyxrp5a4",
+    "question": "Leetcode 2077. Paths in Maze That Lead to Same Room"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/sum-subarray-ranges/cm5eguhag03mu838onsb7b0b1",
+    "question": "Leetcode 2104. Sum of Subarray Ranges"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/first-three-rows/cm5eguhai048d838o6ifqgjuq",
+    "question": "Leetcode 2879. Display the First Three Rows"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/count-subtrees-distance/cm5eguhae039b838odptfd1g3",
+    "question": "Leetcode 1617. Count Subtrees With Max Distance Between Cities"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/longest-balanced-substring/cm5eguhah040v838oxcka7119",
+    "question": "Leetcode 2609. Find the Longest Balanced Substring of a Binary String"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/leetcode-2118-equation/cm5eguhag03n8838oza84awqu",
+    "question": "Leetcode 2118. Build the Equation"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/maximize-array-sum/cm5eguhad02sb838ovlvfdkae",
+    "question": "Leetcode 1005. Maximize Sum Of Array After K Negations"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/first-occurrence-index/cm5eh7nrh04ns838oza0ohg74",
+    "question": "Leetcode 28. Find the Index of the First Occurrence in a String"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/advantage-shuffle/cm5eguhac02ok838osjbs71ra",
+    "question": "Leetcode 870. Advantage Shuffle"
+  },
+  {
+    "source": "hellointerview",
+    "url": "https://www.hellointerview.com/community/questions/grumpy-bookstore-owner/cm5eguhad02tm838o8nsrfawk",
+    "question": "Leetcode 1052. Grumpy Bookstore Owner"
+  }
+]
