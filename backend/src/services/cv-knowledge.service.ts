@@ -39,7 +39,7 @@ function cleanJson(text: string): string {
 
 async function llmJson<T = unknown>(systemOrUser: string, userMaybe?: string): Promise<T> {
   assertLlmConfigured('interviewPrep');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('interviewPrep');
   const model = getFeatureModel('interviewPrep');
   const isPair = userMaybe !== undefined;
   const response = await anthropic.messages.create({

@@ -124,7 +124,7 @@ export async function generateCoachUnderstanding(): Promise<{ reportId: string; 
 
   // Call LLM
   assertLlmConfigured('interviewPrep');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('interviewPrep');
   const model = getFeatureModel('interviewPrep');
 
   const response = await anthropic.messages.create({

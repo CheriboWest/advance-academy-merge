@@ -31,7 +31,7 @@ Respond ONLY with valid JSON matching this exact schema:
 
 export async function generateFeedbackReport(session: InterviewSession): Promise<FeedbackReport> {
   assertLlmConfigured('interviewPrep');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('interviewPrep');
   const model = getFeatureModel('interviewPrep');
 
   const transcript = session.messages

@@ -17,8 +17,8 @@ export function assertLlmConfigured(feature: LlmFeature): void {
   }
 }
 
-export function createAnthropicClient(): Anthropic {
-  const apiKey = getLlmApiKey().trim();
+export function createAnthropicClient(feature: LlmFeature = 'default'): Anthropic {
+  const apiKey = getLlmApiKey(feature).trim();
   if (!apiKey) {
     const err = new Error('LLM_API_KEY is not set.');
     Object.assign(err, { statusCode: 503 });

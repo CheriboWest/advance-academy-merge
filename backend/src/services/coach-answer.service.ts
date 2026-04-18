@@ -87,7 +87,7 @@ export async function coachAnswer(req: CoachAnswerRequest): Promise<CoachAnswerR
   });
 
   assertLlmConfigured('interviewPrep');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('interviewPrep');
   const model = getFeatureModel('interviewPrep');
 
   const response = await anthropic.messages.create({

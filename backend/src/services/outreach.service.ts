@@ -1,5 +1,6 @@
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 import { OUTREACH_SYSTEM_PROMPT, buildOutreachUserPrompt } from '../lib/outreach/prompts.js';
+import { newCostBucket } from '../lib/cost-tracker.js';
 import { extractContent } from './outreach-extractor.service.js';
 import type { OutreachRequest, OutreachResult } from '../types/outreach.js';
 
@@ -10,8 +11,9 @@ function firstTextContent(response: { content: Array<{ type: string; text?: stri
 
 export async function generateOutreach(request: OutreachRequest): Promise<OutreachResult> {
   assertLlmConfigured('outreach');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('outreach');
   const model = getFeatureModel('outreach');
+  const cost = newCostBucket('outreach.generate');
 
   // Extract content for selected enrichment cards in parallel.
   // Blocked domains (LinkedIn, etc.) reuse the Exa-returned text directly;
@@ -36,6 +38,8 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
       },
     ],
   });
+  cost.llm('generate', model, response.usage);
+  cost.flush();
 
   const rawText = firstTextContent(response);
 

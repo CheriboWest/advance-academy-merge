@@ -1,4 +1,5 @@
 import { getExaClient } from '../lib/exa-client.js';
+import { newCostBucket } from '../lib/cost-tracker.js';
 import { isBlockedDomain } from './outreach-extractor.service.js';
 import { rerankCards } from './outreach-rerank.service.js';
 import type {
@@ -49,6 +50,7 @@ export async function runEnrichment(req: EnrichmentRequest): Promise<EnrichmentR
   }
 
   const exa = getExaClient();
+  const cost = newCostBucket('outreach.enrich');
 
   let hiringRaw: EnrichmentCard[];
   let socialRaw: EnrichmentCard[];
@@ -58,6 +60,7 @@ export async function runEnrichment(req: EnrichmentRequest): Promise<EnrichmentR
       exa.searchAndContents(buildHiringQuery(req), EXA_OPTIONS),
       exa.searchAndContents(buildSocialQuery(req), EXA_OPTIONS),
     ]);
+    cost.exa('exa.search.hiring+social', 2);
 
     hiringRaw = hiringResponse.results.map(toCard);
     socialRaw = socialResponse.results.map(toCard);
@@ -70,11 +73,13 @@ export async function runEnrichment(req: EnrichmentRequest): Promise<EnrichmentR
   }
 
   // Rerank each category with Claude in parallel. rerankCards() is fail-safe:
-  // on any error it returns the original list unchanged.
+  // on any error it returns the original list unchanged. The shared bucket
+  // collects per-call costs so the enrichment total covers exa + both reranks.
   const [hiringResults, socialResults] = await Promise.all([
-    rerankCards(hiringRaw, 'hiring', req),
-    rerankCards(socialRaw, 'social', req),
+    rerankCards(hiringRaw, 'hiring', req, cost),
+    rerankCards(socialRaw, 'social', req, cost),
   ]);
 
+  cost.flush();
   return { hiringResults, socialResults };
 }
