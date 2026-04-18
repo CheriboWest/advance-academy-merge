@@ -1,4 +1,5 @@
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
+import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
 import type { EnrichmentCard, EnrichmentRequest } from '../types/outreach.js';
 
 export type RerankCategory = 'hiring' | 'social';
@@ -114,6 +115,7 @@ export async function rerankCards(
   cards: EnrichmentCard[],
   category: RerankCategory,
   ctx: EnrichmentRequest,
+  costBucket?: CostBucket,
 ): Promise<EnrichmentCard[]> {
   if (cards.length <= 1) return cards;
 
@@ -123,8 +125,12 @@ export async function rerankCards(
     return cards;
   }
 
+  // Use the parent bucket if provided, otherwise log this call standalone.
+  const cost = costBucket ?? newCostBucket(`outreach.rerank.${category}`);
+  const isOwnedBucket = !costBucket;
+
   try {
-    const anthropic = createAnthropicClient();
+    const anthropic = createAnthropicClient('outreach');
     const model = getFeatureModel('outreach');
 
     const response = await anthropic.messages.create({
@@ -138,6 +144,8 @@ export async function rerankCards(
         },
       ],
     });
+    cost.llm(`rerank.${category}`, model, response.usage);
+    if (isOwnedBucket) cost.flush();
 
     const rawText = firstTextContent(response);
     const rankings = parseRankings(rawText, cards.length);

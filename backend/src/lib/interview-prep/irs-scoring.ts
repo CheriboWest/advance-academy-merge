@@ -37,7 +37,7 @@ export async function scoreAnswer(
   context?: InterviewContext,
 ): Promise<IRSScore> {
   assertLlmConfigured('interviewPrep');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('interviewPrep');
   const model = getFeatureModel('interviewPrep');
 
   let userPrompt = `INTERVIEW QUESTION: ${question}\n\nCANDIDATE ANSWER: ${answer}`;

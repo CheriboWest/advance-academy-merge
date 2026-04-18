@@ -65,7 +65,7 @@ export async function extractJobFromUrl(url: string): Promise<ExtractedJob> {
   const truncated = markdown.length > MAX_MARKDOWN_CHARS ? markdown.slice(0, MAX_MARKDOWN_CHARS) : markdown;
 
   assertLlmConfigured('interviewPrep');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('interviewPrep');
   const model = getFeatureModel('interviewPrep');
 
   const response = await anthropic.messages.create({

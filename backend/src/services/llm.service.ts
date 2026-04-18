@@ -59,7 +59,7 @@ function extractJsonBlock(raw: string) {
 
 async function callOpenAiCompatibleChat(messages: ChatMessage[], feature: LlmFeature) {
   const config = getLlmConfig(feature);
-  const apiKey = getLlmApiKey();
+  const apiKey = getLlmApiKey(feature);
 
   if (!config.enabled || !apiKey) {
     return null;
@@ -106,7 +106,7 @@ async function callOpenAiCompatibleChat(messages: ChatMessage[], feature: LlmFea
 
 async function callAnthropicMessages(messages: ChatMessage[], feature: LlmFeature) {
   const config = getLlmConfig(feature);
-  const apiKey = getLlmApiKey();
+  const apiKey = getLlmApiKey(feature);
 
   if (!config.enabled || !apiKey) {
     return null;

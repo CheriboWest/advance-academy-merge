@@ -20,6 +20,7 @@ import {
 } from '../lib/dream-company/prompts.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 import { getExaClient } from '../lib/exa-client.js';
+import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
 
 const EXA_OPTIONS = {
   useAutoprompt: true,
@@ -54,8 +55,9 @@ export async function generateProfileAnalysis(
   profile: DreamCompanyInput,
 ): Promise<ProfileAnalysis> {
   assertLlmConfigured('dreamCompany');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('dreamCompany');
   const model = getFeatureModel('dreamCompany');
+  const cost = newCostBucket('dreamCompany.analyze');
 
   const response = await anthropic.messages.create({
     model,
@@ -63,6 +65,8 @@ export async function generateProfileAnalysis(
     system: 'You are a career intelligence engine. Return only valid JSON.',
     messages: [{ role: 'user', content: buildProfileAnalysisPrompt(profile) }],
   });
+  cost.llm('analyze', model, response.usage);
+  cost.flush();
 
   try {
     return JSON.parse(extractText(response));
@@ -76,8 +80,9 @@ export async function generateTargetRoles(
   analysis: ProfileAnalysis,
 ): Promise<TargetRole[]> {
   assertLlmConfigured('dreamCompany');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('dreamCompany');
   const model = getFeatureModel('dreamCompany');
+  const cost = newCostBucket('dreamCompany.roles');
 
   const response = await anthropic.messages.create({
     model,
@@ -85,6 +90,8 @@ export async function generateTargetRoles(
     system: 'You are a career intelligence engine. Return only valid JSON.',
     messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
   });
+  cost.llm('roles', model, response.usage);
+  cost.flush();
 
   try {
     return JSON.parse(extractText(response));
@@ -99,12 +106,13 @@ export async function generateRoadmapWithJobs(
   selectedRoles: TargetRole[],
 ): Promise<RoadmapResponse> {
   assertLlmConfigured('dreamCompany');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('dreamCompany');
   const model = getFeatureModel('dreamCompany');
+  const cost = newCostBucket('dreamCompany.roadmap');
 
   // Exa search + LLM roadmap in parallel
   const [jobs, roadmapResponse] = await Promise.all([
-    searchJobsForRoles(selectedRoles, profile),
+    searchJobsForRoles(selectedRoles, profile, cost),
     anthropic.messages.create({
       model,
       max_tokens: 4096,
@@ -112,6 +120,8 @@ export async function generateRoadmapWithJobs(
       messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, []) }],
     }),
   ]);
+  cost.llm('roadmap', model, roadmapResponse.usage);
+  cost.flush();
 
   let roadmap: CareerRoadmap;
   try {
@@ -126,12 +136,14 @@ export async function generateRoadmapWithJobs(
 async function searchJobsForRoles(
   selectedRoles: TargetRole[],
   profile: DreamCompanyInput,
+  costBucket?: CostBucket,
 ): Promise<ExaJobListing[]> {
   try {
     const exa = getExaClient();
     const roleTitles = selectedRoles.map((r) => r.title).join(' OR ');
     const query = `${roleTitles} hiring ${profile.location}`;
     const searchResponse = await exa.searchAndContents(query, EXA_OPTIONS);
+    costBucket?.exa('exa.search.jobs', 1);
 
     return searchResponse.results.map((result: { title: string | null; url: string; text?: string; publishedDate?: string }) => ({
       title: result.title ?? result.url,
@@ -153,8 +165,9 @@ export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string)
   }
 
   assertLlmConfigured('dreamCompany');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('dreamCompany');
   const model = getFeatureModel('dreamCompany');
+  const cost = newCostBucket('dreamCompany.parseCv');
 
   let response;
 
@@ -203,6 +216,8 @@ export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string)
       ],
     });
   }
+  cost.llm(isPdf ? 'parseCv.pdf' : 'parseCv.docx', model, response.usage);
+  cost.flush();
 
   const block = response.content[0];
   if (block.type !== 'text') {

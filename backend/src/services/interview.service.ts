@@ -50,7 +50,7 @@ export async function startInterviewSession(body: StartSessionBody): Promise<Sta
   }
 
   assertLlmConfigured('interviewPrep');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('interviewPrep');
   const model = getFeatureModel('interviewPrep');
 
   const contextPreamble = body.context ? buildContextPreamble(body.context) : '';
@@ -105,7 +105,7 @@ export async function sendInterviewMessage(body: SendMessageBody): Promise<SendM
   }
 
   assertLlmConfigured('interviewPrep');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('interviewPrep');
   const model = getFeatureModel('interviewPrep');
 
   const contextPreamble = body.context ? buildContextPreamble(body.context) : '';

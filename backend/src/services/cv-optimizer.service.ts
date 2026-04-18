@@ -685,7 +685,7 @@ Rules:
 async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeCvResult | null> {
   assertLlmConfigured('cvOptimizer');
 
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('cvOptimizer');
   const model = getFeatureModel('cvOptimizer');
 
   const userPrompt = [

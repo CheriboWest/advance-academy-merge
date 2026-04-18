@@ -75,11 +75,32 @@ function getFeatureModels(provider: LlmProvider): Record<LlmFeature, string> {
   };
 }
 
+function getFeatureApiKey(feature: LlmFeature): string {
+  const fallback = process.env.LLM_API_KEY?.trim() ?? '';
+  const pick = (value: string | undefined) => {
+    const trimmed = value?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : fallback;
+  };
+
+  switch (feature) {
+    case 'outreach':
+    case 'dreamCompany':
+      return pick(process.env.LLM_API_KEY_OUTREACH);
+    case 'cvOptimizer':
+      return pick(process.env.LLM_API_KEY_CV);
+    case 'interviewPrep':
+      return pick(process.env.LLM_API_KEY_INTERVIEW);
+    case 'default':
+    default:
+      return fallback;
+  }
+}
+
 export function getLlmConfig(feature: LlmFeature = 'default'): LlmFeatureConfig {
   const provider = getProvider();
   const baseUrl = readRequiredString(process.env.LLM_BASE_URL, getDefaultBaseUrl(provider));
   const timeoutMs = readTimeout(process.env.LLM_TIMEOUT_MS);
-  const apiKey = process.env.LLM_API_KEY?.trim() ?? '';
+  const apiKey = getFeatureApiKey(feature);
   const anthropicApiVersion = readRequiredString(process.env.LLM_ANTHROPIC_API_VERSION, DEFAULT_ANTHROPIC_API_VERSION);
   const featureModels = getFeatureModels(provider);
 
@@ -94,6 +115,6 @@ export function getLlmConfig(feature: LlmFeature = 'default'): LlmFeatureConfig 
   };
 }
 
-export function getLlmApiKey() {
-  return process.env.LLM_API_KEY?.trim() ?? '';
+export function getLlmApiKey(feature: LlmFeature = 'default') {
+  return getFeatureApiKey(feature);
 }
