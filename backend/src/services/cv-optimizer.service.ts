@@ -2,7 +2,6 @@
  * CV Optimizer — async job queue + structured CV analysis.
  * Uses Anthropic SDK directly (for high max_tokens) when LLM is enabled; otherwise local heuristics.
  */
-import { randomUUID } from 'node:crypto';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 import type {
@@ -23,11 +22,30 @@ import type {
   RewriteSuggestion,
   ScoreBreakdown,
 } from '@advance-academy/contracts/cv-optimizer';
-import type { ApiErrorResponse, JobStatusResponse } from '@advance-academy/contracts/jobs';
+import type { ApiErrorResponse, JobStatus, JobStatusResponse } from '@advance-academy/contracts/jobs';
 import { getLlmConfig } from '../config/llm.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
+import { getMvpUserId, getSupabase } from '../lib/supabase.js';
 
-const cvAnalysisJobs = new Map<string, JobStatusResponse<AnalyzeCvResult>>();
+interface CvAnalysisJobRow {
+  id: string;
+  status: JobStatus;
+  submitted_at: string;
+  updated_at: string;
+  result_json: AnalyzeCvResult | null;
+  error_json: ApiErrorResponse | null;
+}
+
+function rowToJobResponse(row: CvAnalysisJobRow): JobStatusResponse<AnalyzeCvResult> {
+  return {
+    jobId: row.id,
+    status: row.status,
+    submittedAt: row.submitted_at,
+    updatedAt: row.updated_at,
+    result: row.result_json ?? undefined,
+    error: row.error_json ?? undefined,
+  };
+}
 
 // ─── Date injection helper ───────────────────────────────────────────────────
 
@@ -67,10 +85,27 @@ export function getAnalyzeTemplate() {
 
 // ─── Job helpers ───────────────────────────────────────────────────────────────
 
-function updateJob(jobId: string, updates: Partial<JobStatusResponse<AnalyzeCvResult>>) {
-  const currentJob = cvAnalysisJobs.get(jobId);
-  if (!currentJob) return;
-  cvAnalysisJobs.set(jobId, { ...currentJob, ...updates, updatedAt: new Date().toISOString() });
+interface JobUpdatePatch {
+  status?: JobStatus;
+  result?: AnalyzeCvResult;
+  error?: ApiErrorResponse;
+  clearResult?: boolean;
+  clearError?: boolean;
+}
+
+async function updateJob(jobId: string, patch: JobUpdatePatch) {
+  const supabase = getSupabase();
+  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.status !== undefined) update.status = patch.status;
+  if (patch.result !== undefined) update.result_json = patch.result;
+  if (patch.clearResult) update.result_json = null;
+  if (patch.error !== undefined) update.error_json = patch.error;
+  if (patch.clearError) update.error_json = null;
+
+  const { error } = await supabase.from('cv_analysis_jobs').update(update).eq('id', jobId);
+  if (error) {
+    console.error(`[cv-optimizer] failed to update job ${jobId}:`, error.message);
+  }
 }
 
 function buildJobError(message: string, details?: unknown): ApiErrorResponse {
@@ -781,32 +816,59 @@ async function analyzeCv(body: AnalyzeCvRequest): Promise<AnalyzeCvResult> {
 }
 
 async function runCvAnalysisJob(jobId: string, body: AnalyzeCvRequest) {
-  updateJob(jobId, { status: 'running', error: undefined });
+  await updateJob(jobId, { status: 'running', clearError: true });
 
   try {
     const result = await analyzeCv(body);
-    updateJob(jobId, { status: 'completed', result, error: undefined });
+    await updateJob(jobId, { status: 'completed', result, clearError: true });
   } catch (error) {
-    updateJob(jobId, {
+    await updateJob(jobId, {
       status: 'failed',
-      result: undefined,
+      clearResult: true,
       error: buildJobError('The CV analysis job failed.', error instanceof Error ? error.message : error),
     });
   }
 }
 
 export async function createCvAnalysisJob(body: AnalyzeCvRequest): Promise<AnalyzeCvAcceptedResponse> {
-  const timestamp = new Date().toISOString();
-  const jobId = randomUUID();
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('cv_analysis_jobs')
+    .insert({ user_id: getMvpUserId(), status: 'queued' })
+    .select('id, status, submitted_at, updated_at')
+    .single();
 
-  cvAnalysisJobs.set(jobId, { jobId, status: 'queued', submittedAt: timestamp, updatedAt: timestamp });
+  if (error || !data) {
+    const err = new Error(`Failed to create CV analysis job: ${error?.message ?? 'unknown error'}`);
+    Object.assign(err, { statusCode: 500 });
+    throw err;
+  }
+
+  const jobId = data.id as string;
   setTimeout(() => { void runCvAnalysisJob(jobId, body); }, 50);
 
-  return { jobId, status: 'queued', submittedAt: timestamp, updatedAt: timestamp };
+  return {
+    jobId,
+    status: data.status as Extract<JobStatus, 'queued' | 'running'>,
+    submittedAt: data.submitted_at as string,
+    updatedAt: data.updated_at as string,
+  };
 }
 
-export function getCvAnalysisJob(jobId: string) {
-  return cvAnalysisJobs.get(jobId) ?? null;
+export async function getCvAnalysisJob(jobId: string): Promise<JobStatusResponse<AnalyzeCvResult> | null> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('cv_analysis_jobs')
+    .select('id, status, submitted_at, updated_at, result_json, error_json')
+    .eq('id', jobId)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`[cv-optimizer] failed to fetch job ${jobId}:`, error.message);
+    return null;
+  }
+  if (!data) return null;
+  return rowToJobResponse(data as CvAnalysisJobRow);
 }
 
 // ─── File parsing ─────────────────────────────────────────────────────────────
