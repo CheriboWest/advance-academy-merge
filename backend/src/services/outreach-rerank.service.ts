@@ -1,4 +1,4 @@
-import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
+import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry } from '../lib/llm-anthropic.js';
 import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
 import type { EnrichmentCard, EnrichmentRequest } from '../types/outreach.js';
 
@@ -134,7 +134,7 @@ export async function rerankCards(
     const anthropic = createAnthropicClient('outreach');
     const model = getFeatureModel('outreach');
 
-    const response = await anthropic.messages.create({
+    const response = await withRetry(() => anthropic.messages.create({
       model,
       max_tokens: 600,
       system: RERANK_SYSTEM_PROMPT,
@@ -144,7 +144,7 @@ export async function rerankCards(
           content: buildUserPrompt(cards, category, ctx),
         },
       ],
-    });
+    }));
     cost.llm(`rerank.${category}`, model, response.usage);
     if (isOwnedBucket) cost.flush();
 

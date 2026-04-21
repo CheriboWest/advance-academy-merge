@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerCvOptimizerRoutes } from './routes/cv-optimizer.js';
@@ -38,6 +39,15 @@ async function bootstrap() {
   await app.register(cors, {
     origin: frontendUrl.split(',').map((url) => url.trim()),
     credentials: true,
+  });
+
+  await app.register(rateLimit, {
+    global: false, // opt-in per route only
+    keyGenerator: (request) => request.ip,
+    errorResponseBuilder: (_request, context) => ({
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: `Too many requests. Please try again in ${Math.ceil(context.ttl / 1000)}s.`,
+    }),
   });
 
   await registerSystemRoutes(app);

@@ -1,4 +1,4 @@
-import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
+import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry } from '../lib/llm-anthropic.js';
 import { OUTREACH_SYSTEM_PROMPT, buildOutreachUserPrompt } from '../lib/outreach/prompts.js';
 import { newCostBucket } from '../lib/cost-tracker.js';
 import { extractContent } from './outreach-extractor.service.js';
@@ -27,7 +27,7 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
   );
   const insightContext = insightTexts.filter((t) => t.trim()).join('\n\n---\n\n');
 
-  const response = await anthropic.messages.create({
+  const response = await withRetry(() => anthropic.messages.create({
     model,
     max_tokens: 1500,
     system: OUTREACH_SYSTEM_PROMPT,
@@ -37,7 +37,7 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
         content: buildOutreachUserPrompt(request, jdContext, insightContext),
       },
     ],
-  });
+  }));
   cost.llm('generate', model, response.usage);
   cost.flush();
 
