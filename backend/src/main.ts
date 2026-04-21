@@ -1,7 +1,9 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
+import { startCvAnalysisReaper } from './lib/cv-analysis-reaper.js';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerCvOptimizerRoutes } from './routes/cv-optimizer.js';
 import { registerDreamCompanyRoutes } from './routes/dream-company.js';
@@ -40,6 +42,8 @@ async function bootstrap() {
     credentials: true,
   });
 
+  await app.register(rateLimit, { global: false });
+
   await registerSystemRoutes(app);
   await registerCvOptimizerRoutes(app);
   await registerDreamCompanyRoutes(app);
@@ -54,6 +58,8 @@ async function bootstrap() {
     port,
     host: '0.0.0.0',
   });
+
+  startCvAnalysisReaper();
 
   console.log(`Backend running at http://localhost:${port}/api`);
   console.log(`Health check: http://localhost:${port}/api/health`);

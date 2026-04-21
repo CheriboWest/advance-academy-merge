@@ -17,6 +17,7 @@
     "@anthropic-ai/sdk": "^0.82.0",
     "@fastify/cors": "^11.1.0",
     "@fastify/multipart": "^9.0.3",
+    "@fastify/rate-limit": "^10.3.0",
     "@supabase/supabase-js": "^2.45.0",
     "exa-js": "^2.11.0",
     "fastify": "^5.2.1",
