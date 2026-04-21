@@ -104,7 +104,14 @@ export async function registerCvOptimizerRoutes(app: FastifyInstance) {
     });
   });
 
-  app.post<{ Body: AnalyzeCvRequest }>('/api/cv-optimizer/analyze', async (request, reply) => {
+  app.post<{ Body: AnalyzeCvRequest }>('/api/cv-optimizer/analyze', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '10 minutes',
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as AnalyzeCvRequest;
 
     if (!body?.targetRole || !body?.currentCvText) {
