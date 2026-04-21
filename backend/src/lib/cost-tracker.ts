@@ -1,7 +1,8 @@
 /**
  * Cost tracker for LLM (Anthropic) and Exa calls.
- * Logs per-call usage + cost to the backend console, and supports
- * accumulating a per-request total via newCostBucket().
+ * Logs per-call usage + cost to the backend console and appends a JSONL
+ * record to `backend/cost-log.jsonl` on each flush() so costs are persisted
+ * for the usage-report script (`npm run usage`).
  *
  * Pricing is defined in this file — keep it in sync with provider price cards.
  *  - Anthropic Sonnet 4:  $3 / MTok input,  $15 / MTok output
@@ -9,6 +10,15 @@
  *  - Anthropic Haiku 4.5: $1 / MTok input,  $5 / MTok output
  *  - Exa fast search + contents: ~$5 / 1000 calls
  */
+
+import { appendFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// Resolves to backend/cost-log.jsonl (3 levels up from src/lib/)
+const COST_LOG_PATH = join(__dirname, '..', '..', '..', 'cost-log.jsonl');
 
 interface ModelPricing {
   /** USD per 1,000,000 input tokens */
@@ -46,6 +56,27 @@ export interface AnthropicUsage {
   cache_read_input_tokens?: number | null;
 }
 
+/** Shape of each item recorded inside a CostLogEntry */
+export interface CostLogItem {
+  type: 'llm' | 'exa';
+  label: string;
+  model?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheWriteTokens?: number;
+  cacheReadTokens?: number;
+  searches?: number;
+  cost: number;
+}
+
+/** Shape of one line in cost-log.jsonl */
+export interface CostLogEntry {
+  ts: string;
+  feature: string;
+  items: CostLogItem[];
+  total: number;
+}
+
 function pricingFor(model: string): ModelPricing {
   return PRICING[model] ?? FALLBACK_PRICING;
 }
@@ -79,7 +110,7 @@ export interface CostBucket {
   llm(label: string, model: string, usage: AnthropicUsage | undefined | null): number;
   /** Track Exa searches and log them. Returns the cost in USD. */
   exa(label: string, numSearches: number): number;
-  /** Print the accumulated total for the request. */
+  /** Print the accumulated total and persist to cost-log.jsonl. */
   flush(): number;
   /** Current accumulated total (without printing). */
   total(): number;
@@ -87,12 +118,23 @@ export interface CostBucket {
 
 export function newCostBucket(requestLabel: string): CostBucket {
   let runningTotal = 0;
+  const items: CostLogItem[] = [];
 
   return {
     llm(label, model, usage) {
       const u: AnthropicUsage = usage ?? {};
       const cost = calcLlmCost(model, u);
       runningTotal += cost;
+      items.push({
+        type: 'llm',
+        label,
+        model,
+        inputTokens: num(u.input_tokens),
+        outputTokens: num(u.output_tokens),
+        cacheWriteTokens: num(u.cache_creation_input_tokens),
+        cacheReadTokens: num(u.cache_read_input_tokens),
+        cost,
+      });
       // eslint-disable-next-line no-console
       console.log(
         `[cost] ${requestLabel} :: ${label.padEnd(22)} model=${model} ` +
@@ -100,20 +142,38 @@ export function newCostBucket(requestLabel: string): CostBucket {
       );
       return cost;
     },
+
     exa(label, numSearches) {
       const cost = calcExaCost(numSearches);
       runningTotal += cost;
+      items.push({ type: 'exa', label, searches: numSearches, cost });
       // eslint-disable-next-line no-console
       console.log(
         `[cost] ${requestLabel} :: ${label.padEnd(22)} provider=exa searches=${numSearches} cost=${fmtUsd(cost)}`,
       );
       return cost;
     },
+
     flush() {
       // eslint-disable-next-line no-console
       console.log(`[cost] ${requestLabel} :: TOTAL                 cost=${fmtUsd(runningTotal)}`);
+
+      // Persist to JSONL — non-fatal if the write fails (e.g. read-only FS in prod)
+      const entry: CostLogEntry = {
+        ts: new Date().toISOString(),
+        feature: requestLabel,
+        items: [...items],
+        total: runningTotal,
+      };
+      try {
+        appendFileSync(COST_LOG_PATH, JSON.stringify(entry) + '\n');
+      } catch {
+        // intentionally silent
+      }
+
       return runningTotal;
     },
+
     total() {
       return runningTotal;
     },

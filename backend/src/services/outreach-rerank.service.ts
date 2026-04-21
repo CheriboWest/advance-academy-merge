@@ -2,11 +2,12 @@ import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../
 import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
 import type { EnrichmentCard, EnrichmentRequest } from '../types/outreach.js';
 
-export type RerankCategory = 'hiring' | 'social';
+export type RerankCategory = 'hiring' | 'social' | 'insight';
 
 const CATEGORY_LABEL: Record<RerankCategory, string> = {
   hiring: 'current hiring / job listing',
   social: 'recent activity / news / interview',
+  insight: 'company insight / news / social post',
 };
 
 const RERANK_SYSTEM_PROMPT = `You rank web search results for a B2B outreach message drafter.

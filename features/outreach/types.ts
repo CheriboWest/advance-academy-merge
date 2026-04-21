@@ -1,12 +1,3 @@
-import type {
-  EnrichmentCard,
-  EnrichmentResponse,
-  ExperienceLevel,
-  ManualContext,
-  OutreachIntent,
-  OutreachOutputs,
-} from '@/types/outreach'
-
 export type {
   OutreachIntent,
   ExperienceLevel,
@@ -14,6 +5,8 @@ export type {
   EnrichmentCard,
   EnrichmentResponse,
   ManualContext,
+  InsightSignal,
+  JdValidationResult,
 } from '@/types/outreach'
 
 export type ManualContextStatus = 'idle' | 'loading' | 'success' | 'error'
@@ -35,11 +28,15 @@ export interface OutreachFormData {
   targetCountry: string
   targetPersonName: string
   targetRole: string
-  experienceLevel: ExperienceLevel
-  intent: OutreachIntent
+  experienceLevel: import('@/types/outreach').ExperienceLevel
+  intent: import('@/types/outreach').OutreachIntent
+  userLocation: string
+  jdText: string
+  jdUrl: string
+  jdValidating: boolean
+  jdValidationError: string
   manualContexts: ManualContextLink[]
-  selectedHiringCard: EnrichmentCard | null
-  selectedSocialCard: EnrichmentCard | null
-  outputs: OutreachOutputs
-  enrichmentResults: EnrichmentResponse | null
+  selectedInsightCards: import('@/types/outreach').EnrichmentCard[]
+  outputs: import('@/types/outreach').OutreachOutputs
+  enrichmentResults: import('@/types/outreach').EnrichmentResponse | null
 }

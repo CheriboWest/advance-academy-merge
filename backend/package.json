@@ -7,7 +7,10 @@
     "build": "tsc -p tsconfig.build.json --incremental false",
     "start": "tsx src/main.ts",
     "start:dev": "tsx watch src/main.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "usage": "tsx scripts/usage-report.ts",
+    "usage:week": "tsx scripts/usage-report.ts -- --days 7",
+    "usage:month": "tsx scripts/usage-report.ts -- --days 30"
   },
   "dependencies": {
     "@advance-academy/contracts": "*",

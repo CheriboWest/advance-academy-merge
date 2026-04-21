@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import type {
+  EnrichmentCard,
   EnrichmentRequest,
   EnrichmentResponse,
   ManualContext,
@@ -26,9 +27,13 @@ const INITIAL_FORM: OutreachFormData = {
   targetRole: '',
   experienceLevel: 'mid',
   intent: 'direct_application',
+  userLocation: '',
+  jdText: '',
+  jdUrl: '',
+  jdValidating: false,
+  jdValidationError: '',
   manualContexts: [],
-  selectedHiringCard: null,
-  selectedSocialCard: null,
+  selectedInsightCards: [],
   outputs: { email: true, linkedIn: true },
   enrichmentResults: null,
 }
@@ -54,11 +59,12 @@ function buildGenerateRequest(form: OutreachFormData): OutreachRequest {
     targetRole: form.targetRole,
     experienceLevel: form.experienceLevel,
     intent: form.intent,
+    userLocation: form.userLocation.trim() || undefined,
     manualContexts: packManualContexts(form),
-    hiringSignalUrl: form.selectedHiringCard?.url,
-    hiringSignalExaText: form.selectedHiringCard?.exaText,
-    socialSignalUrl: form.selectedSocialCard?.url,
-    socialSignalExaText: form.selectedSocialCard?.exaText,
+    jdText: form.jdText.trim() || undefined,
+    insightSignals: form.selectedInsightCards.length > 0
+      ? form.selectedInsightCards.map((c) => ({ url: c.url, exaText: c.exaText }))
+      : undefined,
     outputs: form.outputs,
   }
 }
@@ -71,7 +77,9 @@ function buildEnrichRequest(form: OutreachFormData): EnrichmentRequest {
     experienceLevel: form.experienceLevel,
     personName: form.targetPersonName.trim() || undefined,
     intent: form.intent,
+    userLocation: form.userLocation.trim() || undefined,
     manualContexts: packManualContexts(form),
+    jdText: form.jdText.trim() || undefined,
   }
 }
 
@@ -92,9 +100,7 @@ export function useOutreach() {
       setForm((prev) => ({
         ...prev,
         enrichmentResults: data,
-        // Reset selections when fresh results come in
-        selectedHiringCard: null,
-        selectedSocialCard: null,
+        selectedInsightCards: data.insightResults.slice(0, 3),
       }))
     },
   })
@@ -108,6 +114,18 @@ export function useOutreach() {
     },
     [],
   )
+
+  const toggleInsightCard = useCallback((card: EnrichmentCard) => {
+    setForm((prev) => {
+      const isSelected = prev.selectedInsightCards.some((c) => c.url === card.url)
+      return {
+        ...prev,
+        selectedInsightCards: isSelected
+          ? prev.selectedInsightCards.filter((c) => c.url !== card.url)
+          : [...prev.selectedInsightCards, card],
+      }
+    })
+  }, [])
 
   const enrich = useCallback(() => {
     if (!form.targetCompany.trim() || !form.targetRole.trim()) return
@@ -126,6 +144,7 @@ export function useOutreach() {
   return {
     form,
     updateForm,
+    toggleInsightCard,
     results,
     setResults,
     loading: generateMutation.isPending,

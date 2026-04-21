@@ -10,6 +10,7 @@ import type { DreamCompanyInput, ProfileAnalysis, TargetRole, RoadmapResponse } 
 import type {
   EnrichmentRequest,
   EnrichmentResponse,
+  JdValidationResult,
   OutreachRequest,
   OutreachResult,
 } from '@/types/outreach'
@@ -408,7 +409,18 @@ export function coachAnswerWithBackend(payload: {
 export function enrichOutreachWithBackend(payload: EnrichmentRequest) {
   const { backendUrl } = getServerEnv()
 
+  // Increased to 90s: new flow runs an LLM keyword-gen call + 3 parallel Exa searches + rerank
   return fetchJson<EnrichmentResponse>(`${backendUrl}/api/outreach/enrich`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    timeoutMs: 90000,
+  })
+}
+
+export function validateJdWithBackend(payload: { url: string }) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchJson<JdValidationResult>(`${backendUrl}/api/outreach/validate-jd`, {
     method: 'POST',
     body: JSON.stringify(payload),
     timeoutMs: 30000,
