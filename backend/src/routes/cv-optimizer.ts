@@ -154,7 +154,7 @@ export async function registerCvOptimizerRoutes(app: FastifyInstance) {
   });
 
   app.get<{ Params: { jobId: string } }>('/api/cv-optimizer/jobs/:jobId', async (request, reply) => {
-    const job = getCvAnalysisJob(request.params.jobId);
+    const job = await getCvAnalysisJob(request.params.jobId);
 
     if (!job) {
       return reply.code(404).send({
