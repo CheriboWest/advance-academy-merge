@@ -4,8 +4,10 @@ import { runEnrichment } from '../services/outreach-enrichment.service.js';
 import { validateJdUrl } from '../services/outreach-jd-validator.service.js';
 import type { EnrichmentRequest, OutreachRequest } from '../types/outreach.js';
 
+const RATE_1MIN = (max: number) => ({ config: { rateLimit: { max, timeWindow: '1 minute' } } });
+
 export async function registerOutreachRoutes(app: FastifyInstance) {
-  app.post<{ Body: OutreachRequest }>('/api/outreach/generate', async (request, reply) => {
+  app.post<{ Body: OutreachRequest }>('/api/outreach/generate', RATE_1MIN(10), async (request, reply) => {
     const body = request.body;
 
     if (!body?.cvText || !body.targetCompany || !body.targetRole || !body.intent || !body.outputs) {
@@ -34,7 +36,7 @@ export async function registerOutreachRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post<{ Body: EnrichmentRequest }>('/api/outreach/enrich', async (request, reply) => {
+  app.post<{ Body: EnrichmentRequest }>('/api/outreach/enrich', RATE_1MIN(15), async (request, reply) => {
     const body = request.body;
 
     if (!body?.companyName || !body.targetRole || !body.experienceLevel) {
@@ -54,7 +56,7 @@ export async function registerOutreachRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post<{ Body: { url?: string } }>('/api/outreach/validate-jd', async (request, reply) => {
+  app.post<{ Body: { url?: string } }>('/api/outreach/validate-jd', RATE_1MIN(20), async (request, reply) => {
     const body = request.body;
 
     if (!body?.url?.trim()) {
@@ -78,7 +80,7 @@ export async function registerOutreachRoutes(app: FastifyInstance) {
       limits: { fileSize: 15 * 1024 * 1024 }, // 15MB
     });
 
-    scoped.post('/api/outreach/extract', async (request, reply) => {
+    scoped.post('/api/outreach/extract', RATE_1MIN(5), async (request, reply) => {
       let data;
       try {
         data = await request.file();

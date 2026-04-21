@@ -42,7 +42,14 @@ async function bootstrap() {
     credentials: true,
   });
 
-  await app.register(rateLimit, { global: false });
+  await app.register(rateLimit, {
+    global: false, // opt-in per route only
+    keyGenerator: (request) => request.ip,
+    errorResponseBuilder: (_request, context) => ({
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: `Too many requests. Please try again in ${Math.ceil(context.ttl / 1000)}s.`,
+    }),
+  });
 
   await registerSystemRoutes(app);
   await registerCvOptimizerRoutes(app);

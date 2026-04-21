@@ -53,10 +53,13 @@ function handleServiceError(error: unknown, request: { log: { error: (e: unknown
   return reply.code(500).send({ error: 'Internal server error' });
 }
 
+const RATE_1MIN = (max: number) => ({ config: { rateLimit: { max, timeWindow: '1 minute' } } });
+
 export async function registerDreamCompanyRoutes(app: FastifyInstance) {
   // Step 1: Profile Analysis
   app.post<{ Body: { profile?: DreamCompanyInput } }>(
     '/api/dream-company/analyze',
+    RATE_1MIN(10),
     async (request, reply) => {
       const profile = request.body?.profile;
       const missing = validateDreamCompanyProfile(profile);
@@ -75,6 +78,7 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
   // Step 2: Roles + Exa Job Search
   app.post<{ Body: { profile?: DreamCompanyInput; analysis?: ProfileAnalysis } }>(
     '/api/dream-company/roles',
+    RATE_1MIN(10),
     async (request, reply) => {
       const { profile, analysis } = request.body ?? {};
       const missing = validateDreamCompanyProfile(profile);
@@ -96,6 +100,7 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
   // Step 3: Exa Job Search + Roadmap (from selected roles)
   app.post<{ Body: { profile?: DreamCompanyInput; analysis?: ProfileAnalysis; selectedRoles?: TargetRole[] } }>(
     '/api/dream-company/roadmap',
+    RATE_1MIN(10),
     async (request, reply) => {
       const { profile, analysis, selectedRoles } = request.body ?? {};
       const missing = validateDreamCompanyProfile(profile);
@@ -123,7 +128,7 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
       limits: { fileSize: 15 * 1024 * 1024 },
     });
 
-    scoped.post('/api/dream-company/parse-cv', async (request, reply) => {
+    scoped.post('/api/dream-company/parse-cv', RATE_1MIN(5), async (request, reply) => {
       let data;
       try {
         data = await request.file();

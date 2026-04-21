@@ -1,5 +1,6 @@
 import { getExaClient } from '../lib/exa-client.js';
-import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
+import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry } from '../lib/llm-anthropic.js';
+import { withExaRetry } from '../lib/exa-client.js';
 import { newCostBucket } from '../lib/cost-tracker.js';
 import { isBlockedDomain } from './outreach-extractor.service.js';
 import { rerankCards } from './outreach-rerank.service.js';
@@ -77,7 +78,7 @@ async function generateInsightQueries(req: EnrichmentRequest): Promise<string[]>
 
     const jdExcerpt = cleanJdForQueries(req.jdText ?? '', 2000);
 
-    const response = await anthropic.messages.create({
+    const response = await withRetry(() => anthropic.messages.create({
       model,
       max_tokens: 200,
       system: 'You generate precise web search queries. Return only valid JSON, no other text.',
@@ -95,7 +96,7 @@ Focus on: recent announcements, team or product news tied to this role's respons
 
 Return ONLY: {"queries": ["query1", "query2", "query3"]}`,
       }],
-    });
+    }));
 
     const raw = firstTextContent(response);
     const match = raw.match(/\{[\s\S]*\}/);
@@ -136,7 +137,7 @@ export async function runEnrichment(req: EnrichmentRequest): Promise<EnrichmentR
 
   try {
     const results = await Promise.all(
-      queries.map((q) => exa.searchAndContents(q, EXA_OPTIONS)),
+      queries.map((q) => withExaRetry(() => exa.searchAndContents(q, EXA_OPTIONS))),
     );
     cost.exa('exa.search.insights', queries.length);
 

@@ -30,3 +30,26 @@ export function createAnthropicClient(feature: LlmFeature = 'default'): Anthropi
 export function getFeatureModel(feature: LlmFeature): string {
   return getLlmConfig(feature).model;
 }
+
+function isRateLimit(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const status = ('status' in err ? (err as { status?: number }).status : undefined)
+    ?? ('statusCode' in err ? (err as { statusCode?: number }).statusCode : undefined);
+  return status === 429;
+}
+
+// Retries fn up to maxRetries times on 429, with exponential backoff (1s, 2s, 4s).
+export async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (isRateLimit(err) && attempt < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, 1000 * 2 ** attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+  return fn();
+}

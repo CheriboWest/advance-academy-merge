@@ -18,8 +18,8 @@ import {
   buildProfileAnalysisPrompt,
   buildTargetRolesPrompt,
 } from '../lib/dream-company/prompts.js';
-import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
-import { getExaClient } from '../lib/exa-client.js';
+import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry } from '../lib/llm-anthropic.js';
+import { getExaClient, withExaRetry } from '../lib/exa-client.js';
 import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
 
 const EXA_OPTIONS = {
@@ -59,12 +59,12 @@ export async function generateProfileAnalysis(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.analyze');
 
-  const response = await anthropic.messages.create({
+  const response = await withRetry(() => anthropic.messages.create({
     model,
     max_tokens: 4096,
     system: 'You are a career intelligence engine. Return only valid JSON.',
     messages: [{ role: 'user', content: buildProfileAnalysisPrompt(profile) }],
-  });
+  }));
   cost.llm('analyze', model, response.usage);
   cost.flush();
 
@@ -84,12 +84,12 @@ export async function generateTargetRoles(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.roles');
 
-  const response = await anthropic.messages.create({
+  const response = await withRetry(() => anthropic.messages.create({
     model,
     max_tokens: 4096,
     system: 'You are a career intelligence engine. Return only valid JSON.',
     messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
-  });
+  }));
   cost.llm('roles', model, response.usage);
   cost.flush();
 
@@ -113,12 +113,12 @@ export async function generateRoadmapWithJobs(
   // Exa search + LLM roadmap in parallel
   const [jobs, roadmapResponse] = await Promise.all([
     searchJobsForRoles(selectedRoles, profile, cost),
-    anthropic.messages.create({
+    withRetry(() => anthropic.messages.create({
       model,
       max_tokens: 4096,
       system: 'You are a career intelligence engine. Return only valid JSON.',
       messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, []) }],
-    }),
+    })),
   ]);
   cost.llm('roadmap', model, roadmapResponse.usage);
   cost.flush();
@@ -142,7 +142,7 @@ async function searchJobsForRoles(
     const exa = getExaClient();
     const roleTitles = selectedRoles.map((r) => r.title).join(' OR ');
     const query = `${roleTitles} hiring ${profile.location}`;
-    const searchResponse = await exa.searchAndContents(query, EXA_OPTIONS);
+    const searchResponse = await withExaRetry(() => exa.searchAndContents(query, EXA_OPTIONS));
     costBucket?.exa('exa.search.jobs', 1);
 
     return searchResponse.results.map((result: { title: string | null; url: string; text?: string; publishedDate?: string }) => ({
@@ -172,7 +172,7 @@ export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string)
   let response;
 
   if (isPdf) {
-    response = await anthropic.messages.create({
+    response = await withRetry(() => anthropic.messages.create({
       model,
       max_tokens: 2048,
       system: 'You are a CV parser. Extract career information and return only valid JSON.',
@@ -195,7 +195,7 @@ export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string)
           ],
         },
       ],
-    });
+    }));
   } else {
     const result = await mammoth.extractRawText({ buffer });
     const extractedText = result.value;
@@ -204,7 +204,7 @@ export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string)
       throw Object.assign(new Error('Could not extract text from the uploaded file'), { statusCode: 422 });
     }
 
-    response = await anthropic.messages.create({
+    response = await withRetry(() => anthropic.messages.create({
       model,
       max_tokens: 2048,
       system: 'You are a CV parser. Extract career information and return only valid JSON.',
@@ -214,7 +214,7 @@ export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string)
           content: buildDreamCompanyCvParsePrompt(extractedText),
         },
       ],
-    });
+    }));
   }
   cost.llm(isPdf ? 'parseCv.pdf' : 'parseCv.docx', model, response.usage);
   cost.flush();
