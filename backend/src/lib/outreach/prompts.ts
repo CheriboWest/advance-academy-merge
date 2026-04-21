@@ -3,31 +3,32 @@ import type { OutreachRequest } from '../../types/outreach.js';
 export const OUTREACH_SYSTEM_PROMPT = `You are an expert career strategist and executive copywriter.
 Your goal is to generate personalized, highly effective outreach messages for a job seeker.
 
-You will receive the user's CV (and optional portfolio), Target Company, optional Target Person, Target Role, and up to two enrichment signals: a HIRING SIGNAL (job listings, hiring pages) and a SOCIAL SIGNAL (recent posts, news, interviews). You will also receive an OUTREACH INTENT.
+You will receive the user's CV (and optional portfolio), Target Company, optional Target Person, Target Role, optional User Location, a JOB DESCRIPTION, and COMPANY INSIGHTS (recent posts, news, culture signals from Exa research). You will also receive an OUTREACH INTENT.
 
 Generate the messages requested in the OUTPUT FORMAT block.
 
 CRITICAL RULES:
-- Open with a specific, concrete detail from the HIRING SIGNAL or SOCIAL SIGNAL whenever it is available. Never use generic openers like "I came across your profile" or "I noticed your work".
+- Open with a specific, concrete detail from COMPANY INSIGHTS whenever available. Never use generic openers like "I came across your profile" or "I noticed your work".
 - Lead with the recipient (their company, their role, their recent activity). Do not lead with the sender.
-- Do not mention that you used job postings, search results, scraping, or any research tool. The signal is shown as if the sender naturally noticed it.
-- Tailor the value proposition based on the user's CV (and portfolio, if any) AND the Target Role / Hiring Signal.
+- Do not mention that you used search results, scraping, or any research tool. The insights are woven in as if the sender naturally noticed them.
+- Tailor the value proposition based on the user's CV AND the JOB DESCRIPTION requirements — match their skills to what the JD actually asks for.
+- If USER LOCATION is provided, be mindful of regional context (local market norms, cultural tone, timezone).
 - Do not use buzzwords (synergy, passionate, leverage, results-driven).
 - LinkedIn message HARD LIMIT: 280 CHARACTERS total (including spaces and punctuation). This is LinkedIn's connection request limit. Do NOT exceed this. Before responding, count the characters of your linkedInMessage. If it is over 280, rewrite it shorter — drop adjectives, drop the sender's name from the closing, drop pleasantries. Aim for 240-270 characters. NO subject line.
 - Email body HARD LIMIT: 150 words maximum.
 - Format the output EXACTLY as valid JSON matching the OUTPUT FORMAT block. Do not include markdown formatting blocks.
 
 INTENT GUIDELINES:
-- direct_application: Hard pitch for a specific role. Match the sender's CV skills directly to the Hiring Signal requirements. End with a clear ask to be considered.
-- referral_request: Soft ask to an employee. Lead with a shared interest or recent post (Social Signal). Ask for advice or a referral, not a job.
-- informational_interview: Networking focus. Reference the Social Signal. Ask for 15 minutes to learn about their experience at the company.
-- agency_recruiter: Pitch to a headhunter. Focus on metrics, top skills, availability, and the specific Target Role. Reference the Hiring Signal as proof of relevance.
+- direct_application: Hard pitch for a specific role. Match the sender's CV skills directly to the JOB DESCRIPTION requirements. End with a clear ask to be considered.
+- referral_request: Soft ask to an employee. Lead with a shared interest or recent post from COMPANY INSIGHTS. Ask for advice or a referral, not a job.
+- informational_interview: Networking focus. Reference COMPANY INSIGHTS. Ask for 15 minutes to learn about their experience at the company.
+- agency_recruiter: Pitch to a headhunter. Focus on metrics, top skills, availability, and the specific Target Role. Reference the JOB DESCRIPTION as proof of relevance.
 `;
 
 export function buildOutreachUserPrompt(
   request: OutreachRequest,
-  hiringContext: string,
-  socialContext: string,
+  jdContext: string,
+  insightContext: string,
 ): string {
   const sections: string[] = [];
 
@@ -39,7 +40,10 @@ export function buildOutreachUserPrompt(
 
   const targetLines: string[] = [`- Company: ${request.targetCompany}`];
   if (request.targetCountry && request.targetCountry.trim()) {
-    targetLines.push(`- Country: ${request.targetCountry.trim()}`);
+    targetLines.push(`- Target Country: ${request.targetCountry.trim()}`);
+  }
+  if (request.userLocation && request.userLocation.trim()) {
+    targetLines.push(`- User Location: ${request.userLocation.trim()}`);
   }
   if (request.targetPersonName && request.targetPersonName.trim()) {
     targetLines.push(`- Person: ${request.targetPersonName.trim()}`);
@@ -63,12 +67,12 @@ export function buildOutreachUserPrompt(
     );
   }
 
-  if (hiringContext.trim()) {
-    sections.push(`HIRING SIGNAL (they are actively hiring for this role):\n${hiringContext.trim()}`);
+  if (jdContext.trim()) {
+    sections.push(`JOB DESCRIPTION (match sender's skills to these requirements):\n${jdContext.trim()}`);
   }
 
-  if (socialContext.trim()) {
-    sections.push(`RECENT ACTIVITY / SOCIAL SIGNAL:\n${socialContext.trim()}`);
+  if (insightContext.trim()) {
+    sections.push(`COMPANY INSIGHTS (use these to open with a specific, concrete detail):\n${insightContext.trim()}`);
   }
 
   sections.push(`OUTREACH INTENT: ${request.intent}`);

@@ -2,6 +2,7 @@ import { fetchJson } from '@/shared/api/http-client'
 import type {
   EnrichmentRequest,
   EnrichmentResponse,
+  JdValidationResult,
   OutreachRequest,
   OutreachResult,
 } from '@/types/outreach'
@@ -9,14 +10,23 @@ import type {
 export async function submitOutreachGeneration(request: OutreachRequest): Promise<OutreachResult> {
   return fetchJson<OutreachResult>('/api/outreach/generate', {
     method: 'POST',
-    body: JSON.stringify(request)
+    body: JSON.stringify(request),
+    timeoutMs: 90000,
   })
 }
 
 export async function submitOutreachEnrichment(request: EnrichmentRequest): Promise<EnrichmentResponse> {
   return fetchJson<EnrichmentResponse>('/api/outreach/enrich', {
     method: 'POST',
-    body: JSON.stringify(request)
+    body: JSON.stringify(request),
+    timeoutMs: 90000,
+  })
+}
+
+export async function validateJdUrl(url: string): Promise<JdValidationResult> {
+  return fetchJson<JdValidationResult>('/api/outreach/validate-jd', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
   })
 }
 
@@ -25,7 +35,6 @@ export async function extractOutreachSource(source: File | string): Promise<{ te
     const formData = new FormData()
     formData.append('file', source)
 
-    // Using native fetch for multipart
     const res = await fetch('/api/outreach/extract', {
       method: 'POST',
       body: formData,
@@ -38,7 +47,6 @@ export async function extractOutreachSource(source: File | string): Promise<{ te
 
     return res.json()
   } else {
-    // URL
     return fetchJson<{ text: string }>('/api/outreach/extract', {
       method: 'POST',
       body: JSON.stringify({ url: source })

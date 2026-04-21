@@ -15,17 +15,17 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
   const model = getFeatureModel('outreach');
   const cost = newCostBucket('outreach.generate');
 
-  // Extract content for selected enrichment cards in parallel.
-  // Blocked domains (LinkedIn, etc.) reuse the Exa-returned text directly;
-  // everything else goes through Jina Reader via extractContent().
-  const [hiringContext, socialContext] = await Promise.all([
-    request.hiringSignalUrl
-      ? extractContent(request.hiringSignalUrl, request.hiringSignalExaText)
-      : Promise.resolve(''),
-    request.socialSignalUrl
-      ? extractContent(request.socialSignalUrl, request.socialSignalExaText)
-      : Promise.resolve(''),
-  ]);
+  // JD text is passed directly — no URL extraction needed
+  const jdContext = request.jdText?.trim() ?? '';
+
+  // Extract content for all selected insight cards in parallel.
+  // Blocked domains (LinkedIn, etc.) reuse Exa-returned text; everything else goes through Jina.
+  const insightTexts = await Promise.all(
+    (request.insightSignals ?? []).map((signal) =>
+      extractContent(signal.url, signal.exaText),
+    ),
+  );
+  const insightContext = insightTexts.filter((t) => t.trim()).join('\n\n---\n\n');
 
   const response = await anthropic.messages.create({
     model,
@@ -34,7 +34,7 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
     messages: [
       {
         role: 'user',
-        content: buildOutreachUserPrompt(request, hiringContext, socialContext),
+        content: buildOutreachUserPrompt(request, jdContext, insightContext),
       },
     ],
   });
@@ -62,13 +62,9 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
   };
 
   if (request.outputs.linkedIn && typeof parsed.linkedInMessage === 'string') {
-    // Hard safety net: enforce LinkedIn's 300-char connection-request limit on
-    // the server side in case the LLM ignores the prompt instructions.
     const LINKEDIN_MAX = 300;
     let msg = parsed.linkedInMessage.trim();
     if (msg.length > LINKEDIN_MAX) {
-      // Trim to the last full word that still fits, keeping at most 297 chars
-      // and adding a single ellipsis so the total stays ≤ 300.
       const cut = msg.slice(0, LINKEDIN_MAX - 3);
       const lastSpace = cut.lastIndexOf(' ');
       msg = (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd() + '…';

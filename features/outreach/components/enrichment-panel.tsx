@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, Briefcase, Loader, Newspaper, Search } from 'lucide-react'
+import { AlertTriangle, Lightbulb, Loader, Search } from 'lucide-react'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import type { EnrichmentCard, EnrichmentResponse, ExperienceLevel } from '@/types/outreach'
 import { SignalCard, SignalCardSkeleton } from './signal-card'
@@ -16,41 +16,42 @@ interface EnrichmentPanelProps {
   experienceLevel: ExperienceLevel
   onChangeExperienceLevel: (level: ExperienceLevel) => void
   enrichmentResults: EnrichmentResponse | null
-  selectedHiringCard: EnrichmentCard | null
-  selectedSocialCard: EnrichmentCard | null
-  onSelectHiring: (card: EnrichmentCard) => void
-  onSelectSocial: (card: EnrichmentCard) => void
+  selectedInsightCards: EnrichmentCard[]
+  onToggleInsight: (card: EnrichmentCard) => void
   onSearch: () => void
   loading: boolean
   error: string | null
   canSearch: boolean
+  hasJd: boolean
 }
 
 export function EnrichmentPanel({
   experienceLevel,
   onChangeExperienceLevel,
   enrichmentResults,
-  selectedHiringCard,
-  selectedSocialCard,
-  onSelectHiring,
-  onSelectSocial,
+  selectedInsightCards,
+  onToggleInsight,
   onSearch,
   loading,
   error,
   canSearch,
+  hasJd,
 }: EnrichmentPanelProps) {
   const showSkeletons = loading
   const hasResults = !loading && enrichmentResults !== null
+  const selectedCount = selectedInsightCards.length
 
   return (
     <div className="p-8 bg-white border border-gray-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       <div className="mb-6">
         <h3 className="text-xl font-serif font-bold text-blue-900 flex items-center gap-2">
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">3</span>
-          Find Enrichment Context
+          Company Insights
         </h3>
         <p className="mt-1 ml-10 text-sm text-gray-500">
-          Select relevant results to personalise your message
+          {hasJd
+            ? 'AI will generate targeted search queries from your JD to find relevant company insights.'
+            : 'Add a JD above to get smarter, role-specific search queries.'}
         </p>
       </div>
 
@@ -78,7 +79,7 @@ export function EnrichmentPanel({
         </ToggleGroup>
       </div>
 
-      <div className="ml-10 mb-6">
+      <div className="ml-10 mb-6 flex items-center gap-4">
         <button
           type="button"
           onClick={onSearch}
@@ -91,12 +92,17 @@ export function EnrichmentPanel({
             </>
           ) : (
             <>
-              <Search className="w-4 h-4" /> Search for context
+              <Search className="w-4 h-4" /> Search Company Insights
             </>
           )}
         </button>
+        {selectedCount > 0 && (
+          <span className="text-sm font-semibold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200">
+            {selectedCount} insight{selectedCount !== 1 ? 's' : ''} selected
+          </span>
+        )}
         {!canSearch && (
-          <p className="mt-2 text-xs text-gray-400">
+          <p className="text-xs text-gray-400">
             Fill in Target Company and Target Role to enable search.
           </p>
         )}
@@ -106,7 +112,7 @@ export function EnrichmentPanel({
         <div className="ml-10 mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-3">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold">Enrichment failed</p>
+            <p className="font-semibold">Search failed</p>
             <p className="text-xs mt-0.5">{error}</p>
             <button
               type="button"
@@ -120,51 +126,28 @@ export function EnrichmentPanel({
       )}
 
       {(showSkeletons || hasResults) && (
-        <div className="ml-10 grid gap-6 md:grid-cols-2">
-          <div>
-            <div className="mb-3 flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-blue-600" />
-              <h4 className="text-sm font-bold text-blue-900">Current Hiring</h4>
-            </div>
-            <div className="space-y-3">
-              {showSkeletons &&
-                Array.from({ length: 3 }).map((_, i) => <SignalCardSkeleton key={i} />)}
-              {hasResults && enrichmentResults!.hiringResults.length === 0 && (
-                <p className="text-xs text-gray-400 italic">No hiring results found.</p>
-              )}
-              {hasResults &&
-                enrichmentResults!.hiringResults.map((card) => (
-                  <SignalCard
-                    key={card.url}
-                    card={card}
-                    selected={selectedHiringCard?.url === card.url}
-                    onSelect={() => onSelectHiring(card)}
-                  />
-                ))}
-            </div>
+        <div className="ml-10">
+          <div className="mb-3 flex items-center gap-2">
+            <Lightbulb className="w-4 h-4 text-yellow-500" />
+            <h4 className="text-sm font-bold text-blue-900">Company Insights</h4>
+            <span className="text-xs text-gray-400">— top 3 auto-selected, adjust as needed</span>
           </div>
-
-          <div>
-            <div className="mb-3 flex items-center gap-2">
-              <Newspaper className="w-4 h-4 text-yellow-600" />
-              <h4 className="text-sm font-bold text-blue-900">Recent Activity & Posts</h4>
-            </div>
-            <div className="space-y-3">
-              {showSkeletons &&
-                Array.from({ length: 3 }).map((_, i) => <SignalCardSkeleton key={i} />)}
-              {hasResults && enrichmentResults!.socialResults.length === 0 && (
-                <p className="text-xs text-gray-400 italic">No social results found.</p>
-              )}
-              {hasResults &&
-                enrichmentResults!.socialResults.map((card) => (
-                  <SignalCard
-                    key={card.url}
-                    card={card}
-                    selected={selectedSocialCard?.url === card.url}
-                    onSelect={() => onSelectSocial(card)}
-                  />
-                ))}
-            </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {showSkeletons &&
+              Array.from({ length: 6 }).map((_, i) => <SignalCardSkeleton key={i} />)}
+            {hasResults && enrichmentResults!.insightResults.length === 0 && (
+              <p className="text-xs text-gray-400 italic col-span-2">No results found. Try adjusting the company name or role.</p>
+            )}
+            {hasResults &&
+              enrichmentResults!.insightResults.map((card, index) => (
+                <SignalCard
+                  key={card.url}
+                  card={card}
+                  selected={selectedInsightCards.some((c) => c.url === card.url)}
+                  onSelect={() => onToggleInsight(card)}
+                  autoRecommended={index < 3}
+                />
+              ))}
           </div>
         </div>
       )}

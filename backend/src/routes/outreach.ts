@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { generateOutreach } from '../services/outreach.service.js';
 import { runEnrichment } from '../services/outreach-enrichment.service.js';
+import { validateJdUrl } from '../services/outreach-jd-validator.service.js';
 import type { EnrichmentRequest, OutreachRequest } from '../types/outreach.js';
 
 export async function registerOutreachRoutes(app: FastifyInstance) {
@@ -9,8 +10,7 @@ export async function registerOutreachRoutes(app: FastifyInstance) {
 
     if (!body?.cvText || !body.targetCompany || !body.targetRole || !body.intent || !body.outputs) {
       return reply.code(400).send({
-        error:
-          'Missing required fields: cvText, targetCompany, targetRole, intent, outputs',
+        error: 'Missing required fields: cvText, targetCompany, targetRole, intent, outputs',
       });
     }
 
@@ -50,6 +50,24 @@ export async function registerOutreachRoutes(app: FastifyInstance) {
       request.log.error(error);
       return reply.code(statusCode).send({
         error: error instanceof Error ? error.message : 'Enrichment failed',
+      });
+    }
+  });
+
+  app.post<{ Body: { url?: string } }>('/api/outreach/validate-jd', async (request, reply) => {
+    const body = request.body;
+
+    if (!body?.url?.trim()) {
+      return reply.code(400).send({ error: 'Missing required field: url' });
+    }
+
+    try {
+      return await validateJdUrl(body.url.trim());
+    } catch (error) {
+      const statusCode = error && typeof error === 'object' && 'statusCode' in error ? Number((error as { statusCode?: number }).statusCode) : 500;
+      request.log.error(error);
+      return reply.code(statusCode).send({
+        error: error instanceof Error ? error.message : 'JD validation failed',
       });
     }
   });

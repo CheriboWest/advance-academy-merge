@@ -8,12 +8,13 @@ import {
   Link as LinkIcon,
   Loader,
   Upload,
+  FileText,
 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useOutreach } from '@/features/outreach/hooks/use-outreach'
 import type { ManualContextLink, OutreachFormData } from '@/features/outreach/types'
 import type { EnrichmentCard, ExperienceLevel, OutreachIntent } from '@/types/outreach'
-import { extractOutreachSource } from '@/features/outreach/api/frontend-client'
+import { extractOutreachSource, validateJdUrl } from '@/features/outreach/api/frontend-client'
 import { EnrichmentPanel } from './enrichment-panel'
 import { ManualContextManager } from './manual-context-manager'
 
@@ -166,6 +167,138 @@ function UrlExtractor({
   )
 }
 
+function JdInput({
+  jdText,
+  jdUrl,
+  jdValidating,
+  jdValidationError,
+  onJdTextChange,
+  onJdUrlChange,
+  onJdValidated,
+  onJdValidationError,
+  onJdValidating,
+}: {
+  jdText: string
+  jdUrl: string
+  jdValidating: boolean
+  jdValidationError: string
+  onJdTextChange: (text: string) => void
+  onJdUrlChange: (url: string) => void
+  onJdValidated: (text: string) => void
+  onJdValidationError: (err: string) => void
+  onJdValidating: (loading: boolean) => void
+}) {
+  const [activeTab, setActiveTab] = useState<'url' | 'paste'>('url')
+
+  async function handleValidate() {
+    if (!jdUrl.trim()) return
+    onJdValidating(true)
+    onJdValidationError('')
+    try {
+      const result = await validateJdUrl(jdUrl.trim())
+      if (result.valid && result.jdText) {
+        onJdValidated(result.jdText)
+      } else {
+        onJdValidationError(result.reason || 'This link does not appear to be a valid job description.')
+      }
+    } catch (err: any) {
+      onJdValidationError(err.message || 'Failed to validate URL.')
+    } finally {
+      onJdValidating(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab('url')}
+          className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+            activeTab === 'url'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          Paste Link
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('paste')}
+          className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+            activeTab === 'paste'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          Paste Text
+        </button>
+      </div>
+
+      {activeTab === 'url' && (
+        <div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={jdUrl}
+              onChange={(e) => onJdUrlChange(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleValidate()}
+              placeholder="https://company.com/jobs/role or LinkedIn job URL"
+              className="flex-1 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleValidate}
+              disabled={jdValidating || !jdUrl.trim()}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+            >
+              {jdValidating ? (
+                <><Loader className="w-4 h-4 animate-spin" /> Validating…</>
+              ) : (
+                <><FileText className="w-4 h-4" /> Fetch JD</>
+              )}
+            </button>
+          </div>
+          {jdValidationError && (
+            <p className="mt-2 text-sm text-red-600 flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              {jdValidationError}
+            </p>
+          )}
+          {jdText && !jdValidationError && (
+            <p className="mt-2 text-sm text-green-600 flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+              JD extracted successfully — {jdText.length.toLocaleString()} characters
+            </p>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'paste' && (
+        <textarea
+          value={jdText}
+          onChange={(e) => onJdTextChange(e.target.value)}
+          placeholder="Paste the full job description here…"
+          className={`${textareaClass} h-40`}
+        />
+      )}
+
+      {activeTab === 'url' && jdText && (
+        <details className="mt-3">
+          <summary className="text-xs text-gray-500 cursor-pointer hover:text-blue-600 font-semibold">
+            View / edit extracted JD text
+          </summary>
+          <textarea
+            value={jdText}
+            onChange={(e) => onJdTextChange(e.target.value)}
+            className={`${textareaClass} h-40 mt-2 text-xs`}
+          />
+        </details>
+      )}
+    </div>
+  )
+}
+
 const INTENT_OPTIONS: { value: OutreachIntent; label: string }[] = [
   { value: 'direct_application', label: '🎯 Direct Application (Hard Pitch)' },
   { value: 'referral_request', label: '🤝 Referral Request (Soft Ask to Employee)' },
@@ -178,6 +311,7 @@ interface OutreachFormProps {
   updateForm: (
     updates: Partial<OutreachFormData> | ((prev: OutreachFormData) => Partial<OutreachFormData>),
   ) => void
+  toggleInsightCard: (card: EnrichmentCard) => void
   loading: boolean
   error: string | null
   onGenerate: () => void
@@ -189,6 +323,7 @@ interface OutreachFormProps {
 function OutreachForm({
   form,
   updateForm,
+  toggleInsightCard,
   loading,
   error,
   onGenerate,
@@ -253,37 +388,37 @@ function OutreachForm({
         </div>
       </div>
 
-      {/* Section 2 — Target */}
+      {/* Section 2 — Target + JD */}
       <div className="p-8 bg-white border border-gray-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">2</span>
-          The Target
+          The Role & Target
         </h3>
         <div className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
+          {/* JD input — first and prominent */}
+          <Field label="Job Description">
+            <p className="text-xs text-gray-500 mb-3">
+              Paste a link to the JD (we&apos;ll validate it) or paste the text directly. Used to match your CV and generate smarter company insights.
+            </p>
+            <JdInput
+              jdText={form.jdText}
+              jdUrl={form.jdUrl}
+              jdValidating={form.jdValidating}
+              jdValidationError={form.jdValidationError}
+              onJdTextChange={(text) => updateForm({ jdText: text })}
+              onJdUrlChange={(url) => updateForm({ jdUrl: url })}
+              onJdValidated={(text) => updateForm({ jdText: text, jdValidationError: '' })}
+              onJdValidationError={(err) => updateForm({ jdValidationError: err, jdText: '' })}
+              onJdValidating={(loading) => updateForm({ jdValidating: loading })}
+            />
+          </Field>
+
+          <div className="border-t border-gray-100 pt-6 grid md:grid-cols-2 gap-6">
             <Field label="Target Company" required>
               <input
                 value={form.targetCompany}
                 onChange={(e) => updateForm({ targetCompany: e.target.value })}
                 placeholder="e.g. OpenAI"
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Target Country (Optional)">
-              <input
-                value={form.targetCountry}
-                onChange={(e) => updateForm({ targetCountry: e.target.value })}
-                placeholder="e.g. Vietnam, United States, Singapore"
-                className={inputClass}
-              />
-            </Field>
-          </div>
-          <div className="grid md:grid-cols-2 gap-6">
-            <Field label="Target Person Name (Optional)">
-              <input
-                value={form.targetPersonName}
-                onChange={(e) => updateForm({ targetPersonName: e.target.value })}
-                placeholder="e.g. Sam Altman"
                 className={inputClass}
               />
             </Field>
@@ -296,24 +431,54 @@ function OutreachForm({
               />
             </Field>
           </div>
-          <Field label="Outreach Intent" required>
-            <select
-              value={form.intent}
-              onChange={(e) => updateForm({ intent: e.target.value as OutreachIntent })}
-              className={`${inputClass} bg-gray-50`}
-            >
-              {INTENT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Additional Context Links (Optional)">
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <Field label="Target Country (Optional)">
+              <input
+                value={form.targetCountry}
+                onChange={(e) => updateForm({ targetCountry: e.target.value })}
+                placeholder="e.g. Vietnam, United States, Singapore"
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Your Location (Optional)">
+              <input
+                value={form.userLocation}
+                onChange={(e) => updateForm({ userLocation: e.target.value })}
+                placeholder="e.g. Vietnam, Ho Chi Minh City"
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <Field label="Target Person Name (Optional)">
+              <input
+                value={form.targetPersonName}
+                onChange={(e) => updateForm({ targetPersonName: e.target.value })}
+                placeholder="e.g. Sam Altman"
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Outreach Intent" required>
+              <select
+                value={form.intent}
+                onChange={(e) => updateForm({ intent: e.target.value as OutreachIntent })}
+                className={`${inputClass} bg-gray-50`}
+              >
+                {INTENT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+
+          <Field label="Additional Enrichment Links (Optional)">
             <p className="text-xs text-gray-500 mb-3">
-              Add a title + URL for each piece of context (job description, recent article, mutual
-              project, etc.). We&apos;ll extract the page content via Jina and use it both when
-              re-ranking enrichment results and when generating the message.
+              Add labeled URLs for extra context (company blog, mutual project, news article, etc.).
+              We&apos;ll extract the content and pass it to the AI alongside your JD.
             </p>
             <ManualContextManager
               contexts={form.manualContexts}
@@ -327,19 +492,18 @@ function OutreachForm({
         </div>
       </div>
 
-      {/* Section 3 — Enrichment */}
+      {/* Section 3 — Company Insights (Exa) */}
       <EnrichmentPanel
         experienceLevel={form.experienceLevel}
         onChangeExperienceLevel={(level: ExperienceLevel) => updateForm({ experienceLevel: level })}
         enrichmentResults={form.enrichmentResults}
-        selectedHiringCard={form.selectedHiringCard}
-        selectedSocialCard={form.selectedSocialCard}
-        onSelectHiring={(card: EnrichmentCard) => updateForm({ selectedHiringCard: card })}
-        onSelectSocial={(card: EnrichmentCard) => updateForm({ selectedSocialCard: card })}
+        selectedInsightCards={form.selectedInsightCards}
+        onToggleInsight={toggleInsightCard}
         onSearch={onEnrich}
         loading={enriching}
         error={enrichError}
         canSearch={canSearch}
+        hasJd={form.jdText.trim().length > 0}
       />
 
       {/* Section 4 — Output preferences */}
@@ -419,6 +583,7 @@ export function OutreachScreen() {
   const {
     form,
     updateForm,
+    toggleInsightCard,
     results,
     setResults,
     loading,
@@ -436,8 +601,7 @@ export function OutreachScreen() {
           Recruitment Outreach Generator
         </h1>
         <p className="text-gray-600 text-lg sm:text-xl max-w-2xl mx-auto">
-          Generate highly personalized, intent-driven outreach scripts instantly. Powered by Exa
-          search for real-time hiring + social signals.
+          Generate highly personalised outreach from your JD, CV, and real company insights — powered by Exa search and Claude AI.
         </p>
       </div>
 
@@ -445,6 +609,7 @@ export function OutreachScreen() {
         <OutreachForm
           form={form}
           updateForm={updateForm}
+          toggleInsightCard={toggleInsightCard}
           loading={loading}
           error={error}
           onGenerate={generate}

@@ -17,6 +17,11 @@ export interface ManualContext {
   content: string;
 }
 
+export interface InsightSignal {
+  url: string;
+  exaText: string;
+}
+
 export interface OutreachRequest {
   cvText: string;
   portfolioText?: string;
@@ -26,11 +31,10 @@ export interface OutreachRequest {
   targetRole: string;
   experienceLevel: ExperienceLevel;
   intent: OutreachIntent;
+  userLocation?: string;
   manualContexts?: ManualContext[];
-  hiringSignalUrl?: string;
-  hiringSignalExaText?: string;
-  socialSignalUrl?: string;
-  socialSignalExaText?: string;
+  jdText?: string;
+  insightSignals?: InsightSignal[];
   outputs: OutreachOutputs;
 }
 
@@ -52,7 +56,9 @@ export interface EnrichmentRequest {
   experienceLevel: ExperienceLevel;
   personName?: string;
   intent?: OutreachIntent;
+  userLocation?: string;
   manualContexts?: ManualContext[];
+  jdText?: string;
 }
 
 export interface EnrichmentCard {
@@ -66,6 +72,11 @@ export interface EnrichmentCard {
 }
 
 export interface EnrichmentResponse {
-  hiringResults: EnrichmentCard[];
-  socialResults: EnrichmentCard[];
+  insightResults: EnrichmentCard[];
+}
+
+export interface JdValidationResult {
+  valid: boolean;
+  jdText?: string;
+  reason?: string;
 }

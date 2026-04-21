@@ -25,16 +25,17 @@ interface SignalCardProps {
   card: EnrichmentCard
   selected: boolean
   onSelect: () => void
+  autoRecommended?: boolean
 }
 
-export function SignalCard({ card, selected, onSelect }: SignalCardProps) {
+export function SignalCard({ card, selected, onSelect, autoRecommended }: SignalCardProps) {
   const [open, setOpen] = useState(false)
   const hostname = getHostname(card.url)
   const previewSnippet = card.snippet.slice(0, 100)
 
   return (
     <div
-      role="radio"
+      role="checkbox"
       aria-checked={selected}
       tabIndex={0}
       onClick={onSelect}
@@ -50,8 +51,15 @@ export function SignalCard({ card, selected, onSelect }: SignalCardProps) {
         selected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200',
       )}
     >
+      {autoRecommended && (
+        <div className="mb-2 inline-flex items-center gap-1 rounded-full bg-blue-600 px-2.5 py-0.5 text-[10px] font-semibold text-white">
+          <Sparkles className="h-2.5 w-2.5" />
+          AI Recommended
+        </div>
+      )}
+
       <div className="absolute top-3 right-3 flex items-center gap-1.5">
-        {typeof card.score === 'number' && (
+        {typeof card.score === 'number' && !autoRecommended && (
           <span
             title={card.reason || 'Claude relevance score'}
             className={cn(
@@ -93,10 +101,15 @@ export function SignalCard({ card, selected, onSelect }: SignalCardProps) {
       </div>
 
       {card.reason && (
-        <p className="mt-2 text-[11px] text-gray-500 italic leading-relaxed">
+        <div className={cn(
+          'mt-2 rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed',
+          autoRecommended
+            ? 'bg-blue-50 text-blue-800 border border-blue-100'
+            : 'text-gray-500 italic',
+        )}>
           <Sparkles className="inline h-3 w-3 mr-1 text-blue-400" />
           {card.reason}
-        </p>
+        </div>
       )}
 
       {previewSnippet && (
