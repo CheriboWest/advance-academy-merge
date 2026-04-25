@@ -3,7 +3,7 @@
  * bullet pool, gaps, and artifacts.
  */
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
-import { getSupabase, getMvpUserId } from '../lib/supabase.js';
+import { getSupabase } from '../lib/supabase.js';
 
 const SYSTEM_PROMPT = `You are an expert career coach reviewing a candidate's self-reported background data.
 You will receive:
@@ -80,9 +80,8 @@ ${gapLines || '    (no gaps generated)'}`;
   return `Here is the user's complete bullet pool with all gaps and evidence:\n\n${sections}`;
 }
 
-export async function generateCoachUnderstanding(): Promise<{ reportId: string; reportMd: string }> {
+export async function generateCoachUnderstanding(userId: string): Promise<{ reportId: string; reportMd: string }> {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
 
   // Fetch all bullets for the user
   const { data: rawBullets } = await supabase
@@ -153,11 +152,10 @@ export async function generateCoachUnderstanding(): Promise<{ reportId: string; 
   return { reportId: inserted.id as string, reportMd };
 }
 
-export async function listCoachReports(): Promise<
+export async function listCoachReports(userId: string): Promise<
   Array<{ id: string; createdAt: string; preview: string }>
 > {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
   const { data, error } = await supabase
     .from('coach_understanding_reports')
     .select('id, report_md, created_at')
@@ -172,9 +170,8 @@ export async function listCoachReports(): Promise<
   }));
 }
 
-export async function getCoachReport(id: string): Promise<{ id: string; reportMd: string; createdAt: string } | null> {
+export async function getCoachReport(id: string, userId: string): Promise<{ id: string; reportMd: string; createdAt: string } | null> {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
   const { data } = await supabase
     .from('coach_understanding_reports')
     .select('id, report_md, created_at')

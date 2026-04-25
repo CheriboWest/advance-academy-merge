@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useState } from 'react'
+import { authedFetch } from '@/shared/auth/authed-fetch'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -178,7 +179,7 @@ function SetupStep({
       setCvLoading(true)
       setCvError(null)
       try {
-        const res = await fetch('/api/cv-library/versions')
+        const res = await authedFetch('/api/cv-library/versions')
         if (!res.ok) throw new Error('Failed to load CVs')
         const data: CvVersionOption[] = await res.json()
         if (cancelled) return
@@ -208,7 +209,7 @@ function SetupStep({
     ;(async () => {
       setLoadingRawText(true)
       try {
-        const res = await fetch(`/api/cv-library/versions/${selectedCvId}`)
+        const res = await authedFetch(`/api/cv-library/versions/${selectedCvId}`)
         if (!res.ok) throw new Error('Failed to load CV')
         const data: { rawText: string } = await res.json()
         if (cancelled) return
@@ -229,7 +230,7 @@ function SetupStep({
   const handleSelectCv = async (id: string) => {
     setSelectedCvId(id)
     try {
-      await fetch(`/api/cv-library/versions/${id}/activate`, { method: 'POST' })
+      await authedFetch(`/api/cv-library/versions/${id}/activate`, { method: 'POST' })
       setCvVersions((prev) => prev.map((c) => ({ ...c, isActive: c.id === id })))
     } catch {
       // non-fatal
@@ -248,7 +249,7 @@ function SetupStep({
     setExtractError(null)
     setExtractInfo(null)
     try {
-      const res = await fetch('/api/interview-prep/extract-job-from-url', {
+      const res = await authedFetch('/api/interview-prep/extract-job-from-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),

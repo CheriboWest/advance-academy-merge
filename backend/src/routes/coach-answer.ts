@@ -9,7 +9,7 @@ export async function registerCoachAnswerRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'question, answer, and context are required' });
     }
     try {
-      const result = await coachAnswer(body);
+      const result = await coachAnswer(body, request.userId);
       return result;
     } catch (error) {
       const statusCode =

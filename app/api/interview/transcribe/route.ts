@@ -1,11 +1,13 @@
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
 import { transcribeInterviewAudioWithBackend } from '@/shared/api/backend-client'
 import { HttpClientError } from '@/shared/api/http-client'
 
 export async function POST(request: Request) {
+  const authToken = getProxyAuthToken(request)
   try {
     const formData = await request.formData()
-    const response = await transcribeInterviewAudioWithBackend(formData)
+    const response = await transcribeInterviewAudioWithBackend(formData, authToken)
     return NextResponse.json(response)
   } catch (error) {
     if (error instanceof HttpClientError) {

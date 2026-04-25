@@ -1,3 +1,4 @@
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
 import type { DreamCompanyInput } from '@/types/dream-company'
 import { analyzeProfileWithBackend } from '@/shared/api/backend-client'

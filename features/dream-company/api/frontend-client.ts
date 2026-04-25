@@ -2,11 +2,13 @@
 
 import type { DreamCompanyInput, ProfileAnalysis, TargetRole, RoadmapResponse } from '@/types/dream-company'
 import { fetchFormDataJson, fetchJson } from '@/shared/api/http-client'
+import { getAuthHeaders } from '@/shared/auth/get-auth-headers'
 
 export async function analyzeProfile(profile: DreamCompanyInput): Promise<ProfileAnalysis> {
   return fetchJson<ProfileAnalysis>('/api/dream-company/analyze', {
     method: 'POST',
     body: JSON.stringify({ profile }),
+    headers: await getAuthHeaders(),
     timeoutMs: 60000,
   })
 }
@@ -18,6 +20,7 @@ export async function generateRoles(
   return fetchJson<TargetRole[]>('/api/dream-company/roles', {
     method: 'POST',
     body: JSON.stringify({ profile, analysis }),
+    headers: await getAuthHeaders(),
     timeoutMs: 60000,
   })
 }
@@ -30,6 +33,7 @@ export async function generateRoadmap(
   return fetchJson<RoadmapResponse>('/api/dream-company/roadmap', {
     method: 'POST',
     body: JSON.stringify({ profile, analysis, selectedRoles }),
+    headers: await getAuthHeaders(),
     timeoutMs: 120000,
   })
 }

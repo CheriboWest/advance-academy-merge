@@ -1,8 +1,10 @@
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
 import { extractOutreachTextWithBackend, extractOutreachFileWithBackend } from '@/shared/api/backend-client'
 import { HttpClientError } from '@/shared/api/http-client'
 
 export async function POST(request: Request) {
+  const authToken = getProxyAuthToken(request)
   try {
     const contentType = request.headers.get('content-type') || '';
 
@@ -12,7 +14,7 @@ export async function POST(request: Request) {
       response = await extractOutreachFileWithBackend(formData)
     } else {
       const json = await request.json()
-      response = await extractOutreachTextWithBackend(json)
+      response = await extractOutreachTextWithBackend(json, authToken)
     }
 
     return NextResponse.json(response)

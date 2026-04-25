@@ -1,3 +1,4 @@
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
 import { getCvAnalysisJobFromBackend } from '@/shared/api/backend-client'
 import { HttpClientError } from '@/shared/api/http-client'

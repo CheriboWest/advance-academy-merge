@@ -72,6 +72,7 @@ export async function fetchJson<T>(input: RequestInfo | URL, options: FetchJsonO
 interface FetchFormDataJsonOptions {
   timeoutMs?: number
   method?: string
+  headers?: Record<string, string>
 }
 
 export async function fetchFormDataJson<T>(
@@ -87,6 +88,7 @@ export async function fetchFormDataJson<T>(
     const response = await fetch(input, {
       method: options.method ?? 'POST',
       body: formData,
+      headers: options.headers,
       signal: controller.signal,
     })
 

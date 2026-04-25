@@ -1,3 +1,4 @@
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
 import type { DreamCompanyInput, ProfileAnalysis, TargetRole } from '@/types/dream-company'
 import { generateRoadmapWithBackend } from '@/shared/api/backend-client'

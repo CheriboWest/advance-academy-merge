@@ -1,3 +1,4 @@
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
 import { analyzeCvSchema } from '@/features/cv-optimizer/schemas/cv-optimizer'

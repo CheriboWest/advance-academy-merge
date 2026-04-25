@@ -10,7 +10,7 @@ import {
   getRelevantBulletsForQuestion,
 } from './cv-knowledge.service.js';
 import type { CoachAnswerRequest, CoachAnswerResponse, MissingEvidencePrompt } from '../types/cv-knowledge.js';
-import { getSupabase, getMvpUserId } from '../lib/supabase.js';
+import { getSupabase } from '../lib/supabase.js';
 
 function cleanJson(text: string): string {
   return text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?\s*```$/, '').trim();
@@ -32,14 +32,13 @@ function extractPromptsFromText(improved: string): MissingEvidencePrompt[] {
   return out;
 }
 
-export async function coachAnswer(req: CoachAnswerRequest): Promise<CoachAnswerResponse> {
+export async function coachAnswer(req: CoachAnswerRequest, userId: string): Promise<CoachAnswerResponse> {
   if (!req.question?.trim() || !req.answer?.trim()) {
     throw Object.assign(new Error('question and answer are required'), { statusCode: 400 });
   }
 
   // Pull bullets from the user's ENTIRE pool (not just one CV version).
   // This is the key fix: evidence from all CV versions is now accessible.
-  const userId = getMvpUserId();
   let cvBullets: Array<{ id: string; section: string | null; text: string }> = [];
   let evidence: CoachEvidenceBlock[] = [];
 
@@ -59,7 +58,7 @@ export async function coachAnswer(req: CoachAnswerRequest): Promise<CoachAnswerR
     // cvVersionId is still passed for backward compat but getRelevantBulletsForQuestion
     // now queries by user_id internally.
     const cvVersionId = req.cvVersionId ?? null;
-    const relevant = await getRelevantBulletsForQuestion(cvVersionId ?? '', req.question);
+    const relevant = await getRelevantBulletsForQuestion(cvVersionId ?? '', req.question, userId);
     if (relevant.length > 0) {
       const artifactMap = await getArtifactsForBullets(relevant.map((b) => b.id));
       evidence = relevant.map((b) => ({

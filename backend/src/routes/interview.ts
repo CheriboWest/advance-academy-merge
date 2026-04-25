@@ -28,7 +28,7 @@ export async function registerInterviewRoutes(app: FastifyInstance) {
     const body = request.body as (StartSessionBody | SendMessageBody) & { action?: string };
     try {
       if (body?.action === 'start') {
-        return await startInterviewSession(body as StartSessionBody);
+        return await startInterviewSession(body as StartSessionBody, request.userId);
       }
       if (body?.action === 'message') {
         return await sendInterviewMessage(body as SendMessageBody);
@@ -53,8 +53,8 @@ export async function registerInterviewRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get('/api/interview/sessions', async () => {
-    const sessions = await dbListSessions();
+  app.get('/api/interview/sessions', async (request) => {
+    const sessions = await dbListSessions(request.userId);
     return { sessions };
   });
 

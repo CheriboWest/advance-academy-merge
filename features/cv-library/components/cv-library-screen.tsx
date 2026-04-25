@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { authedFetch } from '@/shared/auth/authed-fetch'
 import {
   Loader2,
   Upload,
@@ -83,7 +84,7 @@ export function CvLibraryScreen() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/cv-library/versions')
+      const res = await authedFetch('/api/cv-library/versions')
       if (!res.ok) throw new Error('Failed to load CVs')
       setVersions(await res.json())
     } catch (e) {
@@ -189,7 +190,7 @@ export function CvLibraryScreen() {
                 {!v.isActive && (
                   <button
                     onClick={async () => {
-                      await fetch(`/api/cv-library/versions/${v.id}/activate`, { method: 'POST' })
+                      await authedFetch(`/api/cv-library/versions/${v.id}/activate`, { method: 'POST' })
                       refresh()
                     }}
                     className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"
@@ -201,7 +202,7 @@ export function CvLibraryScreen() {
                   onClick={async () => {
                     if (!confirm(`Delete "${v.name}"? Shared bullets will survive if linked to other versions.`))
                       return
-                    await fetch(`/api/cv-library/versions/${v.id}`, { method: 'DELETE' })
+                    await authedFetch(`/api/cv-library/versions/${v.id}`, { method: 'DELETE' })
                     refresh()
                   }}
                   className="p-2 text-gray-400 hover:text-red-600"
@@ -234,7 +235,7 @@ function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) 
       const fd = new FormData()
       fd.append('name', name.trim())
       fd.append('file', file)
-      const res = await fetch('/api/cv-library/versions', { method: 'POST', body: fd })
+      const res = await authedFetch('/api/cv-library/versions', { method: 'POST', body: fd })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data?.error || data?.message || 'Upload failed')
@@ -348,7 +349,7 @@ function BulletResolutionStep({
           existingBulletId: d.existingBulletId,
         }
       })
-      const res = await fetch(`/api/cv-library/versions/${phase1.cvVersionId}/finalize`, {
+      const res = await authedFetch(`/api/cv-library/versions/${phase1.cvVersionId}/finalize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ parsedBullets: phase1.parsedBullets, resolutions }),
@@ -515,7 +516,7 @@ function CvDetail({ versionId, onBack }: { versionId: string; onBack: () => void
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/cv-library/versions/${versionId}/bullets`)
+      const res = await authedFetch(`/api/cv-library/versions/${versionId}/bullets`)
       if (res.ok) setBullets(await res.json())
     } finally {
       setLoading(false)
@@ -573,7 +574,7 @@ function BulletCard({ bullet, onChanged }: { bullet: BulletWithGaps; onChanged: 
   const loadSimilar = async () => {
     setMergeLoading(true)
     try {
-      const res = await fetch(`/api/cv-library/bullets/${bullet.id}/similar`, { method: 'POST' })
+      const res = await authedFetch(`/api/cv-library/bullets/${bullet.id}/similar`, { method: 'POST' })
       if (res.ok) setCandidates(await res.json())
       setMergeMode(true)
     } finally {
@@ -585,7 +586,7 @@ function BulletCard({ bullet, onChanged }: { bullet: BulletWithGaps; onChanged: 
     if (!confirm('Merge this bullet into the selected one? Its gaps will be combined.')) return
     setMergeLoading(true)
     try {
-      await fetch('/api/cv-library/bullets/merge', {
+      await authedFetch('/api/cv-library/bullets/merge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceBulletId: bullet.id, targetBulletId: targetId }),
@@ -679,15 +680,15 @@ function GapForm({
       if (mode === 'file' && file) {
         const fd = new FormData()
         fd.append('file', file)
-        res = await fetch(`/api/cv-library/gaps/${gap.id}/artifacts`, { method: 'POST', body: fd })
+        res = await authedFetch(`/api/cv-library/gaps/${gap.id}/artifacts`, { method: 'POST', body: fd })
       } else if (mode === 'url' && url.trim()) {
-        res = await fetch(`/api/cv-library/gaps/${gap.id}/artifacts`, {
+        res = await authedFetch(`/api/cv-library/gaps/${gap.id}/artifacts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: url.trim() }),
         })
       } else if (mode === 'text' && text.trim()) {
-        res = await fetch(`/api/cv-library/gaps/${gap.id}/artifacts`, {
+        res = await authedFetch(`/api/cv-library/gaps/${gap.id}/artifacts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: text.trim() }),
@@ -713,7 +714,7 @@ function GapForm({
   const skip = async () => {
     setBusy(true)
     try {
-      await fetch(`/api/cv-library/gaps/${gap.id}/skip`, { method: 'POST' })
+      await authedFetch(`/api/cv-library/gaps/${gap.id}/skip`, { method: 'POST' })
       onChanged()
     } finally {
       setBusy(false)
@@ -842,7 +843,7 @@ function CoachUnderstandingSection({
 
   const loadReports = async () => {
     try {
-      const res = await fetch('/api/coach-understanding/reports')
+      const res = await authedFetch('/api/coach-understanding/reports')
       if (res.ok) setReports(await res.json())
     } catch {
       // non-fatal
@@ -858,7 +859,7 @@ function CoachUnderstandingSection({
     setGenerating(true)
     setErr(null)
     try {
-      const res = await fetch('/api/coach-understanding/generate', { method: 'POST' })
+      const res = await authedFetch('/api/coach-understanding/generate', { method: 'POST' })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data?.error || 'Failed to generate report')
@@ -947,7 +948,7 @@ function ReportViewer({ reportId, onBack }: { reportId: string; onBack: () => vo
     ;(async () => {
       setLoading(true)
       try {
-        const res = await fetch(`/api/coach-understanding/reports/${reportId}`)
+        const res = await authedFetch(`/api/coach-understanding/reports/${reportId}`)
         if (res.ok) setReport(await res.json())
       } finally {
         setLoading(false)

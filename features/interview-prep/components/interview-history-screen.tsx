@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { authedFetch } from '@/shared/auth/authed-fetch'
 import { ArrowLeft, Loader2, AlertCircle, CheckCircle, Calendar, Clock, History } from 'lucide-react'
 import type { SessionListItem, SessionDetail } from '@/features/interview-prep/types'
 import { PERSONAS } from '@/data/personas'
@@ -21,7 +22,7 @@ export function InterviewHistoryScreen() {
     setLoadingList(true)
     setError(null)
     try {
-      const res = await fetch('/api/interview/sessions')
+      const res = await authedFetch('/api/interview/sessions')
       if (!res.ok) throw new Error('Failed to load sessions')
       const data = await res.json()
       setSessions(data.sessions ?? [])
@@ -36,7 +37,7 @@ export function InterviewHistoryScreen() {
     setLoadingDetail(true)
     setError(null)
     try {
-      const res = await fetch(`/api/interview/sessions/${id}`)
+      const res = await authedFetch(`/api/interview/sessions/${id}`)
       if (!res.ok) throw new Error('Failed to load session')
       const data = await res.json()
       setSelected(data.session)

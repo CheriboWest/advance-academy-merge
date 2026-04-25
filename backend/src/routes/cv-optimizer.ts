@@ -121,7 +121,7 @@ export async function registerCvOptimizerRoutes(app: FastifyInstance) {
       });
     }
 
-    const job = await createCvAnalysisJob(body);
+    const job = await createCvAnalysisJob(body, request.userId);
 
     return reply.code(202).send(job);
   });

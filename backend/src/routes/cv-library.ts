@@ -15,7 +15,6 @@ import {
   recordJitClarification,
   skipGap,
 } from '../services/cv-knowledge.service.js';
-import { getMvpUserId } from '../lib/supabase.js';
 import type { BulletResolution, ParsedBulletWithCandidates } from '../types/cv-knowledge.js';
 
 function statusOf(error: unknown): number {
@@ -32,9 +31,9 @@ function sendError(reply: any, error: unknown) {
 }
 
 export async function registerCvLibraryRoutes(app: FastifyInstance) {
-  app.get('/api/cv-library/versions', async (_request, reply) => {
+  app.get('/api/cv-library/versions', async (request, reply) => {
     try {
-      return await listCvVersions();
+      return await listCvVersions(request.userId);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -43,7 +42,7 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
   app.post<{ Body: { id: string } }>('/api/cv-library/versions/:id/activate', async (request, reply) => {
     const id = (request.params as { id: string }).id;
     try {
-      await activateCvVersion(id);
+      await activateCvVersion(id, request.userId);
       return { ok: true };
     } catch (err) {
       return sendError(reply, err);
@@ -53,7 +52,7 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
   app.get('/api/cv-library/versions/:id', async (request, reply) => {
     const id = (request.params as { id: string }).id;
     try {
-      const row = await getCvVersion(id);
+      const row = await getCvVersion(id, request.userId);
       if (!row) return reply.code(404).send({ error: 'Not found' });
       return {
         id: row.id,
@@ -70,7 +69,7 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
   app.delete('/api/cv-library/versions/:id', async (request, reply) => {
     const id = (request.params as { id: string }).id;
     try {
-      await deleteCvVersion(id);
+      await deleteCvVersion(id, request.userId);
       return { ok: true };
     } catch (err) {
       return sendError(reply, err);
@@ -97,7 +96,7 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'parsedBullets and resolutions required' });
     }
     try {
-      return await finalizeCvBullets(cvVersionId, body.parsedBullets, body.resolutions);
+      return await finalizeCvBullets(request.userId, cvVersionId, body.parsedBullets, body.resolutions);
     } catch (err) {
       return sendError(reply, err);
     }
@@ -131,7 +130,7 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
         return reply.code(400).send({ error: 'sourceBulletId and targetBulletId required' });
       }
       try {
-        await mergeBullets(body.sourceBulletId, body.targetBulletId);
+        await mergeBullets(body.sourceBulletId, body.targetBulletId, request.userId);
         return { ok: true };
       } catch (err) {
         return sendError(reply, err);
@@ -207,13 +206,13 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
           if (!name.trim()) {
             return reply.code(400).send({ error: 'name is required' });
           }
-          return await parseCvVersionFromFile(name.trim(), fileBuffer, fileName);
+          return await parseCvVersionFromFile(name.trim(), fileBuffer, fileName, request.userId);
         }
         const body = request.body as { name?: string; rawText?: string } | undefined;
         if (!body?.name || !body?.rawText) {
           return reply.code(400).send({ error: 'name and rawText required' });
         }
-        return await parseCvVersion({ name: body.name.trim(), rawText: body.rawText });
+        return await parseCvVersion({ name: body.name.trim(), rawText: body.rawText, userId: request.userId });
       } catch (err) {
         return sendError(reply, err);
       }

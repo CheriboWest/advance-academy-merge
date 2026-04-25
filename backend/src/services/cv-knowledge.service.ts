@@ -9,7 +9,7 @@
  */
 import { extractTextFromFile, extractTextFromUrl } from './outreach-extractor.service.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
-import { getSupabase, getMvpUserId } from '../lib/supabase.js';
+import { getSupabase } from '../lib/supabase.js';
 import { embedText, embedTexts, isVoyageConfigured } from '../lib/voyage.js';
 import {
   buildBulletExtractionPrompt,
@@ -64,16 +64,16 @@ async function llmJson<T = unknown>(systemOrUser: string, userMaybe?: string): P
 export async function parseCvVersion(args: {
   name: string;
   rawText: string;
+  userId: string;
   sourceFilePath?: string | null;
 }): Promise<CvUploadPhase1Response> {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
 
   // Insert the cv_version row
   const { data: inserted, error } = await supabase
     .from('cv_versions')
     .insert({
-      user_id: userId,
+      user_id: args.userId,
       name: args.name,
       raw_text: args.rawText,
       source_file_path: args.sourceFilePath ?? null,
@@ -106,7 +106,7 @@ export async function parseCvVersion(args: {
     const tempId = `temp_${i}`;
     let candidates: SimilarBulletCandidate[] = [];
     try {
-      candidates = await findSimilarBullets(userId, b.bullet_text.trim(), 5);
+      candidates = await findSimilarBullets(args.userId, b.bullet_text.trim(), 5);
     } catch (err) {
       console.error('[cv-knowledge] similarity search failed for bullet', i, err);
     }
@@ -125,20 +125,20 @@ export async function parseCvVersionFromFile(
   name: string,
   fileBuffer: Buffer,
   fileName: string,
+  userId: string,
 ): Promise<CvUploadPhase1Response> {
   const rawText = await extractTextFromFile(fileBuffer, fileName.toLowerCase());
-  return parseCvVersion({ name, rawText });
+  return parseCvVersion({ name, rawText, userId });
 }
 
 // ── Phase 2: Finalize — user has resolved each bullet (merge or new) ────────
 
-export async function finalizeCvBullets(
+export async function finalizeCvBullets(userId: string, 
   cvVersionId: string,
   parsedBullets: ParsedBulletWithCandidates[],
   resolutions: BulletResolution[],
 ): Promise<CvFinalizeResponse> {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
 
   // Look up detected field for gap generation prompts
   const { data: cvRow } = await supabase
@@ -256,6 +256,7 @@ export async function finalizeCvBullets(
 export async function createCvVersionFromText(args: {
   name: string;
   rawText: string;
+  userId: string;
   sourceFilePath?: string | null;
 }): Promise<{ cvVersionId: string; bulletCount: number; gapCount: number }> {
   const phase1 = await parseCvVersion(args);
@@ -263,7 +264,7 @@ export async function createCvVersionFromText(args: {
     tempId: b.tempId,
     action: 'new',
   }));
-  const result = await finalizeCvBullets(phase1.cvVersionId, phase1.parsedBullets, resolutions);
+  const result = await finalizeCvBullets(args.userId, phase1.cvVersionId, phase1.parsedBullets, resolutions);
   return {
     cvVersionId: phase1.cvVersionId,
     bulletCount: result.bulletCount,
@@ -275,9 +276,10 @@ export async function createCvVersionFromFile(
   name: string,
   fileBuffer: Buffer,
   fileName: string,
+  userId: string,
 ): Promise<{ cvVersionId: string; bulletCount: number; gapCount: number }> {
   const rawText = await extractTextFromFile(fileBuffer, fileName.toLowerCase());
-  return createCvVersionFromText({ name, rawText });
+  return createCvVersionFromText({ name, rawText, userId });
 }
 
 // ── Similarity search ───────────────────────────────────────────────────────
@@ -361,9 +363,8 @@ async function findSimilarBulletsDirect(
 
 // ── Merge bullets ───────────────────────────────────────────────────────────
 
-export async function mergeBullets(sourceBulletId: string, targetBulletId: string): Promise<void> {
+export async function mergeBullets(sourceBulletId: string, targetBulletId: string, userId: string): Promise<void> {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
 
   // Verify both belong to the same user
   const { data: src } = await supabase
@@ -465,9 +466,8 @@ export async function backfillEmbeddings(): Promise<{ updated: number }> {
 
 // ── List + activate + delete ────────────────────────────────────────────────
 
-export async function listCvVersions(): Promise<CvVersionSummary[]> {
+export async function listCvVersions(userId: string): Promise<CvVersionSummary[]> {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
   const { data, error } = await supabase
     .from('cv_versions')
     .select('id, name, detected_field, is_active, created_at')
@@ -512,9 +512,8 @@ export async function listCvVersions(): Promise<CvVersionSummary[]> {
   return summaries;
 }
 
-export async function activateCvVersion(cvVersionId: string): Promise<void> {
+export async function activateCvVersion(cvVersionId: string, userId: string): Promise<void> {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
   const { error: clearErr } = await supabase
     .from('cv_versions')
     .update({ is_active: false })
@@ -529,9 +528,8 @@ export async function activateCvVersion(cvVersionId: string): Promise<void> {
   if (error) throw Object.assign(new Error(error.message), { statusCode: 500 });
 }
 
-export async function deleteCvVersion(cvVersionId: string): Promise<void> {
+export async function deleteCvVersion(cvVersionId: string, userId: string): Promise<void> {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
   // Deleting the version cascades to cv_version_bullets junction rows only.
   // The actual bullets (and their gaps/artifacts) survive if linked to other versions.
   const { error } = await supabase
@@ -542,9 +540,8 @@ export async function deleteCvVersion(cvVersionId: string): Promise<void> {
   if (error) throw Object.assign(new Error(error.message), { statusCode: 500 });
 }
 
-export async function getCvVersion(id: string): Promise<CvVersionRow | null> {
+export async function getCvVersion(id: string, userId: string): Promise<CvVersionRow | null> {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
   const { data } = await supabase
     .from('cv_versions')
     .select('*')
@@ -554,9 +551,8 @@ export async function getCvVersion(id: string): Promise<CvVersionRow | null> {
   return (data as CvVersionRow | null) ?? null;
 }
 
-export async function getActiveCvVersion(): Promise<CvVersionRow | null> {
+export async function getActiveCvVersion(userId: string): Promise<CvVersionRow | null> {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
   const { data } = await supabase
     .from('cv_versions')
     .select('*')
@@ -752,9 +748,9 @@ export async function recordJitClarification(args: {
 export async function getRelevantBulletsForQuestion(
   _cvVersionId: string,
   interviewQuestion: string,
+  userId: string,
 ): Promise<CvBulletRow[]> {
   const supabase = getSupabase();
-  const userId = getMvpUserId();
 
   // Query ALL bullets for the user (the whole pool), not just one CV version
   const { data: bullets } = await supabase

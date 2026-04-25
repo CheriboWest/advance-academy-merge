@@ -10,33 +10,37 @@ import type {
   RewriteSuggestion,
 } from '@advance-academy/contracts'
 import { fetchFormDataJson, fetchJson, HttpClientError } from '@/shared/api/http-client'
+import { getAuthHeaders } from '@/shared/auth/get-auth-headers'
 
-export function submitCvAnalysis(payload: AnalyzeCvRequest) {
+export async function submitCvAnalysis(payload: AnalyzeCvRequest) {
   return fetchJson<AnalyzeCvAcceptedResponse>('/api/cv-optimizer/analyze', {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: await getAuthHeaders(),
     timeoutMs: 30000,
   })
 }
 
-export function getCvAnalysisJob(jobId: string) {
+export async function getCvAnalysisJob(jobId: string) {
   return fetchJson<JobStatusResponse<AnalyzeCvResult>>(`/api/cv-optimizer/jobs/${jobId}`, {
     method: 'GET',
+    headers: await getAuthHeaders(),
     timeoutMs: 10000,
   })
 }
 
-export function parseFileForCvOptimizer(file: File) {
+export async function parseFileForCvOptimizer(file: File) {
   const formData = new FormData()
   formData.append('file', file)
 
   return fetchFormDataJson<{ text: string }>('/api/cv-optimizer/parse-cv', formData, { timeoutMs: 60000 })
 }
 
-export function rewriteBullet(payload: RewriteBulletRequest) {
+export async function rewriteBullet(payload: RewriteBulletRequest) {
   return fetchJson<RewriteBulletResponse>('/api/cv-optimizer/rewrite-bullet', {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: await getAuthHeaders(),
     timeoutMs: 30000,
   })
 }
@@ -56,9 +60,11 @@ export async function generateRewrittenCv(
   formData.append('file', file)
   formData.append('suggestions', JSON.stringify(suggestions))
 
+  const authHeaders = await getAuthHeaders()
   const response = await fetch('/api/cv-optimizer/generate-rewritten-cv', {
     method: 'POST',
     body: formData,
+    headers: authHeaders,
   })
 
   if (!response.ok) {

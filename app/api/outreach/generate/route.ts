@@ -1,3 +1,4 @@
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
 import type { OutreachRequest } from '@/types/outreach'
 import { generateOutreachWithBackend } from '@/shared/api/backend-client'

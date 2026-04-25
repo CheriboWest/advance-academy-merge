@@ -17,51 +17,60 @@ import type {
 import { fetchFormDataJson, fetchJson } from '@/shared/api/http-client'
 import { getServerEnv } from '@/shared/env/server'
 
-export function analyzeCvWithBackend(payload: AnalyzeCvRequest) {
+function authHeaders(token?: string): Record<string, string> {
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+export function analyzeCvWithBackend(payload: AnalyzeCvRequest, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
   return fetchJson<AnalyzeCvAcceptedResponse>(`${backendUrl}/api/cv-optimizer/analyze`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 30000,
   })
 }
 
-export function getCvAnalysisJobFromBackend(jobId: string) {
+export function getCvAnalysisJobFromBackend(jobId: string, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
   return fetchJson<JobStatusResponse<AnalyzeCvResult>>(`${backendUrl}/api/cv-optimizer/jobs/${jobId}`, {
     method: 'GET',
+    headers: authHeaders(authToken),
     timeoutMs: 10000,
   })
 }
 
-export function analyzeProfileWithBackend(payload: { profile: DreamCompanyInput }) {
+export function analyzeProfileWithBackend(payload: { profile: DreamCompanyInput }, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
   return fetchJson<ProfileAnalysis>(`${backendUrl}/api/dream-company/analyze`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 60000,
   })
 }
 
-export function generateRolesWithBackend(payload: { profile: DreamCompanyInput; analysis: ProfileAnalysis }) {
+export function generateRolesWithBackend(payload: { profile: DreamCompanyInput; analysis: ProfileAnalysis }, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
   return fetchJson<TargetRole[]>(`${backendUrl}/api/dream-company/roles`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 120000,
   })
 }
 
-export function generateRoadmapWithBackend(payload: { profile: DreamCompanyInput; analysis: ProfileAnalysis; selectedRoles: TargetRole[] }) {
+export function generateRoadmapWithBackend(payload: { profile: DreamCompanyInput; analysis: ProfileAnalysis; selectedRoles: TargetRole[] }, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
   return fetchJson<RoadmapResponse>(`${backendUrl}/api/dream-company/roadmap`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 120000,
   })
 }
@@ -87,32 +96,35 @@ export function generateRewrittenCvWithBackend(formData: FormData): Promise<Resp
   })
 }
 
-export function rewriteBulletWithBackend(payload: RewriteBulletRequest) {
+export function rewriteBulletWithBackend(payload: RewriteBulletRequest, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
   return fetchJson<RewriteBulletResponse>(`${backendUrl}/api/cv-optimizer/rewrite-bullet`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 30000,
   })
 }
 
-export function generateOutreachWithBackend(payload: OutreachRequest) {
+export function generateOutreachWithBackend(payload: OutreachRequest, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
   return fetchJson<OutreachResult>(`${backendUrl}/api/outreach/generate`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 60000,
   })
 }
 
-export function extractOutreachTextWithBackend(payload: { url: string }) {
+export function extractOutreachTextWithBackend(payload: { url: string }, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
   return fetchJson<{ text: string }>(`${backendUrl}/api/outreach/extract`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 60000,
   })
 }
@@ -125,12 +137,13 @@ export interface ExtractedJob {
   extraLinks: string
 }
 
-export function extractJobFromUrlWithBackend(payload: { url: string }) {
+export function extractJobFromUrlWithBackend(payload: { url: string }, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
   return fetchJson<ExtractedJob>(`${backendUrl}/api/interview-prep/extract-job-from-url`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 90000,
   })
 }
@@ -187,33 +200,35 @@ export interface CoachAnswerResponse {
   missingEvidencePrompts: MissingEvidencePrompt[]
 }
 
-export function listCvVersionsWithBackend() {
+export function listCvVersionsWithBackend(authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<CvVersionSummary[]>(`${backendUrl}/api/cv-library/versions`, {
     method: 'GET',
+    headers: authHeaders(authToken),
     timeoutMs: 15000,
   })
 }
 
-export function uploadCvFileWithBackend(formData: FormData) {
+export function uploadCvFileWithBackend(formData: FormData, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchFormDataJson<{ cvVersionId: string; bulletCount: number; gapCount: number }>(
     `${backendUrl}/api/cv-library/versions`,
     formData,
-    { timeoutMs: 300000 },
+    { timeoutMs: 300000, headers: authHeaders(authToken) },
   )
 }
 
-export function activateCvVersionWithBackend(id: string) {
+export function activateCvVersionWithBackend(id: string, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ ok: true }>(`${backendUrl}/api/cv-library/versions/${id}/activate`, {
     method: 'POST',
     body: JSON.stringify({}),
+    headers: authHeaders(authToken),
     timeoutMs: 10000,
   })
 }
 
-export function getCvVersionWithBackend(id: string) {
+export function getCvVersionWithBackend(id: string, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{
     id: string
@@ -223,85 +238,94 @@ export function getCvVersionWithBackend(id: string) {
     isActive: boolean
   }>(`${backendUrl}/api/cv-library/versions/${id}`, {
     method: 'GET',
+    headers: authHeaders(authToken),
     timeoutMs: 15000,
   })
 }
 
-export function deleteCvVersionWithBackend(id: string) {
+export function deleteCvVersionWithBackend(id: string, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ ok: true }>(`${backendUrl}/api/cv-library/versions/${id}`, {
     method: 'DELETE',
+    headers: authHeaders(authToken),
     timeoutMs: 10000,
   })
 }
 
-export function getCvBulletsWithBackend(id: string) {
+export function getCvBulletsWithBackend(id: string, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<BulletWithGaps[]>(`${backendUrl}/api/cv-library/versions/${id}/bullets`, {
     method: 'GET',
+    headers: authHeaders(authToken),
     timeoutMs: 30000,
   })
 }
 
-export function addGapArtifactWithBackend(gapId: string, payload: { text?: string; url?: string }) {
+export function addGapArtifactWithBackend(gapId: string, payload: { text?: string; url?: string }, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ ok: true }>(`${backendUrl}/api/cv-library/gaps/${gapId}/artifacts`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 90000,
   })
 }
 
-export function addGapArtifactFileWithBackend(gapId: string, formData: FormData) {
+export function addGapArtifactFileWithBackend(gapId: string, formData: FormData, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchFormDataJson<{ ok: true }>(
     `${backendUrl}/api/cv-library/gaps/${gapId}/artifacts`,
     formData,
-    { timeoutMs: 120000 },
+    { timeoutMs: 120000, headers: authHeaders(authToken) },
   )
 }
 
-export function finalizeCvVersionWithBackend(id: string, payload: unknown) {
+export function finalizeCvVersionWithBackend(id: string, payload: unknown, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<unknown>(`${backendUrl}/api/cv-library/versions/${id}/finalize`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 300000,
   })
 }
 
-export function findSimilarBulletsWithBackend(bulletId: string) {
+export function findSimilarBulletsWithBackend(bulletId: string, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<unknown[]>(`${backendUrl}/api/cv-library/bullets/${bulletId}/similar`, {
     method: 'POST',
     body: JSON.stringify({}),
+    headers: authHeaders(authToken),
     timeoutMs: 30000,
   })
 }
 
-export function mergeBulletsWithBackend(payload: { sourceBulletId: string; targetBulletId: string }) {
+export function mergeBulletsWithBackend(payload: { sourceBulletId: string; targetBulletId: string }, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ ok: true }>(`${backendUrl}/api/cv-library/bullets/merge`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 30000,
   })
 }
 
-export function backfillEmbeddingsWithBackend() {
+export function backfillEmbeddingsWithBackend(authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ updated: number }>(`${backendUrl}/api/cv-library/backfill-embeddings`, {
     method: 'POST',
     body: JSON.stringify({}),
+    headers: authHeaders(authToken),
     timeoutMs: 300000,
   })
 }
 
-export function skipGapWithBackend(gapId: string) {
+export function skipGapWithBackend(gapId: string, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ ok: true }>(`${backendUrl}/api/cv-library/gaps/${gapId}/skip`, {
     method: 'POST',
     body: JSON.stringify({}),
+    headers: authHeaders(authToken),
     timeoutMs: 10000,
   })
 }
@@ -310,84 +334,90 @@ export function jitClarificationWithBackend(payload: {
   bulletId: string | null
   question: string
   answer: string
-}) {
+}, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ ok: true }>(`${backendUrl}/api/cv-library/jit-clarification`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 30000,
   })
 }
 
 // ── Interview prep (start/message/evaluate/sessions) ────────────────────────
 
-export function postInterviewWithBackend(payload: unknown) {
+export function postInterviewWithBackend(payload: unknown, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<unknown>(`${backendUrl}/api/interview`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 60000,
   })
 }
 
-export function evaluateInterviewWithBackend(payload: unknown) {
+export function evaluateInterviewWithBackend(payload: unknown, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<unknown>(`${backendUrl}/api/evaluate`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 90000,
   })
 }
 
-export function listInterviewSessionsWithBackend() {
+export function listInterviewSessionsWithBackend(authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ sessions: unknown[] }>(`${backendUrl}/api/interview/sessions`, {
     method: 'GET',
+    headers: authHeaders(authToken),
     timeoutMs: 15000,
   })
 }
 
-export function getInterviewSessionWithBackend(id: string) {
+export function getInterviewSessionWithBackend(id: string, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ session: unknown }>(`${backendUrl}/api/interview/sessions/${id}`, {
     method: 'GET',
+    headers: authHeaders(authToken),
     timeoutMs: 15000,
   })
 }
 
-export function transcribeInterviewAudioWithBackend(formData: FormData) {
+export function transcribeInterviewAudioWithBackend(formData: FormData, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchFormDataJson<{ text: string }>(
     `${backendUrl}/api/interview/transcribe`,
     formData,
-    { timeoutMs: 60000 },
+    { timeoutMs: 60000, headers: authHeaders(authToken) },
   )
 }
 
 // ── Coach Understanding Reports ──────────────────────────────────────────────
 
-export function generateCoachUnderstandingWithBackend() {
+export function generateCoachUnderstandingWithBackend(authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ reportId: string; reportMd: string }>(`${backendUrl}/api/coach-understanding/generate`, {
     method: 'POST',
     body: JSON.stringify({}),
+    headers: authHeaders(authToken),
     timeoutMs: 120000,
   })
 }
 
-export function listCoachReportsWithBackend() {
+export function listCoachReportsWithBackend(authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<Array<{ id: string; createdAt: string; preview: string }>>(
     `${backendUrl}/api/coach-understanding/reports`,
-    { method: 'GET', timeoutMs: 15000 },
+    { method: 'GET', headers: authHeaders(authToken), timeoutMs: 15000 },
   )
 }
 
-export function getCoachReportWithBackend(id: string) {
+export function getCoachReportWithBackend(id: string, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ id: string; reportMd: string; createdAt: string }>(
     `${backendUrl}/api/coach-understanding/reports/${id}`,
-    { method: 'GET', timeoutMs: 15000 },
+    { method: 'GET', headers: authHeaders(authToken), timeoutMs: 15000 },
   )
 }
 
@@ -397,32 +427,34 @@ export function coachAnswerWithBackend(payload: {
   context: { jobTitle: string; jobDescription: string; companyName: string }
   cvVersionId?: string
   irsScore?: { integrity: number; relevance: number; substance: number; overall: number }
-}) {
+}, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<CoachAnswerResponse>(`${backendUrl}/api/interview/coach-answer`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 90000,
   })
 }
 
-export function enrichOutreachWithBackend(payload: EnrichmentRequest) {
+export function enrichOutreachWithBackend(payload: EnrichmentRequest, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
-  // Increased to 90s: new flow runs an LLM keyword-gen call + 3 parallel Exa searches + rerank
   return fetchJson<EnrichmentResponse>(`${backendUrl}/api/outreach/enrich`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 90000,
   })
 }
 
-export function validateJdWithBackend(payload: { url: string }) {
+export function validateJdWithBackend(payload: { url: string }, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
   return fetchJson<JdValidationResult>(`${backendUrl}/api/outreach/validate-jd`, {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
     timeoutMs: 30000,
   })
 }

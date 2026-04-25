@@ -3,7 +3,14 @@ import { resolve } from 'node:path';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
+import { getUserIdFromToken } from './lib/supabase.js';
 import { startCvAnalysisReaper } from './lib/cv-analysis-reaper.js';
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    userId: string;
+  }
+}
 import { registerSystemRoutes } from './routes/system.js';
 import { registerCvOptimizerRoutes } from './routes/cv-optimizer.js';
 import { registerDreamCompanyRoutes } from './routes/dream-company.js';
@@ -49,6 +56,21 @@ async function bootstrap() {
       code: 'RATE_LIMIT_EXCEEDED',
       message: `Too many requests. Please try again in ${Math.ceil(context.ttl / 1000)}s.`,
     }),
+  });
+
+  app.addHook('preHandler', async (request, reply) => {
+    const skipPaths = ['/api/health', '/api/system'];
+    if (skipPaths.some((p) => request.url.startsWith(p))) return;
+
+    const authHeader = request.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Authentication required.' });
+    }
+    try {
+      request.userId = await getUserIdFromToken(authHeader.slice(7));
+    } catch {
+      return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Invalid or expired token.' });
+    }
   });
 
   await registerSystemRoutes(app);

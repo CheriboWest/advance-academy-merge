@@ -1,11 +1,13 @@
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
 import { skipGapWithBackend } from '@/shared/api/backend-client'
 import { HttpClientError } from '@/shared/api/http-client'
 
-export async function POST(_req: Request, { params }: { params: Promise<{ gapId: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ gapId: string }> }) {
+  const authToken = getProxyAuthToken(request)
   try {
     const { gapId } = await params
-    return NextResponse.json(await skipGapWithBackend(gapId))
+    return NextResponse.json(await skipGapWithBackend(gapId, authToken))
   } catch (error) {
     if (error instanceof HttpClientError) {
       return NextResponse.json(error.payload, { status: error.status || 500 })

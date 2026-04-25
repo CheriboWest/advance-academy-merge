@@ -43,7 +43,7 @@ ${context.extraLinks ? `\nAdditional candidate links: ${context.extraLinks}\n` :
 5. Ask one question at a time.`;
 }
 
-export async function startInterviewSession(body: StartSessionBody): Promise<StartSessionResponse> {
+export async function startInterviewSession(body: StartSessionBody, userId: string): Promise<StartSessionResponse> {
   const persona = getPersona(body.personaId);
   if (!persona) {
     throw Object.assign(new Error('Invalid persona'), { statusCode: 400 });
@@ -76,7 +76,7 @@ export async function startInterviewSession(body: StartSessionBody): Promise<Sta
 
   let dbSessionId: string | undefined;
   if (body.context) {
-    const dbSession = await dbStartSession(body.personaId, body.context);
+    const dbSession = await dbStartSession(userId, body.personaId, body.context);
     if (dbSession) {
       dbSessionId = dbSession.id;
       await dbStoreQuestion(dbSessionId, openingQuestion);

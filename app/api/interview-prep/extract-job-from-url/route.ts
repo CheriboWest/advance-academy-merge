@@ -1,8 +1,10 @@
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
 import { extractJobFromUrlWithBackend } from '@/shared/api/backend-client'
 import { HttpClientError } from '@/shared/api/http-client'
 
 export async function POST(request: Request) {
+  const authToken = getProxyAuthToken(request)
   try {
     const json = await request.json()
     const url = typeof json?.url === 'string' ? json.url.trim() : ''
@@ -10,7 +12,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required field: url' }, { status: 400 })
     }
 
-    const response = await extractJobFromUrlWithBackend({ url })
+    const response = await extractJobFromUrlWithBackend({ url }, authToken)
     return NextResponse.json(response)
   } catch (error) {
     if (error instanceof HttpClientError) {

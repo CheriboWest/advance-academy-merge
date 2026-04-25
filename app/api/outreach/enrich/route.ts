@@ -1,3 +1,4 @@
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
 import type { EnrichmentRequest, ExperienceLevel } from '@/types/outreach'
 import { enrichOutreachWithBackend } from '@/shared/api/backend-client'

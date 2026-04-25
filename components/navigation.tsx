@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Menu, X, Target } from 'lucide-react'
+import { Menu, X, Target, LogOut } from 'lucide-react'
 import type { ViewName } from '@/shared/types/navigation'
 import { NAV_ITEMS } from '@/shared/config/navigation'
+import { useAuth } from '@/features/auth/context/AuthContext'
 
 interface NavigationProps {
   currentView: ViewName
@@ -13,10 +15,18 @@ interface NavigationProps {
 
 export function Navigation({ currentView, onNavigate }: NavigationProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { signOut } = useAuth()
+  const router = useRouter()
 
   const handleNavigate = (view: ViewName) => {
     onNavigate(view)
     setMobileMenuOpen(false)
+  }
+
+  const handleSignOut = async () => {
+    setMobileMenuOpen(false)
+    await signOut()
+    router.push('/login')
   }
 
   const activeClass = 'bg-yellow-500 text-blue-900'
@@ -58,6 +68,13 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
                 </button>
               )
             )}
+            <button
+              onClick={handleSignOut}
+              className="ml-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors flex items-center gap-1.5"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out
+            </button>
           </div>
 
           {/* Mobile Menu Toggle */}
@@ -96,6 +113,13 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
                 </button>
               )
             )}
+            <button
+              onClick={handleSignOut}
+              className="w-full text-left px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors flex items-center gap-1.5"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign out
+            </button>
           </div>
         )}
       </div>

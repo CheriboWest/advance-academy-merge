@@ -25,7 +25,7 @@ import type {
 import type { ApiErrorResponse, JobStatus, JobStatusResponse } from '@advance-academy/contracts/jobs';
 import { getLlmConfig } from '../config/llm.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
-import { getMvpUserId, getSupabase } from '../lib/supabase.js';
+import { getSupabase } from '../lib/supabase.js';
 
 interface CvAnalysisJobRow {
   id: string;
@@ -830,11 +830,11 @@ async function runCvAnalysisJob(jobId: string, body: AnalyzeCvRequest) {
   }
 }
 
-export async function createCvAnalysisJob(body: AnalyzeCvRequest): Promise<AnalyzeCvAcceptedResponse> {
+export async function createCvAnalysisJob(body: AnalyzeCvRequest, userId: string): Promise<AnalyzeCvAcceptedResponse> {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from('cv_analysis_jobs')
-    .insert({ user_id: getMvpUserId(), status: 'queued' })
+    .insert({ user_id: userId, status: 'queued' })
     .select('id, status, submitted_at, updated_at')
     .single();
 

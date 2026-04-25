@@ -3,7 +3,7 @@
  * All functions are non-throwing: they log + return null/undefined on failure
  * so a DB outage never breaks the user-facing interview.
  */
-import { getSupabase, getMvpUserId } from '../supabase.js';
+import { getSupabase } from '../supabase.js';
 import type {
   InterviewContext,
   PersonaId,
@@ -57,7 +57,7 @@ async function getOrCreateCompany(
   return created.id;
 }
 
-async function createJobTarget(
+async function createJobTarget(userId: string, 
   companyId: string | null,
   context: InterviewContext,
 ): Promise<string | null> {
@@ -67,7 +67,7 @@ async function createJobTarget(
   const { data, error } = await supabase
     .from('job_targets')
     .insert({
-      user_id: getMvpUserId(),
+      user_id: userId,
       company_id: companyId,
       title: context.jobTitle,
       jd_text: context.jobDescription,
@@ -82,7 +82,7 @@ async function createJobTarget(
   return data.id;
 }
 
-export async function dbStartSession(
+export async function dbStartSession(userId: string, 
   personaId: PersonaId,
   context: InterviewContext,
 ): Promise<DbSession | null> {
@@ -90,11 +90,12 @@ export async function dbStartSession(
   if (!supabase) return null;
   try {
     const companyId = await getOrCreateCompany(context.companyName, context.companyUrl);
-    const jobTargetId = await createJobTarget(companyId, context);
+    const jobTargetId = await createJobTarget(userId, companyId, context);
 
     const { data, error } = await supabase
       .from('interview_sessions')
       .insert({
+        user_id: userId,
         persona_id: personaId,
         job_target_id: jobTargetId,
         mode: 'live_ai',
@@ -242,7 +243,7 @@ export async function dbUpdateSessionStatus(sessionId: string, status: string): 
   }
 }
 
-export async function dbListSessions(): Promise<unknown[]> {
+export async function dbListSessions(userId: string): Promise<unknown[]> {
   const supabase = safeSupabase();
   if (!supabase) return [];
   const { data, error } = await supabase
@@ -250,6 +251,7 @@ export async function dbListSessions(): Promise<unknown[]> {
     .select(
       'id, persona_id, mode, status, started_at, ended_at, final_score_json, context_json',
     )
+    .eq('user_id', userId)
     .order('started_at', { ascending: false })
     .limit(100);
   if (error) {

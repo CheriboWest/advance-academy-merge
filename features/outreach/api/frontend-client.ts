@@ -1,4 +1,5 @@
 import { fetchJson } from '@/shared/api/http-client'
+import { getAuthHeaders } from '@/shared/auth/get-auth-headers'
 import type {
   EnrichmentRequest,
   EnrichmentResponse,
@@ -11,6 +12,7 @@ export async function submitOutreachGeneration(request: OutreachRequest): Promis
   return fetchJson<OutreachResult>('/api/outreach/generate', {
     method: 'POST',
     body: JSON.stringify(request),
+    headers: await getAuthHeaders(),
     timeoutMs: 90000,
   })
 }
@@ -19,6 +21,7 @@ export async function submitOutreachEnrichment(request: EnrichmentRequest): Prom
   return fetchJson<EnrichmentResponse>('/api/outreach/enrich', {
     method: 'POST',
     body: JSON.stringify(request),
+    headers: await getAuthHeaders(),
     timeoutMs: 90000,
   })
 }
@@ -27,10 +30,13 @@ export async function validateJdUrl(url: string): Promise<JdValidationResult> {
   return fetchJson<JdValidationResult>('/api/outreach/validate-jd', {
     method: 'POST',
     body: JSON.stringify({ url }),
+    headers: await getAuthHeaders(),
   })
 }
 
 export async function extractOutreachSource(source: File | string): Promise<{ text: string }> {
+  const authHeaders = await getAuthHeaders()
+
   if (source instanceof File) {
     const formData = new FormData()
     formData.append('file', source)
@@ -38,18 +44,20 @@ export async function extractOutreachSource(source: File | string): Promise<{ te
     const res = await fetch('/api/outreach/extract', {
       method: 'POST',
       body: formData,
+      headers: authHeaders,
     })
 
     if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Failed to extract text from file');
+      const errorData = await res.json().catch(() => ({}))
+      throw new Error(errorData.error || 'Failed to extract text from file')
     }
 
     return res.json()
   } else {
     return fetchJson<{ text: string }>('/api/outreach/extract', {
       method: 'POST',
-      body: JSON.stringify({ url: source })
+      body: JSON.stringify({ url: source }),
+      headers: authHeaders,
     })
   }
 }

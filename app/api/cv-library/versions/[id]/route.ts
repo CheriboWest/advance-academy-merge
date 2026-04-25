@@ -1,3 +1,4 @@
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
 import {
   deleteCvVersionWithBackend,
@@ -5,10 +6,11 @@ import {
 } from '@/shared/api/backend-client'
 import { HttpClientError } from '@/shared/api/http-client'
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authToken = getProxyAuthToken(request)
   try {
     const { id } = await params
-    return NextResponse.json(await getCvVersionWithBackend(id))
+    return NextResponse.json(await getCvVersionWithBackend(id, authToken))
   } catch (error) {
     if (error instanceof HttpClientError) {
       return NextResponse.json(error.payload, { status: error.status || 500 })
@@ -17,10 +19,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authToken = getProxyAuthToken(request)
   try {
     const { id } = await params
-    return NextResponse.json(await deleteCvVersionWithBackend(id))
+    return NextResponse.json(await deleteCvVersionWithBackend(id, authToken))
   } catch (error) {
     if (error instanceof HttpClientError) {
       return NextResponse.json(error.payload, { status: error.status || 500 })

@@ -20,7 +20,7 @@ export default function CvOptimizerPage() {
         return
       }
       if (view === 'companies') {
-        router.push('/dream-company')
+        router.push('/?view=companies')
         return
       }
       router.push(view === 'home' ? '/' : `/?view=${view}`)
