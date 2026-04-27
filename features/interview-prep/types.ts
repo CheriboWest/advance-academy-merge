@@ -61,6 +61,9 @@ export interface InterviewMessage {
   irsScore?: IRSScore
   questionAsked?: string
   coach?: CoachResult
+  // DB id of the persisted answer_assessments row — needed so a follow-up
+  // coach-answer call can be linked to it for storage in answer_coaching.
+  assessmentId?: string
 }
 
 export interface FeedbackItem {
@@ -112,6 +115,7 @@ export interface SendMessageResponse {
   reply: string
   irsScore: IRSScore
   isComplete: boolean
+  assessmentId?: string
 }
 
 export interface EvaluateSessionResponse {
@@ -139,6 +143,27 @@ export interface SessionListItem {
   } | null
 }
 
+export interface SessionExchangeCoach {
+  critique: string
+  improved_answer: string
+  missing_evidence_prompts: MissingEvidencePrompt[]
+  created_at: string
+}
+
+export interface SessionExchange {
+  question_text: string
+  candidate_answer: string
+  integrity_score: number
+  relevance_score: number
+  substance_score: number
+  overall_score: number
+  integrity_rationale: string | null
+  relevance_rationale: string | null
+  substance_rationale: string | null
+  asked_at: string
+  coach: SessionExchangeCoach | null
+}
+
 export interface SessionDetail extends SessionListItem {
   user_id: string | null
   candidate_profile_id: string | null
@@ -151,4 +176,13 @@ export interface SessionDetail extends SessionListItem {
     generatedAt?: number
   } | null
   created_at: string
+  context_json:
+    | (SessionListItem['context_json'] & {
+        cvText?: string
+        jobDescription?: string
+        companyUrl?: string | null
+        extraLinks?: string | null
+      })
+    | null
+  exchanges: SessionExchange[]
 }

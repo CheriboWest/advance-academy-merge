@@ -272,6 +272,16 @@ export function addGapArtifactWithBackend(gapId: string, payload: { text: string
   })
 }
 
+export function updateArtifactWithBackend(artifactId: string, payload: { text: string }, authToken?: string) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<{ ok: true }>(`${backendUrl}/api/cv-library/artifacts/${artifactId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
+    timeoutMs: 90000,
+  })
+}
+
 export function finalizeCvVersionWithBackend(id: string, payload: unknown, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<unknown>(`${backendUrl}/api/cv-library/versions/${id}/finalize`, {
@@ -419,6 +429,7 @@ export function coachAnswerWithBackend(payload: {
   context: { jobTitle: string; jobDescription: string; companyName: string }
   cvVersionId?: string
   irsScore?: { integrity: number; relevance: number; substance: number; overall: number }
+  assessmentId?: string
 }, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<CoachAnswerResponse>(`${backendUrl}/api/interview/coach-answer`, {

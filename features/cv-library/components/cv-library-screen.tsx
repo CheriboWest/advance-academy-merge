@@ -1,7 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { authedFetch } from '@/shared/auth/authed-fetch'
+import { useFakeProgress } from '@/shared/hooks/use-fake-progress'
+import { ProgressBar } from '@/shared/hooks/progress-bar'
 import {
   Loader2,
   Upload,
@@ -14,6 +16,7 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  Pencil,
 } from 'lucide-react'
 
 interface CvVersionSummary {
@@ -24,6 +27,7 @@ interface CvVersionSummary {
   bulletCount: number
   openGapCount: number
   createdAt: string
+  sourceFilePath: string | null
 }
 
 interface BulletWithGaps {
@@ -123,9 +127,11 @@ export function CvLibraryScreen() {
   }
 
   if (selectedId) {
+    const selectedVersion = versions.find((v) => v.id === selectedId)
     return (
       <CvDetail
         versionId={selectedId}
+        version={selectedVersion}
         onBack={() => {
           setSelectedId(null)
           refresh()
@@ -185,6 +191,11 @@ export function CvLibraryScreen() {
                 <p className="text-xs text-gray-500">
                   {v.bulletCount} bullets · {v.openGapCount} gaps remaining
                 </p>
+                <p className="text-xs text-gray-400 mt-0.5 italic">
+                  {v.sourceFilePath
+                    ? `Uploaded from ${v.sourceFilePath}`
+                    : "Cannot find source file's path"}
+                </p>
               </button>
               <div className="flex items-center gap-2">
                 {!v.isActive && (
@@ -221,16 +232,7 @@ export function CvLibraryScreen() {
 
 // ── Upload card (Phase 1) ───────────────────────────────────────────────────
 
-// Asymptotic progress curve: rises fast at first, plateaus near 90%.
-// Honest because it never claims to know when it'll finish — it just visualises
-// elapsed-time-vs-typical-duration without lying with an ETA.
-// progress(t) = CEILING * (1 - exp(-t / TAU))
-//   - TAU=12s → ~57% at 12s, ~82% at 24s, ~91% at 36s, ~95% at 48s
-//   - CEILING=92 keeps a visible gap until the real response arrives
-const PROGRESS_TAU_MS = 12_000
-const PROGRESS_CEILING = 92
-
-function phaseLabel(elapsedMs: number): string {
+function uploadPhaseLabel(elapsedMs: number): string {
   if (elapsedMs < 2_500) return 'Reading your file…'
   if (elapsedMs < 8_000) return 'Analysing your CV with AI…'
   if (elapsedMs < 25_000) return 'Extracting your bullet points…'
@@ -240,37 +242,16 @@ function phaseLabel(elapsedMs: number): string {
 function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) {
   const [name, setName] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [progress, setProgress] = useState(0)
-  const [phase, setPhase] = useState('')
-  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  const stopProgress = useCallback(() => {
-    if (tickRef.current) {
-      clearInterval(tickRef.current)
-      tickRef.current = null
-    }
-  }, [])
-
-  useEffect(() => stopProgress, [stopProgress])
+  const { progress, phase, busy, start, finish, reset } = useFakeProgress({
+    tauMs: 12_000,
+    phaseLabel: uploadPhaseLabel,
+  })
 
   const submit = async () => {
     if (!file || !name.trim()) return
-    setBusy(true)
     setErr(null)
-    setProgress(0)
-    setPhase('Reading your file…')
-
-    const startedAt = performance.now()
-    stopProgress()
-    tickRef.current = setInterval(() => {
-      const elapsed = performance.now() - startedAt
-      const target = PROGRESS_CEILING * (1 - Math.exp(-elapsed / PROGRESS_TAU_MS))
-      setProgress((prev) => (target > prev ? target : prev))
-      setPhase(phaseLabel(elapsed))
-    }, 200)
-
+    start()
     try {
       const fd = new FormData()
       fd.append('name', name.trim())
@@ -281,21 +262,15 @@ function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) 
         throw new Error(data?.error || data?.message || 'Upload failed')
       }
       const data: Phase1Response = await res.json()
-      stopProgress()
-      setProgress(100)
-      setPhase('Done!')
+      finish()
       // Brief pause so the user sees the bar reach 100% before we navigate.
       await new Promise((r) => setTimeout(r, 250))
       setName('')
       setFile(null)
       onParsed(data)
     } catch (e) {
-      stopProgress()
-      setProgress(0)
-      setPhase('')
+      reset()
       setErr(e instanceof Error ? e.message : 'Upload failed')
-    } finally {
-      setBusy(false)
     }
   }
 
@@ -334,26 +309,7 @@ function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) 
           )}
         </button>
       </div>
-      {busy && (
-        <div className="mt-3" aria-live="polite">
-          <div
-            className="h-2 w-full bg-blue-100 rounded-full overflow-hidden"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(progress)}
-          >
-            <div
-              className="h-full bg-blue-900 transition-[width] duration-200 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <div className="mt-1.5 flex items-center justify-between text-xs text-blue-900/70">
-            <span>{phase}</span>
-            <span className="tabular-nums">{Math.round(progress)}%</span>
-          </div>
-        </div>
-      )}
+      {busy && <ProgressBar progress={progress} phase={phase} />}
       {err && (
         <p className="mt-2 text-xs text-red-600 flex items-center gap-1.5">
           <AlertCircle className="w-3.5 h-3.5" /> {err}
@@ -388,9 +344,30 @@ function BulletResolutionStep({
     }
     return m
   })
-  const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
+
+  const mergedCount = [...decisions.values()].filter((d) => d.action === 'merge').length
+  const newCount = phase1.parsedBullets.length - mergedCount
+  // Adaptive TAU: gap generation is sequential per *new* bullet, ~4–10s each.
+  // Floor 8s so single-bullet finalises don't feel jumpy.
+  const finalizeTau = Math.max(8_000, newCount * 4_000)
+
+  const {
+    progress: finalizeProgress,
+    phase: finalizePhase,
+    busy,
+    start: startFinalizeProgress,
+    finish: finishFinalizeProgress,
+    reset: resetFinalizeProgress,
+  } = useFakeProgress({
+    tauMs: finalizeTau,
+    phaseLabel: (elapsedMs) => {
+      if (elapsedMs < 3_000) return 'Saving your bullets…'
+      if (elapsedMs < 12_000) return 'Generating 5 interview questions per new bullet…'
+      return 'Still working — almost done…'
+    },
+  })
 
   const setDecision = (
     tempId: string,
@@ -405,9 +382,9 @@ function BulletResolutionStep({
   }
 
   const submit = async () => {
-    setBusy(true)
     setErr(null)
     setInfo(null)
+    startFinalizeProgress()
     try {
       const resolutions = phase1.parsedBullets.map((pb) => {
         const d = decisions.get(pb.tempId) ?? { action: 'new' as const }
@@ -427,18 +404,16 @@ function BulletResolutionStep({
         throw new Error(data?.error || 'Finalize failed')
       }
       const data = await res.json()
+      finishFinalizeProgress()
       setInfo(
         `Done! ${data.newBulletCount} new bullets, ${data.mergedBulletCount} merged, ${data.gapCount} gaps generated.`,
       )
       setTimeout(onDone, 1500)
     } catch (e) {
+      resetFinalizeProgress()
       setErr(e instanceof Error ? e.message : 'Failed')
-    } finally {
-      setBusy(false)
     }
   }
-
-  const mergedCount = [...decisions.values()].filter((d) => d.action === 'merge').length
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -454,18 +429,22 @@ function BulletResolutionStep({
         means the new CV will share that bullet&apos;s gaps and evidence — no re-typing.
       </p>
 
-      <div className="mb-4 p-3 bg-gray-50 rounded-xl text-sm flex items-center justify-between">
-        <span>
-          <strong>{phase1.parsedBullets.length}</strong> bullets parsed ·{' '}
-          <strong>{mergedCount}</strong> will be merged
-        </span>
-        <button
-          onClick={submit}
-          disabled={busy}
-          className="px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-semibold hover:bg-blue-800 disabled:opacity-40"
-        >
-          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Finalize'}
-        </button>
+      <div className="mb-4 p-3 bg-gray-50 rounded-xl text-sm">
+        <div className="flex items-center justify-between">
+          <span>
+            <strong>{phase1.parsedBullets.length}</strong> bullets parsed ·{' '}
+            <strong>{mergedCount}</strong> will be merged ·{' '}
+            <strong>{newCount}</strong> new
+          </span>
+          <button
+            onClick={submit}
+            disabled={busy}
+            className="px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-semibold hover:bg-blue-800 disabled:opacity-40"
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Finalize'}
+          </button>
+        </div>
+        {busy && <ProgressBar progress={finalizeProgress} phase={finalizePhase} />}
       </div>
 
       {err && (
@@ -577,7 +556,15 @@ function BulletResolutionCard({
 
 // ── CV Detail: gap filling + manual merge ───────────────────────────────────
 
-function CvDetail({ versionId, onBack }: { versionId: string; onBack: () => void }) {
+function CvDetail({
+  versionId,
+  version,
+  onBack,
+}: {
+  versionId: string
+  version: CvVersionSummary | undefined
+  onBack: () => void
+}) {
   const [bullets, setBullets] = useState<BulletWithGaps[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -609,7 +596,25 @@ function CvDetail({ versionId, onBack }: { versionId: string; onBack: () => void
       >
         <ArrowLeft className="w-4 h-4" /> Back to library
       </button>
-      <h1 className="text-3xl font-serif font-bold text-blue-900 mb-2">Fill in the gaps</h1>
+      <h1 className="text-3xl font-serif font-bold text-blue-900 mb-1">Fill in the gaps</h1>
+      {version && (
+        <div className="mb-3">
+          <p className="text-base text-blue-900 font-medium flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Working on: <span className="font-semibold">{version.name}</span>
+            {version.isActive && (
+              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded-full font-medium">
+                Active
+              </span>
+            )}
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5 italic">
+            {version.sourceFilePath
+              ? `Uploaded from ${version.sourceFilePath}`
+              : "Cannot find source file's path"}
+          </p>
+        </div>
+      )}
       <p className="text-gray-600 mb-6">
         For each bullet on your CV, answer the most important questions an interviewer would ask.
         Shared bullets show evidence from all linked CV versions.
@@ -625,8 +630,8 @@ function CvDetail({ versionId, onBack }: { versionId: string; onBack: () => void
         </div>
       ) : (
         <div className="space-y-6">
-          {bullets.map((b) => (
-            <BulletCard key={b.id} bullet={b} onChanged={refresh} />
+          {bullets.map((b, i) => (
+            <BulletCard key={b.id} bullet={b} index={i + 1} onChanged={refresh} />
           ))}
         </div>
       )}
@@ -634,7 +639,15 @@ function CvDetail({ versionId, onBack }: { versionId: string; onBack: () => void
   )
 }
 
-function BulletCard({ bullet, onChanged }: { bullet: BulletWithGaps; onChanged: () => void }) {
+function BulletCard({
+  bullet,
+  index,
+  onChanged,
+}: {
+  bullet: BulletWithGaps
+  index: number
+  onChanged: () => void
+}) {
   const [mergeMode, setMergeMode] = useState(false)
   const [candidates, setCandidates] = useState<SimilarCandidate[]>([])
   const [mergeLoading, setMergeLoading] = useState(false)
@@ -668,6 +681,9 @@ function BulletCard({ bullet, onChanged }: { bullet: BulletWithGaps; onChanged: 
 
   return (
     <div className="border border-gray-200 rounded-xl p-5 bg-white">
+      <p className="text-xs font-bold uppercase tracking-wide text-blue-900 mb-1">
+        CV bullet point {index}
+      </p>
       {bullet.sectionPath && (
         <p className="text-xs text-gray-400 mb-1">{bullet.sectionPath}</p>
       )}
@@ -722,6 +738,113 @@ function BulletCard({ bullet, onChanged }: { bullet: BulletWithGaps; onChanged: 
           <GapForm key={g.id} gap={g} onChanged={onChanged} />
         ))}
       </div>
+    </div>
+  )
+}
+
+function ArtifactRow({
+  artifact,
+  onChanged,
+}: {
+  artifact: BulletWithGaps['gaps'][number]['artifacts'][number]
+  onChanged: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(artifact.contentText ?? '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const startEdit = () => {
+    setText(artifact.contentText ?? '')
+    setErr(null)
+    setEditing(true)
+  }
+
+  const cancel = () => {
+    setEditing(false)
+    setErr(null)
+  }
+
+  const save = async () => {
+    if (!text.trim() || text.trim() === artifact.contentText?.trim()) {
+      setEditing(false)
+      return
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      const res = await authedFetch(`/api/cv-library/artifacts/${artifact.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.trim() }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || 'Failed to update')
+      }
+      setEditing(false)
+      onChanged()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="border border-emerald-200 bg-emerald-50/30 rounded p-2">
+        <p className="text-[10px] uppercase tracking-wide text-emerald-700 font-semibold mb-1">
+          Editing {artifact.sourceType}
+        </p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={4}
+          disabled={busy}
+          className="w-full p-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 resize-y min-h-20 bg-white"
+        />
+        {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
+        <div className="flex items-center gap-2 mt-2">
+          <button
+            onClick={save}
+            disabled={busy || !text.trim()}
+            className="px-3 py-1 text-xs bg-emerald-700 text-white rounded font-medium hover:bg-emerald-600 disabled:opacity-40"
+          >
+            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
+          </button>
+          <button
+            onClick={cancel}
+            disabled={busy}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            Cancel
+          </button>
+          {busy && (
+            <span className="text-xs text-gray-500 italic">
+              Re-summarising — this may take a few seconds…
+            </span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const preview =
+    artifact.contentText?.slice(0, 200) || artifact.sourceUrl || '(no content)'
+
+  return (
+    <div className="flex items-start gap-2 group">
+      <p className="flex-1 text-xs text-emerald-700 line-clamp-2">
+        ✓ {artifact.sourceType.toUpperCase()}: {preview}
+      </p>
+      <button
+        onClick={startEdit}
+        className="flex items-center gap-1 text-xs text-gray-400 hover:text-emerald-700 shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+        title="Edit this answer"
+      >
+        <Pencil className="w-3 h-3" /> Edit
+      </button>
     </div>
   )
 }
@@ -796,17 +919,18 @@ function GapForm({
           {gap.ordinal}
         </span>
         <div className="flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+            Bullet gap {gap.ordinal}
+          </p>
           <p className="text-sm font-medium text-gray-800">{gap.question}</p>
           {gap.rationale && <p className="text-xs text-gray-500 mt-0.5">{gap.rationale}</p>}
         </div>
       </div>
 
       {gap.artifacts.length > 0 && (
-        <div className="mb-2 space-y-1">
+        <div className="mb-2 space-y-2">
           {gap.artifacts.map((a) => (
-            <p key={a.id} className="text-xs text-emerald-700 line-clamp-2">
-              ✓ {a.sourceType.toUpperCase()}: {a.contentText?.slice(0, 200) || a.sourceUrl || '(file)'}
-            </p>
+            <ArtifactRow key={a.id} artifact={a} onChanged={onChanged} />
           ))}
         </div>
       )}
@@ -847,16 +971,26 @@ function GapForm({
 
 // ── Coach Understanding Section ─────────────────────────────────────────────
 
+function coachReportPhaseLabel(elapsedMs: number): string {
+  if (elapsedMs < 3_000) return 'Loading your bullets and evidence…'
+  if (elapsedMs < 10_000) return 'Asking the AI coach to analyse your background…'
+  if (elapsedMs < 25_000) return 'Identifying gaps and duplicates…'
+  return 'Writing the report…'
+}
+
 function CoachUnderstandingSection({
   onViewReport,
 }: {
   onViewReport: (id: string) => void
 }) {
-  const [generating, setGenerating] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [reports, setReports] = useState<Array<{ id: string; createdAt: string; preview: string }>>([])
   const [showReports, setShowReports] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const { progress, phase, busy: generating, start, finish, reset } = useFakeProgress({
+    tauMs: 15_000,
+    phaseLabel: coachReportPhaseLabel,
+  })
 
   const loadReports = async () => {
     try {
@@ -873,8 +1007,8 @@ function CoachUnderstandingSection({
   }, [])
 
   const generate = async () => {
-    setGenerating(true)
     setErr(null)
+    start()
     try {
       const res = await authedFetch('/api/coach-understanding/generate', { method: 'POST' })
       if (!res.ok) {
@@ -882,12 +1016,13 @@ function CoachUnderstandingSection({
         throw new Error(data?.error || 'Failed to generate report')
       }
       const data: { reportId: string } = await res.json()
+      finish()
       await loadReports()
+      await new Promise((r) => setTimeout(r, 250))
       onViewReport(data.reportId)
     } catch (e) {
+      reset()
       setErr(e instanceof Error ? e.message : 'Failed')
-    } finally {
-      setGenerating(false)
     }
   }
 
@@ -926,6 +1061,15 @@ function CoachUnderstandingSection({
           </>
         )}
       </button>
+      {generating && (
+        <ProgressBar
+          progress={progress}
+          phase={phase}
+          barClass="bg-purple-700"
+          trackClass="bg-purple-100"
+          labelClass="text-purple-900/70"
+        />
+      )}
       {err && (
         <p className="mt-2 text-xs text-red-600 flex items-center gap-1.5">
           <AlertCircle className="w-3.5 h-3.5" /> {err}

@@ -261,17 +261,153 @@ export async function dbListSessions(userId: string): Promise<unknown[]> {
   return data ?? [];
 }
 
-export async function dbGetSession(id: string): Promise<unknown | null> {
+interface MissingEvidencePromptRow {
+  bulletId: string | null;
+  bulletText: string | null;
+  question: string;
+}
+
+interface SessionExchangeCoach {
+  critique: string;
+  improved_answer: string;
+  missing_evidence_prompts: MissingEvidencePromptRow[];
+  created_at: string;
+}
+
+interface SessionExchangeRow {
+  question_text: string;
+  candidate_answer: string;
+  integrity_score: number;
+  relevance_score: number;
+  substance_score: number;
+  overall_score: number;
+  integrity_rationale: string | null;
+  relevance_rationale: string | null;
+  substance_rationale: string | null;
+  asked_at: string;
+  coach: SessionExchangeCoach | null;
+}
+
+interface RawCoachRow {
+  critique_json: {
+    critique?: string;
+    missingEvidencePrompts?: MissingEvidencePromptRow[];
+  } | null;
+  improved_answer: string | null;
+  created_at: string;
+}
+
+interface RawAssessmentRow {
+  candidate_answer: string | null;
+  integrity_score: number;
+  relevance_score: number;
+  substance_score: number;
+  overall_score: number;
+  rationale_json: { integrity?: string; relevance?: string; substance?: string } | null;
+  created_at: string;
+  interview_questions: { question_text: string; asked_at: string } | null;
+  answer_coaching: RawCoachRow[] | null;
+}
+
+export async function dbGetSession(
+  id: string,
+): Promise<(Record<string, unknown> & { exchanges: SessionExchangeRow[] }) | null> {
   const supabase = safeSupabase();
   if (!supabase) return null;
-  const { data, error } = await supabase
+
+  const { data: sessionRow, error: sessionErr } = await supabase
     .from('interview_sessions')
     .select('*')
     .eq('id', id)
     .single();
-  if (error || !data) {
-    console.error('[db] dbGetSession error:', error);
+  if (sessionErr || !sessionRow) {
+    console.error('[db] dbGetSession error:', sessionErr);
     return null;
   }
-  return data;
+
+  // Reconstruct the conversation by joining assessments → questions.
+  // We anchor on answer_assessments because dbStoreQuestion is called twice per
+  // interviewer turn (once when generated, once when the candidate's next turn
+  // re-stores it as `lastQuestion`); the assessment is linked to the second row,
+  // which gives us a natural dedupe.
+  const { data: rawAssessments, error: exErr } = await supabase
+    .from('answer_assessments')
+    .select(
+      'candidate_answer, integrity_score, relevance_score, substance_score, overall_score, rationale_json, created_at, interview_questions ( question_text, asked_at ), answer_coaching ( critique_json, improved_answer, created_at )',
+    )
+    .eq('session_id', id)
+    .order('created_at', { ascending: true });
+
+  if (exErr) {
+    console.error('[db] dbGetSession exchanges error:', exErr);
+    return { ...sessionRow, exchanges: [] };
+  }
+
+  const exchanges: SessionExchangeRow[] = ((rawAssessments ?? []) as unknown as RawAssessmentRow[])
+    .filter((row) => row.interview_questions != null)
+    .map((row) => ({
+      question_text: row.interview_questions!.question_text,
+      candidate_answer: row.candidate_answer ?? '',
+      integrity_score: Number(row.integrity_score),
+      relevance_score: Number(row.relevance_score),
+      substance_score: Number(row.substance_score),
+      overall_score: Number(row.overall_score),
+      integrity_rationale: row.rationale_json?.integrity ?? null,
+      relevance_rationale: row.rationale_json?.relevance ?? null,
+      substance_rationale: row.rationale_json?.substance ?? null,
+      asked_at: row.interview_questions!.asked_at,
+      coach: pickLatestCoach(row.answer_coaching),
+    }));
+
+  return { ...sessionRow, exchanges };
+}
+
+// Multiple coach generations are allowed per assessment (re-coach after JIT
+// clarifications). Surface the most recent.
+function pickLatestCoach(rows: RawCoachRow[] | null): SessionExchangeCoach | null {
+  if (!rows || rows.length === 0) return null;
+  const latest = [...rows].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )[0];
+  if (!latest.improved_answer) return null;
+  return {
+    critique: latest.critique_json?.critique ?? '',
+    improved_answer: latest.improved_answer,
+    missing_evidence_prompts: latest.critique_json?.missingEvidencePrompts ?? [],
+    created_at: latest.created_at,
+  };
+}
+
+export async function dbStoreCoaching(
+  assessmentId: string,
+  originalAnswer: string,
+  critique: string,
+  improvedAnswer: string,
+  missingEvidencePrompts: MissingEvidencePromptRow[],
+): Promise<{ id: string } | null> {
+  const supabase = safeSupabase();
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('answer_coaching')
+      .insert({
+        assessment_id: assessmentId,
+        original_answer: originalAnswer,
+        critique_json: {
+          critique,
+          missingEvidencePrompts,
+        },
+        improved_answer: improvedAnswer,
+      })
+      .select('id')
+      .single();
+    if (error) {
+      console.error('[db] Failed to store coaching:', error);
+      return null;
+    }
+    return { id: data.id };
+  } catch (err) {
+    console.error('[db] dbStoreCoaching error:', err);
+    return null;
+  }
 }

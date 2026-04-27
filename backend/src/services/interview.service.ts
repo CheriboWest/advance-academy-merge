@@ -1,3 +1,4 @@
+import type Anthropic from '@anthropic-ai/sdk';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 import { getPersona } from '../lib/interview-prep/personas.js';
 import { scoreAnswer } from '../lib/interview-prep/irs-scoring.js';
@@ -18,6 +19,17 @@ import type {
   EvaluateSessionBody,
   FeedbackReport,
 } from '../types/interview-prep.js';
+
+const CACHE_CONTROL_1H = { type: 'ephemeral' as const, ttl: '1h' as const };
+
+function logCacheUsage(label: string, usage: Anthropic.Messages.Usage | undefined) {
+  if (!usage) return;
+  console.log(
+    `[interview-prep:${label}] cache_read=${usage.cache_read_input_tokens ?? 0} ` +
+      `cache_write=${usage.cache_creation_input_tokens ?? 0} ` +
+      `input=${usage.input_tokens} output=${usage.output_tokens}`,
+  );
+}
 
 function buildContextPreamble(context: InterviewContext): string {
   const cvText = context.cvText.slice(0, 12000);
@@ -59,7 +71,13 @@ export async function startInterviewSession(body: StartSessionBody, userId: stri
   const response = await anthropic.messages.create({
     model,
     max_tokens: 256,
-    system: systemPrompt,
+    system: [
+      {
+        type: 'text',
+        text: systemPrompt,
+        cache_control: CACHE_CONTROL_1H,
+      },
+    ],
     messages: [
       {
         role: 'user',
@@ -68,6 +86,7 @@ export async function startInterviewSession(body: StartSessionBody, userId: stri
       },
     ],
   });
+  logCacheUsage('start', response.usage);
 
   const block = response.content.find((b) => b.type === 'text');
   const openingQuestion = block && block.type === 'text' ? block.text : 'Tell me about yourself.';
@@ -97,10 +116,12 @@ export async function sendInterviewMessage(body: SendMessageBody): Promise<SendM
 
   const irsScore = await scoreAnswer(lastQuestion, body.content, body.context);
 
+  let assessmentId: string | undefined;
   if (body.dbSessionId) {
     const dbQuestion = await dbStoreQuestion(body.dbSessionId, lastQuestion);
     if (dbQuestion) {
-      await dbStoreAssessment(body.dbSessionId, dbQuestion.id, body.content, irsScore);
+      const stored = await dbStoreAssessment(body.dbSessionId, dbQuestion.id, body.content, irsScore);
+      assessmentId = stored?.id;
     }
   }
 
@@ -111,11 +132,26 @@ export async function sendInterviewMessage(body: SendMessageBody): Promise<SendM
   const contextPreamble = body.context ? buildContextPreamble(body.context) : '';
   const systemPrompt = persona.systemPrompt + (contextPreamble ? `\n\n${contextPreamble}` : '');
 
-  const claudeMessages = body.messageHistory.map((m) => ({
+  const claudeMessages: Anthropic.Messages.MessageParam[] = body.messageHistory.map((m) => ({
     role: m.role === 'interviewer' ? ('assistant' as const) : ('user' as const),
     content: m.content,
   }));
   claudeMessages.push({ role: 'user', content: body.content });
+
+  // Place a cache_control breakpoint on the last assistant message (multi-turn caching).
+  // Each subsequent turn will read the cached conversation prefix instead of replaying it.
+  for (let i = claudeMessages.length - 1; i >= 0; i--) {
+    if (claudeMessages[i].role === 'assistant') {
+      const text = typeof claudeMessages[i].content === 'string'
+        ? (claudeMessages[i].content as string)
+        : '';
+      claudeMessages[i] = {
+        role: 'assistant',
+        content: [{ type: 'text', text, cache_control: CACHE_CONTROL_1H }],
+      };
+      break;
+    }
+  }
 
   const candidateTurnCount = body.messageHistory.filter((m) => m.role === 'candidate').length;
   const isLastTurn = candidateTurnCount >= 5;
@@ -124,12 +160,21 @@ export async function sendInterviewMessage(body: SendMessageBody): Promise<SendM
     ? `\n\n[IMPORTANT: This is the final exchange. Ask one brief follow-up if needed, then thank the candidate and professionally conclude the interview. End with a clear closing statement.]`
     : '';
 
+  // Split system into a cached static prefix + an uncached addendum so the cache survives the last turn.
+  const systemBlocks: Anthropic.Messages.TextBlockParam[] = [
+    { type: 'text', text: systemPrompt, cache_control: CACHE_CONTROL_1H },
+  ];
+  if (systemAddendum) {
+    systemBlocks.push({ type: 'text', text: systemAddendum });
+  }
+
   const replyResponse = await anthropic.messages.create({
     model,
     max_tokens: 300,
-    system: systemPrompt + systemAddendum,
+    system: systemBlocks,
     messages: claudeMessages,
   });
+  logCacheUsage('turn', replyResponse.usage);
 
   const replyBlock = replyResponse.content.find((b) => b.type === 'text');
   const reply = replyBlock && replyBlock.type === 'text' ? replyBlock.text : 'Thank you for sharing that.';
@@ -138,7 +183,7 @@ export async function sendInterviewMessage(body: SendMessageBody): Promise<SendM
     await dbStoreQuestion(body.dbSessionId, reply);
   }
 
-  return { reply, irsScore, isComplete: isLastTurn };
+  return { reply, irsScore, isComplete: isLastTurn, assessmentId };
 }
 
 export async function evaluateInterview(body: EvaluateSessionBody): Promise<{ report: FeedbackReport }> {

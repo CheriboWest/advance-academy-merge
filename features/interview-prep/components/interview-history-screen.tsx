@@ -1,11 +1,30 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { authedFetch } from '@/shared/auth/authed-fetch'
-import { ArrowLeft, Loader2, AlertCircle, CheckCircle, Calendar, Clock, History } from 'lucide-react'
-import type { SessionListItem, SessionDetail } from '@/features/interview-prep/types'
+import {
+  ArrowLeft,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
+  Calendar,
+  Clock,
+  History,
+  Briefcase,
+  ChevronDown,
+  MessageSquare,
+  Sparkles,
+  HelpCircle,
+} from 'lucide-react'
+import type {
+  SessionListItem,
+  SessionDetail,
+  SessionExchange,
+  IRSScore,
+} from '@/features/interview-prep/types'
 import { PERSONAS } from '@/data/personas'
 import { irsScoreColor, irsScoreLabel } from '@/shared/utils/score-utils'
+import { IRSMeter } from '@/components/interview/irs-meter'
 
 export function InterviewHistoryScreen() {
   const [sessions, setSessions] = useState<SessionListItem[]>([])
@@ -239,6 +258,17 @@ function DetailView({
   const score = session.final_score_json
   const report = session.final_report_json
   const overall = score?.overall ?? 0
+  const exchanges = session.exchanges ?? []
+
+  // Auto-select the first answered exchange so the IRS panel has something to show.
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(
+    exchanges.length > 0 ? 0 : null,
+  )
+
+  const selectedScore: IRSScore | null = useMemo(() => {
+    if (selectedIdx == null || !exchanges[selectedIdx]) return null
+    return exchangeToIrsScore(exchanges[selectedIdx])
+  }, [selectedIdx, exchanges])
 
   return (
     <div className="space-y-6">
@@ -306,9 +336,32 @@ function DetailView({
         </div>
       </div>
 
-      {/* Score */}
+      <JobContextCard ctx={session.context_json} />
+
+      {/* Transcript + per-answer IRS panel */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <TranscriptView
+            exchanges={exchanges}
+            selectedIdx={selectedIdx}
+            onSelect={setSelectedIdx}
+          />
+        </div>
+        <div className="space-y-4">
+          <SelectedAnswerPanel
+            score={selectedScore}
+            exchange={selectedIdx != null ? exchanges[selectedIdx] : null}
+            answeredCount={exchanges.length}
+          />
+        </div>
+      </div>
+
+      {/* Overall score */}
       {score && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
+          <h3 className="text-sm font-semibold text-blue-900 mb-4">
+            Overall Session Score
+          </h3>
           <div className="flex items-end gap-3 mb-6">
             <span
               className={`text-5xl font-bold tabular-nums ${irsScoreColor(overall)}`}
@@ -331,7 +384,7 @@ function DetailView({
         </div>
       )}
 
-      {/* Report */}
+      {/* Final feedback report */}
       {report ? (
         <>
           {report.summary && (
@@ -392,6 +445,331 @@ function DetailView({
       )}
     </div>
   )
+}
+
+// ──────────────────────────────────────────────────────────────
+// Job context card (collapsible — JD can be long)
+// ──────────────────────────────────────────────────────────────
+
+function JobContextCard({
+  ctx,
+}: {
+  ctx: SessionDetail['context_json']
+}) {
+  const [expanded, setExpanded] = useState(false)
+  if (!ctx) return null
+  const hasAnyField =
+    ctx.jobTitle ||
+    ctx.companyName ||
+    ctx.companyUrl ||
+    ctx.jobDescription ||
+    ctx.extraLinks
+  if (!hasAnyField) return null
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 rounded-xl transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <Briefcase className="w-5 h-5 text-blue-900" />
+          <h3 className="text-sm font-semibold text-blue-900">
+            Job context filled in for this session
+          </h3>
+        </div>
+        <ChevronDown
+          className={`w-4 h-4 text-gray-500 transition-transform ${expanded ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {expanded && (
+        <div className="px-5 pb-5 pt-1 space-y-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <ContextField label="Job title" value={ctx.jobTitle} />
+            <ContextField label="Company" value={ctx.companyName} />
+            <ContextField
+              label="Company URL"
+              value={ctx.companyUrl}
+              isLink
+            />
+            <ContextField label="Extra links" value={ctx.extraLinks} />
+          </div>
+          {ctx.jobDescription && (
+            <div>
+              <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">
+                Job description
+              </div>
+              <pre className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap font-sans leading-relaxed max-h-80 overflow-y-auto">
+                {ctx.jobDescription}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ContextField({
+  label,
+  value,
+  isLink,
+}: {
+  label: string
+  value: string | null | undefined
+  isLink?: boolean
+}) {
+  return (
+    <div>
+      <div className="text-xs text-gray-400 uppercase tracking-wide">{label}</div>
+      <div className="text-gray-900 mt-0.5 wrap-break-word">
+        {value ? (
+          isLink ? (
+            <a
+              href={value}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-700 hover:underline"
+            >
+              {value}
+            </a>
+          ) : (
+            value
+          )
+        ) : (
+          <span className="text-gray-400">—</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────
+// Transcript (selectable candidate answers)
+// ──────────────────────────────────────────────────────────────
+
+function TranscriptView({
+  exchanges,
+  selectedIdx,
+  onSelect,
+}: {
+  exchanges: SessionExchange[]
+  selectedIdx: number | null
+  onSelect: (idx: number) => void
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+      <h3 className="text-sm font-semibold text-blue-900 mb-4 flex items-center gap-2">
+        <MessageSquare className="w-4 h-4" /> Conversation transcript
+      </h3>
+      {exchanges.length === 0 ? (
+        <div className="text-center text-gray-500 py-10">
+          No answered exchanges recorded for this session.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {exchanges.map((ex, idx) => (
+            <div key={idx} className="space-y-2">
+              {/* Interviewer question */}
+              <div className="flex justify-start">
+                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-gray-100 text-gray-800">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {ex.question_text}
+                  </p>
+                </div>
+              </div>
+              {/* Candidate answer (clickable to select) */}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onSelect(idx)}
+                  className={`max-w-[85%] text-left rounded-2xl px-4 py-3 transition-all ${
+                    selectedIdx === idx
+                      ? 'bg-blue-900 text-white ring-2 ring-yellow-400 ring-offset-2'
+                      : 'bg-blue-900 text-white opacity-80 hover:opacity-100'
+                  }`}
+                >
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {ex.candidate_answer || (
+                      <span className="italic opacity-60">(no answer text)</span>
+                    )}
+                  </p>
+                  <div className="mt-2 pt-2 border-t border-blue-800/40 flex items-center justify-between text-xs">
+                    <span className="opacity-80">Click for IRS breakdown</span>
+                    <span className="font-bold tabular-nums">
+                      IRS {ex.overall_score.toFixed(1)}/10
+                    </span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────
+// Right-side IRS panel for the selected answer
+// ──────────────────────────────────────────────────────────────
+
+function SelectedAnswerPanel({
+  score,
+  exchange,
+  answeredCount,
+}: {
+  score: IRSScore | null
+  exchange: SessionExchange | null
+  answeredCount: number
+}) {
+  return (
+    <>
+      <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-blue-900 mb-3">
+          Selected Answer Score
+        </h3>
+        {score && exchange ? (
+          <IRSMeter score={score} />
+        ) : (
+          <p className="text-sm text-gray-500">
+            Click any candidate answer in the transcript to view its IRS breakdown.
+          </p>
+        )}
+      </div>
+
+      {exchange?.coach && <CoachPanel coach={exchange.coach} />}
+
+      <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-blue-900 mb-3">
+          Session Progress
+        </h3>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-500">Answers given</span>
+          <span className="font-medium text-gray-700">{answeredCount}</span>
+        </div>
+      </div>
+
+      <div className="bg-blue-50 rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-blue-900 mb-3">IRS Rubric</h3>
+        <div className="space-y-2 text-xs text-gray-600">
+          <p>
+            <span className="font-semibold text-blue-900">I - Integrity (30%):</span>{' '}
+            Authenticity, honesty, internal consistency
+          </p>
+          <p>
+            <span className="font-semibold text-blue-900">R - Relevance (30%):</span>{' '}
+            Addresses the question and target role
+          </p>
+          <p>
+            <span className="font-semibold text-blue-900">S - Substance (40%):</span>{' '}
+            Depth, specifics, examples, metrics
+          </p>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// Read-only render of a previously-generated enhanced response.
+function CoachPanel({ coach }: { coach: NonNullable<SessionExchange['coach']> }) {
+  return (
+    <div className="bg-white border border-yellow-200 rounded-xl p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-yellow-500" />
+          Enhanced Response
+        </h3>
+        <span className="text-xs text-gray-400" title={coach.created_at}>
+          {formatDate(coach.created_at)}
+        </span>
+      </div>
+
+      {coach.critique && (
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+            Critique
+          </div>
+          <p className="text-sm text-gray-700 leading-relaxed">{coach.critique}</p>
+        </div>
+      )}
+
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+          Improved Answer
+        </div>
+        <div className="text-sm text-gray-800 leading-relaxed bg-yellow-50 rounded-lg p-3 whitespace-pre-wrap">
+          <ImprovedAnswerWithPlaceholders text={coach.improved_answer} />
+        </div>
+      </div>
+
+      {coach.missing_evidence_prompts.length > 0 && (
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1">
+            <HelpCircle className="w-3.5 h-3.5" />
+            Missing Evidence Prompts ({coach.missing_evidence_prompts.length})
+          </div>
+          <ul className="space-y-2">
+            {coach.missing_evidence_prompts.map((p, i) => (
+              <li key={i} className="text-sm text-gray-700 bg-gray-50 rounded-lg p-2.5">
+                <p className="font-medium">{p.question}</p>
+                {p.bulletText && (
+                  <p className="text-xs text-gray-500 mt-1 italic">
+                    Linked CV bullet: {p.bulletText}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const PLACEHOLDER_RE = /\[CANDIDATE TO FILL:\s*([^|\]]+)\|\s*([^\]]+)\]/g
+
+// Highlight `[CANDIDATE TO FILL: ...]` placeholders inline so the reader can
+// see exactly which facts the coach flagged as missing.
+function ImprovedAnswerWithPlaceholders({ text }: { text: string }) {
+  const parts: Array<string | { question: string }> = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  PLACEHOLDER_RE.lastIndex = 0
+  while ((match = PLACEHOLDER_RE.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
+    parts.push({ question: match[2].trim() })
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+
+  return (
+    <>
+      {parts.map((part, i) =>
+        typeof part === 'string' ? (
+          <span key={i}>{part}</span>
+        ) : (
+          <span
+            key={i}
+            className="inline-block bg-amber-100 border border-amber-300 text-amber-900 rounded px-1.5 py-0.5 text-xs font-medium mx-0.5"
+            title="Missing evidence — flagged by the coach"
+          >
+            ⚠ {part.question}
+          </span>
+        ),
+      )}
+    </>
+  )
+}
+
+function exchangeToIrsScore(ex: SessionExchange): IRSScore {
+  return {
+    integrity: { score: ex.integrity_score, rationale: ex.integrity_rationale ?? '' },
+    relevance: { score: ex.relevance_score, rationale: ex.relevance_rationale ?? '' },
+    substance: { score: ex.substance_score, rationale: ex.substance_rationale ?? '' },
+    overall: ex.overall_score,
+  }
 }
 
 function ScoreStat({ label, value }: { label: string; value: number | undefined }) {

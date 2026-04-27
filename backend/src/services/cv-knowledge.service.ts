@@ -129,7 +129,7 @@ export async function parseCvVersionFromFile(
   userId: string,
 ): Promise<CvUploadPhase1Response> {
   const rawText = await extractTextFromFile(fileBuffer, fileName.toLowerCase());
-  return parseCvVersion({ name, rawText, userId });
+  return parseCvVersion({ name, rawText, userId, sourceFilePath: fileName });
 }
 
 // ── Phase 2: Finalize — user has resolved each bullet (merge or new) ────────
@@ -471,7 +471,7 @@ export async function listCvVersions(userId: string): Promise<CvVersionSummary[]
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from('cv_versions')
-    .select('id, name, detected_field, is_active, created_at')
+    .select('id, name, detected_field, is_active, created_at, source_file_path')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw Object.assign(new Error(error.message), { statusCode: 500 });
@@ -519,6 +519,7 @@ export async function listCvVersions(userId: string): Promise<CvVersionSummary[]
       bulletCount: bulletIds.length,
       openGapCount,
       createdAt: row.created_at,
+      sourceFilePath: row.source_file_path ?? null,
     };
   });
 }
@@ -657,6 +658,20 @@ export async function listBulletsWithGaps(cvVersionId: string): Promise<BulletWi
 
 // ── Add an artifact to a gap (text only) ────────────────────────────────────
 
+// Re-summarise an artifact's raw text. Short blurbs skip the LLM and use a
+// trivial stub so we don't burn tokens on near-empty answers.
+async function summarizeArtifactText(rawText: string, gapQuestion: string): Promise<ArtifactSummary | null> {
+  if (rawText.length <= 80) {
+    return { overview: rawText, my_contribution: '', concrete_facts: [rawText], metrics: [] };
+  }
+  try {
+    return await llmJson<ArtifactSummary>(buildArtifactSummaryPrompt(rawText, gapQuestion));
+  } catch (err) {
+    console.error('[cv-knowledge] summary failed', err);
+    return null;
+  }
+}
+
 export async function addArtifactToGap(
   gapId: string,
   payload:
@@ -676,16 +691,7 @@ export async function addArtifactToGap(
   const rawText = payload.text.trim();
   if (!rawText) throw Object.assign(new Error('Empty artifact text'), { statusCode: 400 });
 
-  let summary: ArtifactSummary | null = null;
-  if (rawText.length > 80) {
-    try {
-      summary = await llmJson<ArtifactSummary>(buildArtifactSummaryPrompt(rawText, gap.question));
-    } catch (err) {
-      console.error('[cv-knowledge] summary failed', err);
-    }
-  } else {
-    summary = { overview: rawText, my_contribution: '', concrete_facts: [rawText], metrics: [] };
-  }
+  const summary = await summarizeArtifactText(rawText, gap.question);
 
   const { error: insertErr } = await supabase.from('bullet_artifacts').insert({
     gap_id: gapId,
@@ -701,6 +707,43 @@ export async function addArtifactToGap(
     .from('bullet_gaps')
     .update({ status: 'answered', updated_at: new Date().toISOString() })
     .eq('id', gapId);
+}
+
+// ── Edit an existing artifact's text (re-summarises) ────────────────────────
+
+export async function updateArtifactText(artifactId: string, newText: string): Promise<void> {
+  const supabase = getSupabase();
+  const trimmed = newText.trim();
+  if (!trimmed) throw Object.assign(new Error('Empty artifact text'), { statusCode: 400 });
+
+  const { data: artifact, error: artErr } = await supabase
+    .from('bullet_artifacts')
+    .select('id, gap_id')
+    .eq('id', artifactId)
+    .single();
+  if (artErr || !artifact) {
+    throw Object.assign(new Error('Artifact not found'), { statusCode: 404 });
+  }
+
+  const { data: gap, error: gapErr } = await supabase
+    .from('bullet_gaps')
+    .select('id, question')
+    .eq('id', artifact.gap_id)
+    .single();
+  if (gapErr || !gap) {
+    throw Object.assign(new Error('Gap not found'), { statusCode: 404 });
+  }
+
+  const summary = await summarizeArtifactText(trimmed, gap.question);
+
+  const { error: updateErr } = await supabase
+    .from('bullet_artifacts')
+    .update({
+      content_text: trimmed.slice(0, 20000),
+      summary_json: summary,
+    })
+    .eq('id', artifactId);
+  if (updateErr) throw Object.assign(new Error(updateErr.message), { statusCode: 500 });
 }
 
 export async function skipGap(gapId: string): Promise<void> {

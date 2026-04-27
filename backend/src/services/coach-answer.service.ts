@@ -11,6 +11,7 @@ import {
 } from './cv-knowledge.service.js';
 import type { CoachAnswerRequest, CoachAnswerResponse, MissingEvidencePrompt } from '../types/cv-knowledge.js';
 import { getSupabase } from '../lib/supabase.js';
+import { dbStoreCoaching } from '../lib/interview-prep/db.js';
 
 function cleanJson(text: string): string {
   return text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?\s*```$/, '').trim();
@@ -132,9 +133,23 @@ export async function coachAnswer(req: CoachAnswerRequest, userId: string): Prom
     bulletText: p.bulletId ? bulletById.get(p.bulletId) ?? null : null,
   }));
 
-  return {
+  const result: CoachAnswerResponse = {
     critique: parsed.critique ?? '',
     improvedAnswer: improved,
     missingEvidencePrompts: prompts,
   };
+
+  // Persist for replay in Interview History. Non-throwing on failure — the
+  // user-visible coaching is the result we just built; storage is best-effort.
+  if (req.assessmentId) {
+    await dbStoreCoaching(
+      req.assessmentId,
+      req.answer,
+      result.critique,
+      result.improvedAnswer,
+      result.missingEvidencePrompts,
+    );
+  }
+
+  return result;
 }

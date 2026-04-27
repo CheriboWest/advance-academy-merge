@@ -14,6 +14,7 @@ import {
   parseCvVersionFromFile,
   recordJitClarification,
   skipGap,
+  updateArtifactText,
 } from '../services/cv-knowledge.service.js';
 import type { BulletResolution, ParsedBulletWithCandidates } from '../types/cv-knowledge.js';
 
@@ -155,6 +156,23 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
       return sendError(reply, err);
     }
   });
+
+  // Edit an existing artifact's text (re-summarises)
+  app.patch<{ Params: { artifactId: string }; Body: { text?: string } }>(
+    '/api/cv-library/artifacts/:artifactId',
+    async (request, reply) => {
+      const text = request.body?.text;
+      if (typeof text !== 'string' || !text.trim()) {
+        return reply.code(400).send({ error: 'text is required' });
+      }
+      try {
+        await updateArtifactText(request.params.artifactId, text);
+        return { ok: true };
+      } catch (err) {
+        return sendError(reply, err);
+      }
+    },
+  );
 
   app.post<{ Body: { bulletId: string | null; question: string; answer: string } }>(
     '/api/cv-library/jit-clarification',

@@ -2,6 +2,8 @@
 
 import { useRef, useEffect, useState } from 'react'
 import { authedFetch } from '@/shared/auth/authed-fetch'
+import { useFakeProgress } from '@/shared/hooks/use-fake-progress'
+import { ProgressBar } from '@/shared/hooks/progress-bar'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -238,16 +240,30 @@ function SetupStep({
   }
 
   const [jobUrl, setJobUrl] = useState('')
-  const [extracting, setExtracting] = useState(false)
   const [extractError, setExtractError] = useState<string | null>(null)
   const [extractInfo, setExtractInfo] = useState<string | null>(null)
+  const {
+    progress: extractProgress,
+    phase: extractPhase,
+    busy: extracting,
+    start: startExtractProgress,
+    finish: finishExtractProgress,
+    reset: resetExtractProgress,
+  } = useFakeProgress({
+    tauMs: 8_000,
+    phaseLabel: (elapsedMs) => {
+      if (elapsedMs < 2_500) return 'Fetching the job posting…'
+      if (elapsedMs < 10_000) return 'Extracting job details with AI…'
+      return 'Finalising the structured fields…'
+    },
+  })
 
   const handleExtractFromUrl = async () => {
     const url = jobUrl.trim()
     if (!url) return
-    setExtracting(true)
     setExtractError(null)
     setExtractInfo(null)
+    startExtractProgress()
     try {
       const res = await authedFetch('/api/interview-prep/extract-job-from-url', {
         method: 'POST',
@@ -277,15 +293,15 @@ function SetupStep({
 
       const filled = Object.keys(updates).length
       const missing = 5 - filled
+      finishExtractProgress()
       setExtractInfo(
         missing === 0
           ? 'All fields extracted. Review and edit as needed.'
           : `Filled ${filled} of 5 fields. Please complete the remaining ${missing} manually.`,
       )
     } catch (err) {
+      resetExtractProgress()
       setExtractError(err instanceof Error ? err.message : 'Failed to extract job details')
-    } finally {
-      setExtracting(false)
     }
   }
 
@@ -325,6 +341,7 @@ function SetupStep({
               )}
             </button>
           </div>
+          {extracting && <ProgressBar progress={extractProgress} phase={extractPhase} />}
           {extractError && (
             <p className="mt-2 text-xs text-red-600 flex items-center gap-1.5">
               <AlertCircle className="w-3.5 h-3.5" /> {extractError}

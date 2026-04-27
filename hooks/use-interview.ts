@@ -157,6 +157,7 @@ export function useInterview() {
         ...candidateMessage,
         irsScore: data.irsScore,
         questionAsked: lastQuestion,
+        assessmentId: data.assessmentId,
       }
 
       const interviewerReply: InterviewMessage = {
@@ -219,6 +220,7 @@ export function useInterview() {
               substance: msg.irsScore.substance.score,
               overall: msg.irsScore.overall,
             },
+            assessmentId: msg.assessmentId,
           }),
         })
         if (!res.ok) throw new Error('Failed to coach')
