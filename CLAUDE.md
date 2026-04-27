@@ -13,12 +13,13 @@ Run from the repo root (npm workspaces; `backend` is a workspace):
 - `npm run lint` — ESLint over the whole repo
 - `npm run typecheck --workspace backend` — backend type check only
 - `npx tsc --noEmit` (from repo root) — frontend type check
+- `npm run usage --workspace backend` (also `usage:week`, `usage:month`) — LLM cost report from `cost-log.jsonl`, written by `backend/src/lib/cost-tracker.ts`
 
-There is no test runner configured. Env: copy `.env.local.example` → `.env.local` (frontend, mainly `BACKEND_URL`) and `backend/.env.example` → `backend/.env` (`LLM_API_KEY`, `FRONTEND_URL`, optional `LLM_TIMEOUT_MS`, plus `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` for the interview-prep + CV Library features that persist data, and `GROQ_API_KEY` for Interview Prep voice-mode transcription via Groq Whisper).
+There is no test runner configured. Env: copy `.env.local.example` → `.env.local` (frontend, mainly `BACKEND_URL`) and `backend/.env.example` → `backend/.env`. Required backend vars: `LLM_API_KEY`, `FRONTEND_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. Feature-specific keys: `GROQ_API_KEY` (Interview Prep voice transcription via Groq Whisper), `JINA_API_KEY` (Outreach + CV Library URL fetching), `EXA_API_KEY` (Outreach search via `lib/exa-client.ts`), `VOYAGE_API_KEY` (embeddings via `lib/voyage.ts`). Optional overrides: `LLM_TIMEOUT_MS`, per-feature LLM keys (`LLM_API_KEY_OUTREACH` covers Dream Company + Outreach, `LLM_API_KEY_CV` for CV Optimizer, `LLM_API_KEY_INTERVIEW` for Interview Prep + CV Library), and per-feature model overrides `LLM_MODEL_DEFAULT` / `LLM_MODEL_CV_OPTIMIZER` / `LLM_MODEL_OUTREACH` / `LLM_MODEL_DREAM_COMPANY` / `LLM_MODEL_INTERVIEW_PREP` (see `backend/src/config/llm.ts`).
 
 ## Architecture
 
-Career-tools web app with five AI features (CV Optimizer, Dream Company Finder, Outreach Generator, Interview Prep, CV Library), all powered by Anthropic Claude. The Outreach Generator and CV Library extractors also use Jina Reader for URL fetching. **Persistence:** Supabase Postgres backs Interview Prep (sessions, assessments, coaching) and the CV Library (versions, bullets, gaps, artifacts); the other features remain stateless request/response. **Auth:** there is no auth — all data belongs to a hardcoded `MVP_USER_ID`. See `docs/ARCHITECTURE.md` for the canonical reference and diagrams; `docs/BACKEND.md`, `docs/FRONTEND.md`, `docs/ADD_A_FEATURE.md`, `docs/CV_KNOWLEDGE_BASE.md`, and `docs/CONVENTIONS.md` are also authoritative.
+Career-tools web app with five AI features (CV Optimizer, Dream Company Finder, Outreach Generator, Interview Prep, CV Library), all powered by Anthropic Claude. The Outreach Generator and CV Library extractors also use Jina Reader for URL fetching, Exa for web search, and Voyage for embeddings. **Persistence:** Supabase Postgres backs Interview Prep (sessions, assessments, coaching) and the CV Library (versions, bullets, gaps, artifacts, coach answers); the other features remain stateless request/response. **Auth:** Supabase bearer-token auth (see Authentication below). See `docs/ARCHITECTURE.md` for the canonical reference and diagrams; `docs/BACKEND.md`, `docs/FRONTEND.md`, `docs/ADD_A_FEATURE.md`, `docs/CV_KNOWLEDGE_BASE.md`, `docs/COACH_ANSWER_FLOW.md`, and `docs/CONVENTIONS.md` are also authoritative.
 
 ### The 4-layer request flow
 
@@ -44,11 +45,11 @@ UI (features/*/components)
 
 ### Backend layout
 
-- `backend/src/main.ts` — entry, CORS reads `FRONTEND_URL` (comma-split for multiple origins)
-- `backend/src/routes/` — thin HTTP handlers; inspect thrown `Error.statusCode`/`step` and map to HTTP codes (`routes/dream-company.ts` is the canonical pattern)
+- `backend/src/main.ts` — entry, CORS reads `FRONTEND_URL` (comma-split for multiple origins); also kicks off `startCvAnalysisReaper()` (sweeps stuck CV-analysis jobs from `lib/cv-analysis-reaper.ts`)
+- `backend/src/routes/` — thin HTTP handlers; inspect thrown `Error.statusCode`/`step` and map to HTTP codes (`routes/dream-company.ts` is the canonical pattern). CV Library coach flow lives in `routes/coach-answer.ts` + `routes/coach-understanding.ts`.
 - `backend/src/services/` — business logic + LLM calls
-- `backend/src/lib/` — prompts and Anthropic SDK helpers
-- `backend/src/config/llm.ts` — feature → model mapping
+- `backend/src/lib/` — prompts, Anthropic SDK helpers, plus integration clients: `voyage.ts` (embeddings), `exa-client.ts` (web search), `cost-tracker.ts` (LLM cost logging to `cost-log.jsonl`)
+- `backend/src/config/llm.ts` — feature → model + API key mapping (per-feature env overrides)
 
 ### Shared contracts
 

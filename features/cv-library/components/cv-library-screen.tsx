@@ -733,44 +733,25 @@ function GapForm({
   gap: BulletWithGaps['gaps'][number]
   onChanged: () => void
 }) {
-  const [mode, setMode] = useState<'text' | 'url' | 'file'>('text')
   const [text, setText] = useState('')
-  const [url, setUrl] = useState('')
-  const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   const submit = async () => {
+    if (!text.trim()) return
     setBusy(true)
     setErr(null)
     try {
-      let res: Response
-      if (mode === 'file' && file) {
-        const fd = new FormData()
-        fd.append('file', file)
-        res = await authedFetch(`/api/cv-library/gaps/${gap.id}/artifacts`, { method: 'POST', body: fd })
-      } else if (mode === 'url' && url.trim()) {
-        res = await authedFetch(`/api/cv-library/gaps/${gap.id}/artifacts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: url.trim() }),
-        })
-      } else if (mode === 'text' && text.trim()) {
-        res = await authedFetch(`/api/cv-library/gaps/${gap.id}/artifacts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text.trim() }),
-        })
-      } else {
-        return
-      }
+      const res = await authedFetch(`/api/cv-library/gaps/${gap.id}/artifacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.trim() }),
+      })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data?.error || 'Failed')
       }
       setText('')
-      setUrl('')
-      setFile(null)
       onChanged()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Failed')
@@ -832,50 +813,18 @@ function GapForm({
 
       {!isSkipped && (
         <>
-          <div className="flex gap-1 mb-2">
-            {(['text', 'url', 'file'] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`px-2 py-1 text-xs rounded ${
-                  mode === m ? 'bg-blue-900 text-white' : 'bg-gray-100 text-gray-600'
-                }`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-          {mode === 'text' && (
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Type your answer…"
-              rows={2}
-              className="w-full p-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
-            />
-          )}
-          {mode === 'url' && (
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://github.com/.../README.md or any public URL"
-              className="w-full p-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
-            />
-          )}
-          {mode === 'file' && (
-            <input
-              type="file"
-              accept=".pdf,.docx"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="w-full p-1 text-sm"
-            />
-          )}
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Type or paste your answer. Drag the corner to make this bigger."
+            rows={4}
+            className="w-full p-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-300 resize-y min-h-20"
+          />
           {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
           <div className="flex items-center gap-2 mt-2">
             <button
               onClick={submit}
-              disabled={busy}
+              disabled={busy || !text.trim()}
               className="px-3 py-1 text-xs bg-blue-900 text-white rounded font-medium hover:bg-blue-800 disabled:opacity-40"
             >
               {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}

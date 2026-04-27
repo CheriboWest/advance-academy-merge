@@ -7,7 +7,7 @@
  * This allows the same bullet (with its gaps + artifacts) to be shared
  * across multiple CV versions.
  */
-import { extractTextFromFile, extractTextFromUrl } from './outreach-extractor.service.js';
+import { extractTextFromFile } from './outreach-extractor.service.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 import { getSupabase } from '../lib/supabase.js';
 import { embedText, embedTexts, isVoyageConfigured } from '../lib/voyage.js';
@@ -19,6 +19,7 @@ import {
 } from '../lib/cv-knowledge/prompts.js';
 import type {
   ArtifactSummary,
+  BulletArtifactRow,
   BulletWithGaps,
   CvVersionRow,
   CvVersionSummary,
@@ -475,41 +476,51 @@ export async function listCvVersions(userId: string): Promise<CvVersionSummary[]
     .order('created_at', { ascending: false });
   if (error) throw Object.assign(new Error(error.message), { statusCode: 500 });
 
-  const summaries: CvVersionSummary[] = [];
-  for (const row of data ?? []) {
-    // Count bullets via junction table
-    const { count: bulletCount } = await supabase
-      .from('cv_version_bullets')
-      .select('id', { count: 'exact', head: true })
-      .eq('cv_version_id', row.id);
+  const versions = data ?? [];
+  if (versions.length === 0) return [];
 
-    // Open gaps for bullets in this version
-    const { data: junctions } = await supabase
-      .from('cv_version_bullets')
+  const versionIds = versions.map((v) => v.id);
+
+  const { data: junctions, error: jErr } = await supabase
+    .from('cv_version_bullets')
+    .select('cv_version_id, bullet_id')
+    .in('cv_version_id', versionIds);
+  if (jErr) throw Object.assign(new Error(jErr.message), { statusCode: 500 });
+
+  const bulletsByVersion = new Map<string, string[]>();
+  for (const j of junctions ?? []) {
+    const list = bulletsByVersion.get(j.cv_version_id) ?? [];
+    list.push(j.bullet_id);
+    bulletsByVersion.set(j.cv_version_id, list);
+  }
+
+  const allBulletIds = (junctions ?? []).map((j) => j.bullet_id);
+  const openGapsByBullet = new Map<string, number>();
+  if (allBulletIds.length > 0) {
+    const { data: openGaps, error: gErr } = await supabase
+      .from('bullet_gaps')
       .select('bullet_id')
-      .eq('cv_version_id', row.id);
-    let openGapCount = 0;
-    if (junctions && junctions.length > 0) {
-      const ids = junctions.map((j) => j.bullet_id);
-      const { count } = await supabase
-        .from('bullet_gaps')
-        .select('id', { count: 'exact', head: true })
-        .in('bullet_id', ids)
-        .eq('status', 'open');
-      openGapCount = count ?? 0;
+      .in('bullet_id', allBulletIds)
+      .eq('status', 'open');
+    if (gErr) throw Object.assign(new Error(gErr.message), { statusCode: 500 });
+    for (const g of openGaps ?? []) {
+      openGapsByBullet.set(g.bullet_id, (openGapsByBullet.get(g.bullet_id) ?? 0) + 1);
     }
+  }
 
-    summaries.push({
+  return versions.map((row) => {
+    const bulletIds = bulletsByVersion.get(row.id) ?? [];
+    const openGapCount = bulletIds.reduce((sum, id) => sum + (openGapsByBullet.get(id) ?? 0), 0);
+    return {
       id: row.id,
       name: row.name,
       detectedField: row.detected_field ?? null,
       isActive: row.is_active,
-      bulletCount: bulletCount ?? 0,
+      bulletCount: bulletIds.length,
       openGapCount,
       createdAt: row.created_at,
-    });
-  }
-  return summaries;
+    };
+  });
 }
 
 export async function activateCvVersion(cvVersionId: string, userId: string): Promise<void> {
@@ -567,43 +578,70 @@ export async function getActiveCvVersion(userId: string): Promise<CvVersionRow |
 export async function listBulletsWithGaps(cvVersionId: string): Promise<BulletWithGaps[]> {
   const supabase = getSupabase();
 
-  // Join through the junction table
   const { data: junctions, error } = await supabase
     .from('cv_version_bullets')
     .select('bullet_id, ordinal, section_path')
     .eq('cv_version_id', cvVersionId)
     .order('ordinal', { ascending: true });
   if (error) throw Object.assign(new Error(error.message), { statusCode: 500 });
+  if (!junctions || junctions.length === 0) return [];
+
+  const bulletIds = junctions.map((j) => j.bullet_id);
+
+  const [bulletsRes, gapsRes] = await Promise.all([
+    supabase.from('cv_bullets').select('id, bullet_text').in('id', bulletIds),
+    supabase
+      .from('bullet_gaps')
+      .select('id, bullet_id, question, rationale, ordinal, status')
+      .in('bullet_id', bulletIds)
+      .order('ordinal', { ascending: true }),
+  ]);
+  if (bulletsRes.error) throw Object.assign(new Error(bulletsRes.error.message), { statusCode: 500 });
+  if (gapsRes.error) throw Object.assign(new Error(gapsRes.error.message), { statusCode: 500 });
+
+  const bulletById = new Map((bulletsRes.data ?? []).map((b) => [b.id, b]));
+  const gaps = gapsRes.data ?? [];
+  const gapIds = gaps.map((g) => g.id);
+
+  const artifactsByGapId = new Map<string, BulletArtifactRow[]>();
+  if (gapIds.length > 0) {
+    const { data: artifacts, error: artErr } = await supabase
+      .from('bullet_artifacts')
+      .select('id, gap_id, source_type, content_text, source_url, summary_json, created_at')
+      .in('gap_id', gapIds)
+      .order('created_at', { ascending: true });
+    if (artErr) throw Object.assign(new Error(artErr.message), { statusCode: 500 });
+    for (const a of (artifacts ?? []) as BulletArtifactRow[]) {
+      const list = artifactsByGapId.get(a.gap_id) ?? [];
+      list.push(a);
+      artifactsByGapId.set(a.gap_id, list);
+    }
+  }
+
+  const gapsByBulletId = new Map<string, typeof gaps>();
+  for (const g of gaps) {
+    const list = gapsByBulletId.get(g.bullet_id) ?? [];
+    list.push(g);
+    gapsByBulletId.set(g.bullet_id, list);
+  }
 
   const result: BulletWithGaps[] = [];
-  for (const j of junctions ?? []) {
-    const { data: bullet } = await supabase
-      .from('cv_bullets')
-      .select('id, bullet_text')
-      .eq('id', j.bullet_id)
-      .single();
+  for (const j of junctions) {
+    const bullet = bulletById.get(j.bullet_id);
     if (!bullet) continue;
-
-    const { data: gaps } = await supabase
-      .from('bullet_gaps')
-      .select('id, question, rationale, ordinal, status')
-      .eq('bullet_id', bullet.id)
-      .order('ordinal', { ascending: true });
-
-    const gapShapes = [];
-    for (const g of gaps ?? []) {
-      const { data: artifacts } = await supabase
-        .from('bullet_artifacts')
-        .select('id, source_type, content_text, source_url, summary_json, created_at')
-        .eq('gap_id', g.id)
-        .order('created_at', { ascending: true });
-      gapShapes.push({
+    const bulletGaps = gapsByBulletId.get(bullet.id) ?? [];
+    result.push({
+      id: bullet.id,
+      sectionPath: j.section_path,
+      bulletText: bullet.bullet_text,
+      ordinal: j.ordinal,
+      gaps: bulletGaps.map((g) => ({
         id: g.id,
         question: g.question,
         rationale: g.rationale,
         ordinal: g.ordinal,
         status: g.status,
-        artifacts: (artifacts ?? []).map((a) => ({
+        artifacts: (artifactsByGapId.get(g.id) ?? []).map((a) => ({
           id: a.id,
           sourceType: a.source_type,
           contentText: a.content_text,
@@ -611,27 +649,18 @@ export async function listBulletsWithGaps(cvVersionId: string): Promise<BulletWi
           summary: a.summary_json,
           createdAt: a.created_at,
         })),
-      });
-    }
-    result.push({
-      id: bullet.id,
-      sectionPath: j.section_path,
-      bulletText: bullet.bullet_text,
-      ordinal: j.ordinal,
-      gaps: gapShapes,
+      })),
     });
   }
   return result;
 }
 
-// ── Add an artifact to a gap (text/file/url) ────────────────────────────────
+// ── Add an artifact to a gap (text only) ────────────────────────────────────
 
 export async function addArtifactToGap(
   gapId: string,
   payload:
     | { sourceType: 'text'; text: string }
-    | { sourceType: 'url'; url: string }
-    | { sourceType: 'file'; buffer: Buffer; fileName: string }
     | { sourceType: 'jit_clarification'; text: string },
 ): Promise<void> {
   const supabase = getSupabase();
@@ -644,20 +673,8 @@ export async function addArtifactToGap(
     throw Object.assign(new Error('Gap not found'), { statusCode: 404 });
   }
 
-  let rawText: string;
-  let sourceUrl: string | null = null;
-  let sourceFilePath: string | null = null;
-
-  if (payload.sourceType === 'text' || payload.sourceType === 'jit_clarification') {
-    rawText = payload.text.trim();
-    if (!rawText) throw Object.assign(new Error('Empty artifact text'), { statusCode: 400 });
-  } else if (payload.sourceType === 'url') {
-    sourceUrl = payload.url.trim();
-    rawText = await extractTextFromUrl(sourceUrl);
-  } else {
-    rawText = await extractTextFromFile(payload.buffer, payload.fileName.toLowerCase());
-    sourceFilePath = payload.fileName;
-  }
+  const rawText = payload.text.trim();
+  if (!rawText) throw Object.assign(new Error('Empty artifact text'), { statusCode: 400 });
 
   let summary: ArtifactSummary | null = null;
   if (rawText.length > 80) {
@@ -674,8 +691,8 @@ export async function addArtifactToGap(
     gap_id: gapId,
     source_type: payload.sourceType,
     content_text: rawText.slice(0, 20000),
-    source_url: sourceUrl,
-    source_file_path: sourceFilePath,
+    source_url: null,
+    source_file_path: null,
     summary_json: summary,
   });
   if (insertErr) throw Object.assign(new Error(insertErr.message), { statusCode: 500 });

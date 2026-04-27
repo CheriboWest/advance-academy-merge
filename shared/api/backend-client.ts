@@ -262,7 +262,7 @@ export function getCvBulletsWithBackend(id: string, authToken?: string) {
   })
 }
 
-export function addGapArtifactWithBackend(gapId: string, payload: { text?: string; url?: string }, authToken?: string) {
+export function addGapArtifactWithBackend(gapId: string, payload: { text: string }, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ ok: true }>(`${backendUrl}/api/cv-library/gaps/${gapId}/artifacts`, {
     method: 'POST',
@@ -270,15 +270,6 @@ export function addGapArtifactWithBackend(gapId: string, payload: { text?: strin
     headers: authHeaders(authToken),
     timeoutMs: 90000,
   })
-}
-
-export function addGapArtifactFileWithBackend(gapId: string, formData: FormData, authToken?: string) {
-  const { backendUrl } = getServerEnv()
-  return fetchFormDataJson<{ ok: true }>(
-    `${backendUrl}/api/cv-library/gaps/${gapId}/artifacts`,
-    formData,
-    { timeoutMs: 120000, headers: authHeaders(authToken) },
-  )
 }
 
 export function finalizeCvVersionWithBackend(id: string, payload: unknown, authToken?: string) {
