@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef } from 'react'
+import { authedFetch } from '@/shared/auth/authed-fetch'
 import type {
   InterviewStep,
   InterviewContext,
@@ -61,7 +62,7 @@ export function useInterview() {
     setError(null)
 
     try {
-      const res = await fetch('/api/interview', {
+      const res = await authedFetch('/api/interview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -134,7 +135,7 @@ export function useInterview() {
         content: m.content,
       }))
 
-      const res = await fetch('/api/interview', {
+      const res = await authedFetch('/api/interview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -201,7 +202,7 @@ export function useInterview() {
       const msg = session.messages.find((m) => m.id === messageId)
       if (!msg || msg.role !== 'candidate' || !msg.questionAsked) return
       try {
-        const res = await fetch('/api/interview/coach-answer', {
+        const res = await authedFetch('/api/interview/coach-answer', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -245,7 +246,7 @@ export function useInterview() {
       const prompt = msg.coach.missingEvidencePrompts[promptIndex]
       if (!prompt) return
       try {
-        await fetch('/api/cv-library/jit-clarification', {
+        await authedFetch('/api/cv-library/jit-clarification', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -273,7 +274,7 @@ export function useInterview() {
     setSession(evaluatingSession)
 
     try {
-      const res = await fetch('/api/evaluate', {
+      const res = await authedFetch('/api/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -328,7 +329,7 @@ export function useInterview() {
             : 'webm'
       formData.append('file', blob, `answer.${extension}`)
 
-      const res = await fetch('/api/interview/transcribe', {
+      const res = await authedFetch('/api/interview/transcribe', {
         method: 'POST',
         body: formData,
       })
