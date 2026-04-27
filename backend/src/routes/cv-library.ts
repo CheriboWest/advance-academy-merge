@@ -218,47 +218,18 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
       }
     });
 
-    // Add an artifact to a gap (multipart file OR JSON {text} or {url})
+    // Add an artifact to a gap (text only — file/url removed)
     scoped.post<{ Params: { gapId: string } }>(
       '/api/cv-library/gaps/:gapId/artifacts',
       async (request, reply) => {
         const gapId = request.params.gapId;
-        const ctype = request.headers['content-type'] ?? '';
         try {
-          if (ctype.includes('multipart/form-data')) {
-            let fileBuffer: Buffer | null = null;
-            let fileName = '';
-            let textValue = '';
-            let urlValue = '';
-            for await (const part of request.parts()) {
-              if (part.type === 'file') {
-                fileBuffer = await part.toBuffer();
-                fileName = part.filename;
-              } else if (part.fieldname === 'text' && typeof part.value === 'string') {
-                textValue = part.value;
-              } else if (part.fieldname === 'url' && typeof part.value === 'string') {
-                urlValue = part.value;
-              }
-            }
-            if (fileBuffer) {
-              await addArtifactToGap(gapId, { sourceType: 'file', buffer: fileBuffer, fileName });
-            } else if (urlValue.trim()) {
-              await addArtifactToGap(gapId, { sourceType: 'url', url: urlValue.trim() });
-            } else if (textValue.trim()) {
-              await addArtifactToGap(gapId, { sourceType: 'text', text: textValue.trim() });
-            } else {
-              return reply.code(400).send({ error: 'Provide file, url, or text' });
-            }
-            return { ok: true };
+          const body = request.body as { text?: string } | undefined;
+          const text = body?.text?.trim();
+          if (!text) {
+            return reply.code(400).send({ error: 'text is required' });
           }
-          const body = request.body as { text?: string; url?: string } | undefined;
-          if (body?.url?.trim()) {
-            await addArtifactToGap(gapId, { sourceType: 'url', url: body.url.trim() });
-          } else if (body?.text?.trim()) {
-            await addArtifactToGap(gapId, { sourceType: 'text', text: body.text.trim() });
-          } else {
-            return reply.code(400).send({ error: 'Provide url or text' });
-          }
+          await addArtifactToGap(gapId, { sourceType: 'text', text });
           return { ok: true };
         } catch (err) {
           return sendError(reply, err);
