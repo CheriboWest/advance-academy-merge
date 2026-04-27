@@ -78,7 +78,7 @@ export async function coachAnswer(req: CoachAnswerRequest, userId: string): Prom
   const { system, user } = buildCoachAnswerPrompt({
     question: req.question,
     answer: req.answer,
-    jobTitle: req.context.jobTitle,
+    jobTitle: req.context.jobTitle, 
     jobDescription: req.context.jobDescription,
     companyName: req.context.companyName,
     cvBullets: cvBullets.map((b) => ({ section: b.section, text: b.text })),

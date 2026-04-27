@@ -57,7 +57,7 @@ Types and error shapes shared between frontend and backend live in `packages/con
 ### Persistence
 
 - **Interview Prep + CV Library** persist to Supabase via `backend/src/lib/supabase.ts` (`getSupabase()`, `getMvpUserId()`). Migrations live in `supabase/migrations/`. See `docs/CV_KNOWLEDGE_BASE.md` for the schema and the coach-answer / JIT-clarification flow.
-- **CV Optimizer** has its own in-memory job pattern: `POST /api/cv-optimizer/analyze` returns `202 + jobId`; the client polls `GET /api/cv-optimizer/jobs/:jobId`. The job map is an **in-memory `Map` in the backend process** — sticky to a single instance. Multi-instance deploys behind a load balancer will return "not found" on polls that land on a different instance. Use sticky sessions or stay single-instance.
+- **CV Optimizer** uses an async job pattern: `POST /api/cv-optimizer/analyze` returns `202 + jobId`; the client polls `GET /api/cv-optimizer/jobs/:jobId`. Jobs are persisted to the Supabase `cv_analysis_jobs` table via `createCvAnalysisJob` / `getCvAnalysisJob` in `backend/src/services/cv-optimizer.service.ts`, so polls are safe across multiple backend instances.
 
 ### Interview-prep refactor note
 
@@ -71,4 +71,18 @@ Earlier versions kept interview-prep LLM + DB calls inside Next.js route handler
 
 ### Authentication
 
-There is none. Every endpoint is public. CV Library and Interview Prep use a hardcoded `MVP_USER_ID` (set in `backend/.env`, defaults to the all-zeros UUID). Do not add real auth without a product decision; the right place would be middleware in `backend/src/main.ts` plus a hook in `shared/api/backend-client.ts`.
+Supabase-based bearer-token auth is enforced on the backend. A Fastify `preHandler` hook in `backend/src/main.ts` rejects any request without an `Authorization: Bearer <token>` header, validates the token via `getUserIdFromToken()` in `backend/src/lib/supabase.ts` (which calls `supabase.auth.getUser()`), and attaches `request.userId` for routes/services to use. Only `/api/health` and `/api/system` are exempt.
+
+The Next.js proxy layer pulls the user's token with `getProxyAuthToken()` and forwards it through `shared/api/backend-client.ts`, which sets the `Authorization` header when a token is present. Frontend calls that need auth must thread the token through the proxy — see the recent fixes in commits `e72a65f`, `f776727`, `a4f46ca` for the canonical wiring.
+
+`getMvpUserId()` still exists in `backend/src/lib/supabase.ts` but is dead code — do not reach for it; use `request.userId` from the auth hook instead.
+
+### Rate limiting
+
+`@fastify/rate-limit` is registered globally with `global: false` (opt-in per route) in `backend/src/main.ts`, keyed by client IP, returning `{ code: 'RATE_LIMIT_EXCEEDED', message }` on 429. Current per-route caps:
+
+- CV Optimizer `/analyze`: 5 / 10 minutes (`backend/src/routes/cv-optimizer.ts`)
+- Dream Company: 10 / minute via a `RATE_1MIN()` helper (`backend/src/routes/dream-company.ts`)
+- Outreach: 5–20 / minute depending on endpoint (`backend/src/routes/outreach.ts`)
+
+When adding a new route that hits an LLM, opt it in with a `config.rateLimit` block.
