@@ -58,5 +58,8 @@ export async function parseCV(file: File): Promise<CVParseResponse> {
   const formData = new FormData()
   formData.append('cv', file)
 
-  return fetchFormDataJson<CVParseResponse>('/api/dream-company/parse-cv', formData, { timeoutMs: 120000 })
+  return fetchFormDataJson<CVParseResponse>('/api/dream-company/parse-cv', formData, {
+    timeoutMs: 120000,
+    headers: await getAuthHeaders(),
+  })
 }

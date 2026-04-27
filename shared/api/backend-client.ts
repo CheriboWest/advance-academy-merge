@@ -75,10 +75,10 @@ export function generateRoadmapWithBackend(payload: { profile: DreamCompanyInput
   })
 }
 
-export function parseDreamCompanyCvWithBackend(formData: FormData) {
+export function parseDreamCompanyCvWithBackend(formData: FormData, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
-  return fetchFormDataJson(`${backendUrl}/api/dream-company/parse-cv`, formData, { timeoutMs: 120000 })
+  return fetchFormDataJson(`${backendUrl}/api/dream-company/parse-cv`, formData, { timeoutMs: 120000, headers: authHeaders(authToken) })
 }
 
 export function parseCvOptimizerFileWithBackend(formData: FormData) {

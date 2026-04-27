@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { ViewName } from '@/shared/types/navigation'
 import { Navigation } from '@/components/navigation'
@@ -11,6 +11,7 @@ import { InterviewPrepScreen } from '@/features/interview-prep/components/interv
 import { InterviewHistoryScreen } from '@/features/interview-prep/components/interview-history-screen'
 import { DreamCompanyScreen } from '@/features/dream-company/components/dream-company-screen'
 import { CvLibraryScreen } from '@/features/cv-library/components/cv-library-screen'
+import { useAuth } from '@/features/auth/context/AuthContext'
 
 const VIEWS_FROM_QUERY = new Set<string>(['home', 'outreach', 'cv', 'interview', 'history', 'companies', 'cv-library'])
 
@@ -25,6 +26,13 @@ export function HomePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const currentView = viewFromSearchParams(searchParams)
+  const { session, loading } = useAuth()
+
+  useEffect(() => {
+    if (!loading && !session) {
+      router.replace('/login')
+    }
+  }, [loading, session, router])
 
   const handleNavigate = useCallback(
     (view: ViewName) => {
@@ -32,6 +40,8 @@ export function HomePageContent() {
     },
     [router],
   )
+
+  if (loading || !session) return null
 
   return (
     <div className="min-h-screen bg-white">

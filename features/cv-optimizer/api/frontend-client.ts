@@ -33,7 +33,10 @@ export async function parseFileForCvOptimizer(file: File) {
   const formData = new FormData()
   formData.append('file', file)
 
-  return fetchFormDataJson<{ text: string }>('/api/cv-optimizer/parse-cv', formData, { timeoutMs: 60000 })
+  return fetchFormDataJson<{ text: string }>('/api/cv-optimizer/parse-cv', formData, {
+    timeoutMs: 60000,
+    headers: await getAuthHeaders(),
+  })
 }
 
 export async function rewriteBullet(payload: RewriteBulletRequest) {
