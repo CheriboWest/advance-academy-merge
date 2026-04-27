@@ -12,7 +12,8 @@ export async function POST(request: Request) {
         { status: 400 },
       )
     }
-    const response = await validateJdWithBackend({ url: (json as { url: string }).url })
+    const authToken = getProxyAuthToken(request)
+    const response = await validateJdWithBackend({ url: (json as { url: string }).url }, authToken)
     return NextResponse.json(response)
   } catch (error) {
     if (error instanceof HttpClientError) {

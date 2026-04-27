@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     let response;
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData()
-      response = await extractOutreachFileWithBackend(formData)
+      response = await extractOutreachFileWithBackend(formData, authToken)
     } else {
       const json = await request.json()
       response = await extractOutreachTextWithBackend(json, authToken)

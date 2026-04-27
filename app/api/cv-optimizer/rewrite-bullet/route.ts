@@ -5,8 +5,9 @@ import { HttpClientError } from '@/shared/api/http-client'
 
 export async function POST(request: Request) {
   try {
+    const authToken = getProxyAuthToken(request)
     const payload = await request.json()
-    const response = await rewriteBulletWithBackend(payload)
+    const response = await rewriteBulletWithBackend(payload, authToken)
     return NextResponse.json(response)
   } catch (error) {
     if (error instanceof HttpClientError) {

@@ -9,10 +9,11 @@ interface RouteContext {
   }>
 }
 
-export async function GET(_: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   try {
+    const authToken = getProxyAuthToken(request)
     const { jobId } = await context.params
-    const response = await getCvAnalysisJobFromBackend(jobId)
+    const response = await getCvAnalysisJobFromBackend(jobId, authToken)
 
     return NextResponse.json(response)
   } catch (error) {

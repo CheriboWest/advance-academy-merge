@@ -7,9 +7,10 @@ import { HttpClientError } from '@/shared/api/http-client'
 
 export async function POST(request: Request) {
   try {
+    const authToken = getProxyAuthToken(request)
     const json = await request.json()
     const payload = analyzeCvSchema.parse(json)
-    const response = await analyzeCvWithBackend(payload)
+    const response = await analyzeCvWithBackend(payload, authToken)
 
     return NextResponse.json(response, { status: 202 })
   } catch (error) {

@@ -81,18 +81,19 @@ export function parseDreamCompanyCvWithBackend(formData: FormData, authToken?: s
   return fetchFormDataJson(`${backendUrl}/api/dream-company/parse-cv`, formData, { timeoutMs: 120000, headers: authHeaders(authToken) })
 }
 
-export function parseCvOptimizerFileWithBackend(formData: FormData) {
+export function parseCvOptimizerFileWithBackend(formData: FormData, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
-  return fetchFormDataJson<{ text: string }>(`${backendUrl}/api/cv-optimizer/parse-file`, formData, { timeoutMs: 60000 })
+  return fetchFormDataJson<{ text: string }>(`${backendUrl}/api/cv-optimizer/parse-file`, formData, { timeoutMs: 60000, headers: authHeaders(authToken) })
 }
 
-export function generateRewrittenCvWithBackend(formData: FormData): Promise<Response> {
+export function generateRewrittenCvWithBackend(formData: FormData, authToken?: string): Promise<Response> {
   const { backendUrl } = getServerEnv()
 
   return fetch(`${backendUrl}/api/cv-optimizer/generate-rewritten-cv`, {
     method: 'POST',
     body: formData,
+    headers: authHeaders(authToken),
   })
 }
 
@@ -148,10 +149,10 @@ export function extractJobFromUrlWithBackend(payload: { url: string }, authToken
   })
 }
 
-export function extractOutreachFileWithBackend(formData: FormData) {
+export function extractOutreachFileWithBackend(formData: FormData, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
-  return fetchFormDataJson<{ text: string }>(`${backendUrl}/api/outreach/extract`, formData, { timeoutMs: 120000 })
+  return fetchFormDataJson<{ text: string }>(`${backendUrl}/api/outreach/extract`, formData, { timeoutMs: 120000, headers: authHeaders(authToken) })
 }
 
 // ── CV Library + Coach Answer ────────────────────────────────────────────────

@@ -25,7 +25,8 @@ export async function POST(request: Request) {
       )
     }
 
-    const response = await generateRolesWithBackend(json)
+    const authToken = getProxyAuthToken(request)
+    const response = await generateRolesWithBackend(json, authToken)
     return NextResponse.json(response)
   } catch (error) {
     if (error instanceof HttpClientError) {

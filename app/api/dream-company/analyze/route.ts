@@ -24,7 +24,8 @@ export async function POST(request: Request) {
       )
     }
 
-    const response = await analyzeProfileWithBackend(json)
+    const authToken = getProxyAuthToken(request)
+    const response = await analyzeProfileWithBackend(json, authToken)
     return NextResponse.json(response)
   } catch (error) {
     if (error instanceof HttpClientError) {
