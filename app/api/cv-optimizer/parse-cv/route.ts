@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
 import { parseCvOptimizerFileWithBackend } from '@/shared/api/backend-client'
 import { HttpClientError } from '@/shared/api/http-client'
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 
 export async function POST(request: Request) {
   try {
+    const authToken = getProxyAuthToken(request)
     const formData = await request.formData()
-    const response = await parseCvOptimizerFileWithBackend(formData)
+    const response = await parseCvOptimizerFileWithBackend(formData, authToken)
     return NextResponse.json(response)
   } catch (error) {
     if (error instanceof HttpClientError) {

@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server'
 import { generateRewrittenCvWithBackend } from '@/shared/api/backend-client'
+import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 
 export async function POST(request: Request) {
   try {
+    const authToken = getProxyAuthToken(request)
     const formData = await request.formData()
-    const backendResponse = await generateRewrittenCvWithBackend(formData)
+    const backendResponse = await generateRewrittenCvWithBackend(formData, authToken)
 
     if (!backendResponse.ok) {
       const text = await backendResponse.text()
