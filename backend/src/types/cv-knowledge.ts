@@ -20,6 +20,7 @@ export interface CvVersionSummary {
   bulletCount: number;
   openGapCount: number;
   createdAt: string;
+  sourceFilePath: string | null;
 }
 
 export interface CvBulletRow {

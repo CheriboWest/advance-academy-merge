@@ -129,7 +129,7 @@ export async function parseCvVersionFromFile(
   userId: string,
 ): Promise<CvUploadPhase1Response> {
   const rawText = await extractTextFromFile(fileBuffer, fileName.toLowerCase());
-  return parseCvVersion({ name, rawText, userId });
+  return parseCvVersion({ name, rawText, userId, sourceFilePath: fileName });
 }
 
 // ── Phase 2: Finalize — user has resolved each bullet (merge or new) ────────
@@ -471,7 +471,7 @@ export async function listCvVersions(userId: string): Promise<CvVersionSummary[]
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from('cv_versions')
-    .select('id, name, detected_field, is_active, created_at')
+    .select('id, name, detected_field, is_active, created_at, source_file_path')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw Object.assign(new Error(error.message), { statusCode: 500 });
@@ -519,6 +519,7 @@ export async function listCvVersions(userId: string): Promise<CvVersionSummary[]
       bulletCount: bulletIds.length,
       openGapCount,
       createdAt: row.created_at,
+      sourceFilePath: row.source_file_path ?? null,
     };
   });
 }
