@@ -139,6 +139,9 @@ export interface CoachAnswerRequest {
     substance: number;
     overall: number;
   };
+  // Optional — when present, the generated coaching is persisted to
+  // answer_coaching so it can be re-rendered later in Interview History.
+  assessmentId?: string;
 }
 
 export interface MissingEvidencePrompt {

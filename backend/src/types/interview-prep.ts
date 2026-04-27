@@ -100,6 +100,7 @@ export interface SendMessageResponse {
   reply: string;
   irsScore: IRSScore;
   isComplete: boolean;
+  assessmentId?: string;
 }
 
 export interface EvaluateSessionBody {

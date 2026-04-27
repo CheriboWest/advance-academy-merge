@@ -16,6 +16,7 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  Pencil,
 } from 'lucide-react'
 
 interface CvVersionSummary {
@@ -741,6 +742,113 @@ function BulletCard({
   )
 }
 
+function ArtifactRow({
+  artifact,
+  onChanged,
+}: {
+  artifact: BulletWithGaps['gaps'][number]['artifacts'][number]
+  onChanged: () => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(artifact.contentText ?? '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const startEdit = () => {
+    setText(artifact.contentText ?? '')
+    setErr(null)
+    setEditing(true)
+  }
+
+  const cancel = () => {
+    setEditing(false)
+    setErr(null)
+  }
+
+  const save = async () => {
+    if (!text.trim() || text.trim() === artifact.contentText?.trim()) {
+      setEditing(false)
+      return
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      const res = await authedFetch(`/api/cv-library/artifacts/${artifact.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.trim() }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || 'Failed to update')
+      }
+      setEditing(false)
+      onChanged()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="border border-emerald-200 bg-emerald-50/30 rounded p-2">
+        <p className="text-[10px] uppercase tracking-wide text-emerald-700 font-semibold mb-1">
+          Editing {artifact.sourceType}
+        </p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={4}
+          disabled={busy}
+          className="w-full p-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 resize-y min-h-20 bg-white"
+        />
+        {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
+        <div className="flex items-center gap-2 mt-2">
+          <button
+            onClick={save}
+            disabled={busy || !text.trim()}
+            className="px-3 py-1 text-xs bg-emerald-700 text-white rounded font-medium hover:bg-emerald-600 disabled:opacity-40"
+          >
+            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
+          </button>
+          <button
+            onClick={cancel}
+            disabled={busy}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            Cancel
+          </button>
+          {busy && (
+            <span className="text-xs text-gray-500 italic">
+              Re-summarising — this may take a few seconds…
+            </span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  const preview =
+    artifact.contentText?.slice(0, 200) || artifact.sourceUrl || '(no content)'
+
+  return (
+    <div className="flex items-start gap-2 group">
+      <p className="flex-1 text-xs text-emerald-700 line-clamp-2">
+        ✓ {artifact.sourceType.toUpperCase()}: {preview}
+      </p>
+      <button
+        onClick={startEdit}
+        className="flex items-center gap-1 text-xs text-gray-400 hover:text-emerald-700 shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+        title="Edit this answer"
+      >
+        <Pencil className="w-3 h-3" /> Edit
+      </button>
+    </div>
+  )
+}
+
 function GapForm({
   gap,
   onChanged,
@@ -820,11 +928,9 @@ function GapForm({
       </div>
 
       {gap.artifacts.length > 0 && (
-        <div className="mb-2 space-y-1">
+        <div className="mb-2 space-y-2">
           {gap.artifacts.map((a) => (
-            <p key={a.id} className="text-xs text-emerald-700 line-clamp-2">
-              ✓ {a.sourceType.toUpperCase()}: {a.contentText?.slice(0, 200) || a.sourceUrl || '(file)'}
-            </p>
+            <ArtifactRow key={a.id} artifact={a} onChanged={onChanged} />
           ))}
         </div>
       )}
