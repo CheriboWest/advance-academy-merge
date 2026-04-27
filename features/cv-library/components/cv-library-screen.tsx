@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { authedFetch } from '@/shared/auth/authed-fetch'
 import {
   Loader2,
@@ -221,16 +221,56 @@ export function CvLibraryScreen() {
 
 // ── Upload card (Phase 1) ───────────────────────────────────────────────────
 
+// Asymptotic progress curve: rises fast at first, plateaus near 90%.
+// Honest because it never claims to know when it'll finish — it just visualises
+// elapsed-time-vs-typical-duration without lying with an ETA.
+// progress(t) = CEILING * (1 - exp(-t / TAU))
+//   - TAU=12s → ~57% at 12s, ~82% at 24s, ~91% at 36s, ~95% at 48s
+//   - CEILING=92 keeps a visible gap until the real response arrives
+const PROGRESS_TAU_MS = 12_000
+const PROGRESS_CEILING = 92
+
+function phaseLabel(elapsedMs: number): string {
+  if (elapsedMs < 2_500) return 'Reading your file…'
+  if (elapsedMs < 8_000) return 'Analysing your CV with AI…'
+  if (elapsedMs < 25_000) return 'Extracting your bullet points…'
+  return 'Finding similar bullets from your past CVs…'
+}
+
 function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) {
   const [name, setName] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [progress, setProgress] = useState(0)
+  const [phase, setPhase] = useState('')
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const stopProgress = useCallback(() => {
+    if (tickRef.current) {
+      clearInterval(tickRef.current)
+      tickRef.current = null
+    }
+  }, [])
+
+  useEffect(() => stopProgress, [stopProgress])
 
   const submit = async () => {
     if (!file || !name.trim()) return
     setBusy(true)
     setErr(null)
+    setProgress(0)
+    setPhase('Reading your file…')
+
+    const startedAt = performance.now()
+    stopProgress()
+    tickRef.current = setInterval(() => {
+      const elapsed = performance.now() - startedAt
+      const target = PROGRESS_CEILING * (1 - Math.exp(-elapsed / PROGRESS_TAU_MS))
+      setProgress((prev) => (target > prev ? target : prev))
+      setPhase(phaseLabel(elapsed))
+    }, 200)
+
     try {
       const fd = new FormData()
       fd.append('name', name.trim())
@@ -241,10 +281,18 @@ function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) 
         throw new Error(data?.error || data?.message || 'Upload failed')
       }
       const data: Phase1Response = await res.json()
+      stopProgress()
+      setProgress(100)
+      setPhase('Done!')
+      // Brief pause so the user sees the bar reach 100% before we navigate.
+      await new Promise((r) => setTimeout(r, 250))
       setName('')
       setFile(null)
       onParsed(data)
     } catch (e) {
+      stopProgress()
+      setProgress(0)
+      setPhase('')
       setErr(e instanceof Error ? e.message : 'Upload failed')
     } finally {
       setBusy(false)
@@ -286,6 +334,26 @@ function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) 
           )}
         </button>
       </div>
+      {busy && (
+        <div className="mt-3" aria-live="polite">
+          <div
+            className="h-2 w-full bg-blue-100 rounded-full overflow-hidden"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(progress)}
+          >
+            <div
+              className="h-full bg-blue-900 transition-[width] duration-200 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="mt-1.5 flex items-center justify-between text-xs text-blue-900/70">
+            <span>{phase}</span>
+            <span className="tabular-nums">{Math.round(progress)}%</span>
+          </div>
+        </div>
+      )}
       {err && (
         <p className="mt-2 text-xs text-red-600 flex items-center gap-1.5">
           <AlertCircle className="w-3.5 h-3.5" /> {err}
