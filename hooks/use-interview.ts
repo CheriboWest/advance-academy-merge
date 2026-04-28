@@ -10,6 +10,7 @@ import type {
   InterviewMessage,
   IRSScore,
   CoachResult,
+  CoachPreview,
 } from '@/features/interview-prep/types'
 
 const STORAGE_KEY = 'interview_sessions'
@@ -206,13 +207,72 @@ export function useInterview() {
     }
   }, [session, input, loading])
 
-  const requestCoach = useCallback(
+  // Phase 1: pull the embedding-retrieved bullets + gaps + RAW artifacts
+  // for the user to review. No LLM tokens spent here.
+  const requestCoachPreview = useCallback(
     async (messageId: string) => {
       if (!session) return
       const msg = session.messages.find((m) => m.id === messageId)
       if (!msg || msg.role !== 'candidate' || !msg.questionAsked) return
       try {
-        const res = await authedFetch('/api/interview/coach-answer', {
+        const res = await authedFetch('/api/interview/coach-answer/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: msg.questionAsked }),
+        })
+        if (!res.ok) {
+          throw new Error(await readErrorMessage(res, 'Failed to load preview'))
+        }
+        const coachPreview: CoachPreview = await res.json()
+        setSession((prev) =>
+          prev
+            ? {
+                ...prev,
+                messages: prev.messages.map((m) =>
+                  m.id === messageId ? { ...m, coachPreview } : m,
+                ),
+              }
+            : null,
+        )
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Coach preview failed')
+      }
+    },
+    [session],
+  )
+
+  // Lightweight helper: replace the preview on a message after the user adds
+  // a picker bullet (so we keep its loaded gaps + raw artifacts client-side
+  // without re-running embedding retrieval).
+  const setCoachPreview = useCallback((messageId: string, coachPreview: CoachPreview) => {
+    setSession((prev) =>
+      prev
+        ? {
+            ...prev,
+            messages: prev.messages.map((m) =>
+              m.id === messageId ? { ...m, coachPreview } : m,
+            ),
+          }
+        : null,
+    )
+  }, [])
+
+  // Phase 2: take the user's edited bullet selection + conversation history
+  // and run the LLM rewriter. selectedBulletIds defaults to whatever's in the
+  // current preview when the user hasn't toggled anything.
+  const requestCoachGenerate = useCallback(
+    async (messageId: string, selectedBulletIds: string[]) => {
+      if (!session) return
+      const msg = session.messages.find((m) => m.id === messageId)
+      if (!msg || msg.role !== 'candidate' || !msg.questionAsked) return
+      // Build conversation history: every turn BEFORE the message we're enhancing.
+      const idx = session.messages.findIndex((m) => m.id === messageId)
+      const priorTurns = (idx >= 0 ? session.messages.slice(0, idx) : []).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }))
+      try {
+        const res = await authedFetch('/api/interview/coach-answer/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -223,6 +283,8 @@ export function useInterview() {
               jobDescription: session.context.jobDescription,
               companyName: session.context.companyName,
             },
+            selectedBulletIds,
+            conversationHistory: priorTurns,
             irsScore: msg.irsScore && {
               integrity: msg.irsScore.integrity.score,
               relevance: msg.irsScore.relevance.score,
@@ -252,7 +314,7 @@ export function useInterview() {
   )
 
   const submitJitClarification = useCallback(
-    async (messageId: string, promptIndex: number, answer: string) => {
+    async (messageId: string, promptIndex: number, answer: string, selectedBulletIds: string[]) => {
       if (!session) return
       const msg = session.messages.find((m) => m.id === messageId)
       if (!msg?.coach) return
@@ -269,12 +331,13 @@ export function useInterview() {
           }),
         })
         // After saving, re-run the coach so the placeholder disappears.
-        await requestCoach(messageId)
+        // Reuse the user's already-curated selection — don't re-run preview.
+        await requestCoachGenerate(messageId, selectedBulletIds)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to save clarification')
       }
     },
-    [session, requestCoach],
+    [session, requestCoachGenerate],
   )
 
   const evaluateSession = useCallback(async (sessionToEvaluate: InterviewSession) => {
@@ -413,7 +476,9 @@ export function useInterview() {
     reset,
     lastScore,
     candidateAnswerCount,
-    requestCoach,
+    requestCoachPreview,
+    requestCoachGenerate,
+    setCoachPreview,
     submitJitClarification,
     transcribeAudio,
     transcribing,

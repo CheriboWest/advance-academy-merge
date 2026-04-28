@@ -81,23 +81,6 @@ ${rawArtifactText.slice(0, 15000)}
 """`;
 }
 
-export function buildBulletRelevancePrompt(
-  question: string,
-  bullets: Array<{ id: string; section: string | null; text: string }>,
-): string {
-  return `You are picking which CV bullets are most relevant to a single interview question, so a coaching tool can pull the right evidence.
-
-Return ONLY valid JSON:
-{ "bulletIds": ["...", "...", "..."] }
-
-Pick the 1-3 most relevant bullets. If none are clearly relevant, return an empty array.
-
-Interview question: "${question}"
-
-Bullets:
-${bullets.map((b) => `- [${b.id}] (${b.section ?? 'n/a'}) ${b.text}`).join('\n')}`;
-}
-
 export interface CoachEvidenceBlock {
   bulletId: string;
   bulletText: string;
@@ -110,26 +93,41 @@ export interface CoachEvidenceBlock {
   }>;
 }
 
+export interface CoachConversationTurn {
+  role: 'interviewer' | 'candidate';
+  content: string;
+}
+
+export interface CoachIrsRationale {
+  integrity?: string | null;
+  relevance?: string | null;
+  substance?: string | null;
+}
+
 export function buildCoachAnswerPrompt(args: {
   question: string;
   answer: string;
   jobTitle: string;
   jobDescription: string;
   companyName: string;
-  cvBullets: Array<{ section: string | null; text: string }>;
+  conversationHistory: CoachConversationTurn[];
+  irsScore?: { integrity: number; relevance: number; substance: number; overall: number };
+  irsRationale?: CoachIrsRationale;
   evidence: CoachEvidenceBlock[];
 }): { system: string; user: string } {
   const system = `You are an interview coach producing an enhanced version of a candidate's answer.
 
 CRITICAL RULES — read carefully:
-1. You may ONLY use facts from the evidence pool below: (a) the candidate's own answer, (b) their CV bullets, (c) the attached evidence blocks.
+1. You may ONLY use facts from: (a) the candidate's own answer, (b) the EVIDENCE POOL (the bullets the user picked + their attached artifact summaries).
 2. NEVER invent metrics, dates, team sizes, tech stacks, client names, percentages, or outcomes.
 3. If a fact is missing that would strengthen the answer, write a placeholder of the form
    [CANDIDATE TO FILL: <bulletId>|<short specific question>]
-   Use bulletId from the evidence pool when the placeholder relates to a specific bullet.
+   Use bulletId from the EVIDENCE POOL when the placeholder relates to a specific bullet.
    Use "none" as the bulletId if the placeholder isn't tied to one bullet.
 4. Use STAR structure (Situation, Task, Action, Result) where it fits.
 5. Match the candidate's voice. First person.
+6. Use the IRS FEEDBACK below to prioritise improvements: if Substance scored low, lean harder on metrics from the evidence; if Relevance scored low, tie the answer back to the interview question and the JD; if Integrity scored low, stay closer to what the candidate actually said.
+7. Use the CONVERSATION HISTORY for coherence — don't reuse phrasing the candidate already used in earlier turns and don't contradict facts they already stated.
 
 Return ONLY valid JSON:
 {
@@ -142,36 +140,52 @@ Return ONLY valid JSON:
 
   const evidenceBlock =
     args.evidence.length === 0
-      ? '(no attached evidence — rely on CV bullets and candidate answer only)'
+      ? '(no attached evidence — the user did not select any CV bullets; rely on the candidate answer alone and surface placeholders for missing facts)'
       : args.evidence
           .map(
             (e) =>
               `--- Bullet [${e.bulletId}] (${e.section ?? 'n/a'}): "${e.bulletText}"\n` +
-              e.artifacts
-                .map(
-                  (a, i) =>
-                    `  Artifact ${i + 1}:\n` +
-                    `    overview: ${a.overview}\n` +
-                    `    my_contribution: ${a.my_contribution}\n` +
-                    `    concrete_facts: ${a.concrete_facts.join('; ')}\n` +
-                    `    metrics: ${a.metrics.join('; ')}`,
-                )
-                .join('\n'),
+              (e.artifacts.length === 0
+                ? '  (no attached artifacts for this bullet)'
+                : e.artifacts
+                    .map(
+                      (a, i) =>
+                        `  Artifact ${i + 1}:\n` +
+                        `    overview: ${a.overview}\n` +
+                        `    my_contribution: ${a.my_contribution}\n` +
+                        `    concrete_facts: ${a.concrete_facts.join('; ')}\n` +
+                        `    metrics: ${a.metrics.join('; ')}`,
+                    )
+                    .join('\n')),
           )
           .join('\n\n');
 
-  const cvBlock = args.cvBullets.length
-    ? args.cvBullets.map((b) => `- (${b.section ?? 'n/a'}) ${b.text}`).join('\n')
-    : '(no CV bullets available)';
+  const historyBlock = args.conversationHistory.length
+    ? args.conversationHistory
+        .map((t) => `${t.role === 'interviewer' ? 'Interviewer' : 'Candidate'}: ${t.content}`)
+        .join('\n')
+    : '(no prior turns in this session)';
+
+  const irsBlock = args.irsScore
+    ? [
+        `Integrity ${args.irsScore.integrity}/10${args.irsRationale?.integrity ? ` — ${args.irsRationale.integrity}` : ''}`,
+        `Relevance ${args.irsScore.relevance}/10${args.irsRationale?.relevance ? ` — ${args.irsRationale.relevance}` : ''}`,
+        `Substance ${args.irsScore.substance}/10${args.irsRationale?.substance ? ` — ${args.irsRationale.substance}` : ''}`,
+        `Overall ${args.irsScore.overall}/10`,
+      ].join('\n')
+    : '(no IRS scoring available for this answer)';
 
   const user = `JOB TITLE: ${args.jobTitle}
 COMPANY: ${args.companyName}
 JOB DESCRIPTION: ${args.jobDescription}
 
-CV BULLETS:
-${cvBlock}
+CONVERSATION HISTORY (most recent last):
+${historyBlock}
 
-EVIDENCE POOL:
+IRS FEEDBACK ON THE CANDIDATE'S ORIGINAL ANSWER:
+${irsBlock}
+
+EVIDENCE POOL (only the bullets the user picked, with their artifact summaries):
 ${evidenceBlock}
 
 INTERVIEW QUESTION: ${args.question}

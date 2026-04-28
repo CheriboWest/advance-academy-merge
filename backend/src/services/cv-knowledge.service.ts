@@ -15,7 +15,6 @@ import {
   buildBulletExtractionPrompt,
   buildGapPrompt,
   buildArtifactSummaryPrompt,
-  buildBulletRelevancePrompt,
 } from '../lib/cv-knowledge/prompts.js';
 import type {
   ArtifactSummary,
@@ -24,7 +23,6 @@ import type {
   CvVersionRow,
   CvVersionSummary,
   DetectedField,
-  CvBulletRow,
   SimilarBulletCandidate,
   ParsedBulletWithCandidates,
   CvUploadPhase1Response,
@@ -285,28 +283,45 @@ export async function createCvVersionFromFile(
 
 // ── Similarity search ───────────────────────────────────────────────────────
 
+// Bullet-merge similarity threshold. 0.40 drops bullets that aren't plausibly
+// describing the same achievement, so the merge UI never invites the user to
+// merge unrelated work. Used by both:
+//   - the CV-Library "Merge" button on a saved bullet
+//   - the CV-upload phase-1 merge-candidate detection
+// Coach-answer retrieval uses its own threshold (0.50) via
+// findRelevantBulletsForCoach below.
+export const MERGE_SIMILARITY_THRESHOLD = 0.4;
+
 export async function findSimilarBullets(
   userId: string,
   bulletText: string,
   limit: number = 5,
 ): Promise<SimilarBulletCandidate[]> {
-  const embedding = await embedText(bulletText, 'query');
+  return findSimilarBulletsByEmbedding(userId, bulletText, MERGE_SIMILARITY_THRESHOLD, limit);
+}
+
+async function findSimilarBulletsByEmbedding(
+  userId: string,
+  text: string,
+  threshold: number,
+  limit: number,
+): Promise<SimilarBulletCandidate[]> {
+  const embedding = await embedText(text, 'query');
   if (!embedding) return [];
 
   const supabase = getSupabase();
-
-  // pgvector cosine distance query
   const embeddingStr = `[${embedding.join(',')}]`;
+
   const { data, error } = await supabase.rpc('match_bullets', {
     query_embedding: embeddingStr,
     match_user_id: userId,
+    match_threshold: threshold,
     match_count: limit,
   });
 
   if (error) {
-    // Fallback: if RPC doesn't exist yet, try raw query via REST
-    console.error('[cv-knowledge] match_bullets RPC failed, trying direct query', error);
-    return findSimilarBulletsDirect(userId, embeddingStr, limit);
+    console.error('[cv-knowledge] match_bullets RPC failed, falling back to direct query', error);
+    return findSimilarBulletsDirect(userId, limit);
   }
 
   return (data ?? []).map((row: any) => ({
@@ -319,9 +334,20 @@ export async function findSimilarBullets(
   }));
 }
 
+// Coach-answer retrieval: top-K bullets above a similarity threshold.
+// Threshold filters out obviously-unrelated bullets so the LLM evidence pool
+// stays grounded; cap at `limit` (typically 5) to keep prompt size predictable.
+export async function findRelevantBulletsForCoach(
+  userId: string,
+  question: string,
+  threshold: number,
+  limit: number,
+): Promise<SimilarBulletCandidate[]> {
+  return findSimilarBulletsByEmbedding(userId, question, threshold, limit);
+}
+
 async function findSimilarBulletsDirect(
   userId: string,
-  embeddingStr: string,
   limit: number,
 ): Promise<SimilarBulletCandidate[]> {
   const supabase = getSupabase();
@@ -656,6 +682,134 @@ export async function listBulletsWithGaps(cvVersionId: string): Promise<BulletWi
   return result;
 }
 
+// Same shape as listBulletsWithGaps but takes a set of bullet ids directly,
+// scoped by user. Used by coach-answer preview to fetch the auto-selected
+// bullets' gaps + RAW artifacts in one go.
+export async function getBulletsWithGapsByIds(
+  userId: string,
+  bulletIds: string[],
+): Promise<BulletWithGaps[]> {
+  if (bulletIds.length === 0) return [];
+  const supabase = getSupabase();
+
+  const { data: bullets, error: bErr } = await supabase
+    .from('cv_bullets')
+    .select('id, bullet_text, section_path, ordinal')
+    .in('id', bulletIds)
+    .eq('user_id', userId);
+  if (bErr) throw Object.assign(new Error(bErr.message), { statusCode: 500 });
+  if (!bullets || bullets.length === 0) return [];
+
+  const validIds = bullets.map((b) => b.id);
+
+  const { data: gaps, error: gErr } = await supabase
+    .from('bullet_gaps')
+    .select('id, bullet_id, question, rationale, ordinal, status')
+    .in('bullet_id', validIds)
+    .order('ordinal', { ascending: true });
+  if (gErr) throw Object.assign(new Error(gErr.message), { statusCode: 500 });
+
+  const gapList = gaps ?? [];
+  const gapIds = gapList.map((g) => g.id);
+
+  const artifactsByGapId = new Map<string, BulletArtifactRow[]>();
+  if (gapIds.length > 0) {
+    const { data: artifacts, error: artErr } = await supabase
+      .from('bullet_artifacts')
+      .select('id, gap_id, source_type, content_text, source_url, summary_json, created_at')
+      .in('gap_id', gapIds)
+      .order('created_at', { ascending: true });
+    if (artErr) throw Object.assign(new Error(artErr.message), { statusCode: 500 });
+    for (const a of (artifacts ?? []) as BulletArtifactRow[]) {
+      const list = artifactsByGapId.get(a.gap_id) ?? [];
+      list.push(a);
+      artifactsByGapId.set(a.gap_id, list);
+    }
+  }
+
+  const gapsByBulletId = new Map<string, typeof gapList>();
+  for (const g of gapList) {
+    const list = gapsByBulletId.get(g.bullet_id) ?? [];
+    list.push(g);
+    gapsByBulletId.set(g.bullet_id, list);
+  }
+
+  // Preserve the order callers passed (so coach-answer can keep similarity ordering).
+  const order = new Map(bulletIds.map((id, i) => [id, i]));
+  const sorted = [...bullets].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+
+  return sorted.map((b) => ({
+    id: b.id,
+    sectionPath: b.section_path,
+    bulletText: b.bullet_text,
+    ordinal: b.ordinal ?? 0,
+    gaps: (gapsByBulletId.get(b.id) ?? []).map((g) => ({
+      id: g.id,
+      question: g.question,
+      rationale: g.rationale,
+      ordinal: g.ordinal,
+      status: g.status,
+      artifacts: (artifactsByGapId.get(g.id) ?? []).map((a) => ({
+        id: a.id,
+        sourceType: a.source_type,
+        contentText: a.content_text,
+        sourceUrl: a.source_url,
+        summary: a.summary_json,
+        createdAt: a.created_at,
+      })),
+    })),
+  }));
+}
+
+// Lightweight list of every bullet in the user's pool — for the coach-answer
+// "add bullet" picker. Carries gap counts so the UI can show "X/Y gaps filled"
+// without a follow-up query.
+export interface UserBulletSummary {
+  id: string;
+  bulletText: string;
+  sectionPath: string | null;
+  gapCount: number;
+  answeredGapCount: number;
+}
+
+export async function listUserBulletSummaries(userId: string): Promise<UserBulletSummary[]> {
+  const supabase = getSupabase();
+
+  const { data: bullets, error } = await supabase
+    .from('cv_bullets')
+    .select('id, bullet_text, section_path')
+    .eq('user_id', userId)
+    .order('ordinal', { ascending: true });
+  if (error) throw Object.assign(new Error(error.message), { statusCode: 500 });
+  if (!bullets || bullets.length === 0) return [];
+
+  const ids = bullets.map((b) => b.id);
+  const { data: gapRows, error: gErr } = await supabase
+    .from('bullet_gaps')
+    .select('bullet_id, status')
+    .in('bullet_id', ids);
+  if (gErr) throw Object.assign(new Error(gErr.message), { statusCode: 500 });
+
+  const totals = new Map<string, { total: number; answered: number }>();
+  for (const g of gapRows ?? []) {
+    const t = totals.get(g.bullet_id) ?? { total: 0, answered: 0 };
+    t.total++;
+    if (g.status === 'answered') t.answered++;
+    totals.set(g.bullet_id, t);
+  }
+
+  return bullets.map((b) => {
+    const t = totals.get(b.id) ?? { total: 0, answered: 0 };
+    return {
+      id: b.id,
+      bulletText: b.bullet_text,
+      sectionPath: b.section_path,
+      gapCount: t.total,
+      answeredGapCount: t.answered,
+    };
+  });
+}
+
 // ── Add an artifact to a gap (text only) ────────────────────────────────────
 
 // Re-summarise an artifact's raw text. Short blurbs skip the LLM and use a
@@ -803,64 +957,3 @@ export async function recordJitClarification(args: {
   await addArtifactToGap(gapId, { sourceType: 'jit_clarification', text: args.answer });
 }
 
-// ── Pick relevant bullets — now queries the ENTIRE user pool ────────────────
-
-export async function getRelevantBulletsForQuestion(
-  _cvVersionId: string,
-  interviewQuestion: string,
-  userId: string,
-): Promise<CvBulletRow[]> {
-  const supabase = getSupabase();
-
-  // Query ALL bullets for the user (the whole pool), not just one CV version
-  const { data: bullets } = await supabase
-    .from('cv_bullets')
-    .select('id, cv_version_id, section_path, bullet_text, ordinal, created_at')
-    .eq('user_id', userId)
-    .order('ordinal', { ascending: true });
-  if (!bullets || bullets.length === 0) return [];
-
-  if (bullets.length <= 4) return bullets as CvBulletRow[];
-
-  try {
-    const ranked = await llmJson<{ bulletIds: string[] }>(
-      buildBulletRelevancePrompt(
-        interviewQuestion,
-        bullets.map((b) => ({ id: b.id, section: b.section_path, text: b.bullet_text })),
-      ),
-    );
-    const idSet = new Set(ranked.bulletIds ?? []);
-    const picked = bullets.filter((b) => idSet.has(b.id));
-    return (picked.length > 0 ? picked : bullets.slice(0, 3)) as CvBulletRow[];
-  } catch {
-    return bullets.slice(0, 3) as CvBulletRow[];
-  }
-}
-
-// Fetch artifacts (their summary_json) for a list of bullets — unchanged
-export async function getArtifactsForBullets(
-  bulletIds: string[],
-): Promise<Map<string, ArtifactSummary[]>> {
-  const supabase = getSupabase();
-  const result = new Map<string, ArtifactSummary[]>();
-  if (bulletIds.length === 0) return result;
-  const { data: gaps } = await supabase
-    .from('bullet_gaps')
-    .select('id, bullet_id')
-    .in('bullet_id', bulletIds);
-  if (!gaps || gaps.length === 0) return result;
-  const gapToBullet = new Map<string, string>(gaps.map((g) => [g.id, g.bullet_id]));
-  const { data: artifacts } = await supabase
-    .from('bullet_artifacts')
-    .select('gap_id, summary_json')
-    .in('gap_id', gaps.map((g) => g.id));
-  for (const a of artifacts ?? []) {
-    if (!a.summary_json) continue;
-    const bulletId = gapToBullet.get(a.gap_id);
-    if (!bulletId) continue;
-    const list = result.get(bulletId) ?? [];
-    list.push(a.summary_json as ArtifactSummary);
-    result.set(bulletId, list);
-  }
-  return result;
-}

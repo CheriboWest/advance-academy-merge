@@ -53,6 +53,43 @@ export interface CoachResult {
   missingEvidencePrompts: MissingEvidencePrompt[]
 }
 
+// Coach preview — shown to the user BEFORE the LLM rewriter runs, so they can
+// edit which bullets / evidence is sent. Carries RAW artifact text (not the
+// summary) for the user; the LLM only ever sees summaries.
+export interface CoachPreviewBullet {
+  id: string
+  bulletText: string
+  sectionPath: string | null
+  similarity: number
+  gaps: Array<{
+    id: string
+    question: string
+    status: 'open' | 'answered' | 'skipped'
+    artifacts: Array<{
+      id: string
+      sourceType: 'text' | 'file' | 'url' | 'jit_clarification'
+      contentText: string | null
+      sourceUrl: string | null
+      createdAt: string
+    }>
+  }>
+}
+
+export interface UserBulletSummaryDto {
+  id: string
+  bulletText: string
+  sectionPath: string | null
+  gapCount: number
+  answeredGapCount: number
+}
+
+export interface CoachPreview {
+  selectedBulletIds: string[]
+  bullets: CoachPreviewBullet[]
+  allBullets: UserBulletSummaryDto[]
+  threshold: number
+}
+
 export interface InterviewMessage {
   id: string
   role: 'interviewer' | 'candidate'
@@ -61,6 +98,9 @@ export interface InterviewMessage {
   irsScore?: IRSScore
   questionAsked?: string
   coach?: CoachResult
+  // The retrieval/preview pane the user sees before generating. Persisted
+  // on the message so toggling the panel doesn't refetch.
+  coachPreview?: CoachPreview
   // DB id of the persisted answer_assessments row — needed so a follow-up
   // coach-answer call can be linked to it for storage in answer_coaching.
   assessmentId?: string

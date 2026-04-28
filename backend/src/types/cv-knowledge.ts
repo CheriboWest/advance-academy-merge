@@ -124,7 +124,54 @@ export interface CvFinalizeResponse {
   gapCount: number;
 }
 
-export interface CoachAnswerRequest {
+// ── Coach-answer (two-phase: preview → generate) ────────────────────────────
+
+export interface CoachPreviewRequest {
+  question: string;
+}
+
+// Same as BulletWithGaps but only the fields the preview UI needs, plus
+// similarity. Carries RAW artifact content_text so the user can read it
+// directly in the modal (raw text is intentionally NOT sent to the LLM).
+export interface CoachPreviewBullet {
+  id: string;
+  bulletText: string;
+  sectionPath: string | null;
+  similarity: number;
+  gaps: Array<{
+    id: string;
+    question: string;
+    status: 'open' | 'answered' | 'skipped';
+    artifacts: Array<{
+      id: string;
+      sourceType: BulletArtifactRow['source_type'];
+      contentText: string | null;
+      sourceUrl: string | null;
+      createdAt: string;
+    }>;
+  }>;
+}
+
+export interface UserBulletSummaryDto {
+  id: string;
+  bulletText: string;
+  sectionPath: string | null;
+  gapCount: number;
+  answeredGapCount: number;
+}
+
+export interface CoachPreviewResponse {
+  // bulletIds the embedding step preselected (in similarity order, highest first)
+  selectedBulletIds: string[];
+  bullets: CoachPreviewBullet[];
+  // Lightweight pool of every user bullet — used by the picker to add bullets
+  // outside the auto-selected set. Gaps + raw artifacts for picker-added
+  // bullets are loaded on demand via GET /api/cv-library/bullets/:id/details.
+  allBullets: UserBulletSummaryDto[];
+  threshold: number;
+}
+
+export interface CoachGenerateRequest {
   question: string;
   answer: string;
   context: {
@@ -132,7 +179,15 @@ export interface CoachAnswerRequest {
     jobDescription: string;
     companyName: string;
   };
-  cvVersionId?: string;
+  // The user-edited bullet selection (may include picker-added bullets that
+  // weren't in the embedding-preselected set).
+  selectedBulletIds: string[];
+  // Most recent conversation turns from the active session (capped on the
+  // server). Sent as-is so the LLM can stay coherent across the interview.
+  conversationHistory: Array<{ role: 'interviewer' | 'candidate'; content: string }>;
+  // Optional — present once the candidate answer has been IRS-scored.
+  // assessmentId is sufficient: the server pulls the rationale from
+  // answer_assessments.rationale_json itself.
   irsScore?: {
     integrity: number;
     relevance: number;

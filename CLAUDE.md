@@ -82,6 +82,10 @@ Earlier versions kept interview-prep LLM + DB calls inside Next.js route handler
 
 `startInterviewSession` and `sendInterviewMessage` in `backend/src/services/interview.service.ts` use Anthropic prompt caching (1-hour TTL) on two breakpoints: (1) the system block holding `persona.systemPrompt + buildContextPreamble(JD + CV)` (~3500–5700 tokens — the static prefix that's identical across all turns of one session); and (2) the last assistant message in the conversation (multi-turn caching, so the growing history caches turn-over-turn). The `[IMPORTANT: This is the final exchange]` addendum is intentionally placed in a **separate, uncached** system text block — keep it that way, otherwise concatenating it into the cached prefix invalidates the cache on the final turn. Both calls log `[interview-prep:start]` / `[interview-prep:turn]` lines with `cache_read` / `cache_write` token counts so you can verify hits in dev. `scoreAnswer` (irs-scoring.ts) and `generateFeedbackReport` (feedback-engine.service.ts) are intentionally **not** cached — see `docs/INTERVIEW_PREP_WORKFLOW.md` for the full rationale, the Sonnet 4.0 caching constraints (1024-token min prefix, 4-breakpoint cap, 20-block lookback), and the silent-invalidator audit checklist.
 
+### Coach-answer two-phase flow
+
+`/api/interview/coach-answer` is split into **preview** and **generate** (`backend/src/services/coach-answer.service.ts` + `routes/coach-answer.ts`). Preview runs **embedding-based retrieval** over the user's CV bullet pool — top-K=5, cosine-similarity threshold 0.50, via the `match_bullets` Supabase RPC defined in `supabase/migrations/007_match_bullets_rpc.sql` (HNSW index over `cv_bullets.bullet_embedding`). It returns the preselected bullets with their gaps + **raw artifact text** plus a lightweight pool of every user bullet for an "add bullet" picker — no LLM tokens spent. The user reviews/edits the selection in `CoachPanel` (`features/interview-prep/components/interview-prep-screen.tsx`), then generate runs the rewriter LLM with the user's edited `selectedBulletIds`, the recent conversation history (last 10 turns), the IRS score, and the per-dimension `rationale_json` pulled server-side from `answer_assessments`. Raw artifact `content_text` is intentionally **never** sent to the LLM — only `summary_json`. See `docs/COACH_ANSWER_FLOW.md` for the full sequence diagram, prompt-input table, latency budget, and failure modes (including the `match_bullets` silent-fallback that also affects the CV-Library merge feature when migration 007 isn't applied).
+
 ### Timeouts (know these before debugging hangs)
 
 - Frontend `fetchJson`: 15s; `fetchFormDataJson`: 120s (`shared/api/http-client.ts`)
@@ -106,7 +110,8 @@ A second auth layer lives at the Next.js edge: `middleware.ts` in the repo root 
 - Dream Company: 10 / minute, keyed by IP, via a `RATE_1MIN()` helper (`backend/src/routes/dream-company.ts`)
 - Outreach: 5–20 / minute, keyed by IP (`backend/src/routes/outreach.ts`)
 - **Interview start** (`POST /api/interview` with `action: 'start'`): **5 / hour, keyed by user**. The same route also handles per-turn `action: 'message'` calls — those are explicitly bypassed via `allowList`, otherwise a single 5-question session would self-throttle. (`backend/src/routes/interview.ts`)
-- **Coach answer** (`POST /api/interview/coach-answer`): **1 / minute, keyed by user** (`backend/src/routes/coach-answer.ts`)
+- **Coach answer preview** (`POST /api/interview/coach-answer/preview`): **10 / minute, keyed by user** — embedding retrieval, no LLM, so the cap is loose (`backend/src/routes/coach-answer.ts`)
+- **Coach answer generate** (`POST /api/interview/coach-answer/generate`): **1 / minute, keyed by user** — runs the rewriter LLM (`backend/src/routes/coach-answer.ts`)
 - **Coach understanding generate** (`POST /api/coach-understanding/generate`): **1 / 10 minutes, keyed by user** (`backend/src/routes/coach-understanding.ts`)
 - **Extract job from URL** (`POST /api/interview-prep/extract-job-from-url`): **5 / 10 minutes, keyed by user** (`backend/src/routes/interview-prep.ts`)
 
