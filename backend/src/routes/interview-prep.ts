@@ -2,7 +2,20 @@ import type { FastifyInstance } from 'fastify';
 import { extractJobFromUrl } from '../services/job-extraction.service.js';
 
 export async function registerInterviewPrepRoutes(app: FastifyInstance) {
-  app.post<{ Body: { url?: string } }>('/api/interview-prep/extract-job-from-url', async (request, reply) => {
+  app.post<{ Body: { url?: string } }>('/api/interview-prep/extract-job-from-url', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '10 minutes',
+        keyGenerator: (req) => req.userId ?? req.ip,
+        errorResponseBuilder: (_req, ctx) => ({
+          code: 'RATE_LIMIT_EXCEEDED',
+          scope: 'extract-job-from-url',
+          message: `You've reached the limit of 5 job-URL extractions per 10 minutes. Please wait ${ctx.after} before trying again.`,
+        }),
+      },
+    },
+  }, async (request, reply) => {
     const url = request.body?.url?.trim();
     if (!url) {
       return reply.code(400).send({ error: 'Missing required field: url' });

@@ -24,7 +24,24 @@ function statusOf(error: unknown): number {
 
 export async function registerInterviewRoutes(app: FastifyInstance) {
   // Combined start/message endpoint to mirror the existing client contract.
-  app.post<{ Body: StartSessionBody | SendMessageBody }>('/api/interview', async (request, reply) => {
+  // Rate limit applies only to action === 'start' (5/hour/user). The per-turn
+  // 'message' action is exempt via allowList — a single 5-question session
+  // would otherwise blow the budget on its own messages.
+  app.post<{ Body: StartSessionBody | SendMessageBody }>('/api/interview', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 hour',
+        keyGenerator: (req) => req.userId ?? req.ip,
+        allowList: (req) => (req.body as { action?: string } | undefined)?.action !== 'start',
+        errorResponseBuilder: (_req, ctx) => ({
+          code: 'RATE_LIMIT_EXCEEDED',
+          scope: 'interview-start',
+          message: `You've reached the limit of 5 interviews per hour. Please try again in ${ctx.after}.`,
+        }),
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as (StartSessionBody | SendMessageBody) & { action?: string };
     try {
       if (body?.action === 'start') {

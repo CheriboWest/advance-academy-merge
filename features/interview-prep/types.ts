@@ -161,7 +161,8 @@ export interface SessionExchange {
   relevance_rationale: string | null
   substance_rationale: string | null
   asked_at: string
-  coach: SessionExchangeCoach | null
+  /** All stored coach generations for this answer, newest first. Empty if none. */
+  coaches: SessionExchangeCoach[]
 }
 
 export interface SessionDetail extends SessionListItem {

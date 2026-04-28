@@ -6,7 +6,20 @@ import {
 } from '../services/coach-understanding.service.js';
 
 export async function registerCoachUnderstandingRoutes(app: FastifyInstance) {
-  app.post('/api/coach-understanding/generate', async (request, reply) => {
+  app.post('/api/coach-understanding/generate', {
+    config: {
+      rateLimit: {
+        max: 1,
+        timeWindow: '10 minutes',
+        keyGenerator: (req) => req.userId ?? req.ip,
+        errorResponseBuilder: (_req, ctx) => ({
+          code: 'RATE_LIMIT_EXCEEDED',
+          scope: 'coach-understanding',
+          message: `You can only generate one coach understanding report every 10 minutes. Please wait ${ctx.after} before trying again.`,
+        }),
+      },
+    },
+  }, async (request, reply) => {
     try {
       return await generateCoachUnderstanding(request.userId);
     } catch (error) {

@@ -29,6 +29,13 @@ function saveSessions(sessions: InterviewSession[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
 }
 
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  const data = (await res.json().catch(() => null)) as
+    | { code?: string; message?: string; error?: string }
+    | null
+  return data?.message || data?.error || fallback
+}
+
 export type InterviewMode = 'text' | 'voice'
 
 export function useInterview() {
@@ -72,7 +79,9 @@ export function useInterview() {
         }),
       })
 
-      if (!res.ok) throw new Error('Failed to start session')
+      if (!res.ok) {
+        throw new Error(await readErrorMessage(res, 'Failed to start session'))
+      }
 
       const data = await res.json()
 
@@ -223,7 +232,9 @@ export function useInterview() {
             assessmentId: msg.assessmentId,
           }),
         })
-        if (!res.ok) throw new Error('Failed to coach')
+        if (!res.ok) {
+          throw new Error(await readErrorMessage(res, 'Failed to coach'))
+        }
         const coach: CoachResult = await res.json()
         setSession((prev) =>
           prev
