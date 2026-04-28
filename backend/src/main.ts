@@ -51,6 +51,10 @@ async function bootstrap() {
 
   await app.register(rateLimit, {
     global: false, // opt-in per route only
+    // Fire at preHandler so the route-level keyGenerator can read request.userId
+    // (the auth preHandler below attaches it). Existing IP-keyed routes are
+    // unaffected — request.ip is available at every lifecycle stage.
+    hook: 'preHandler',
     keyGenerator: (request) => request.ip,
     errorResponseBuilder: (_request, context) => ({
       code: 'RATE_LIMIT_EXCEEDED',

@@ -1013,7 +1013,7 @@ function CoachUnderstandingSection({
       const res = await authedFetch('/api/coach-understanding/generate', { method: 'POST' })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data?.error || 'Failed to generate report')
+        throw new Error(data?.message || data?.error || 'Failed to generate report')
       }
       const data: { reportId: string } = await res.json()
       finish()

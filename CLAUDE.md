@@ -15,15 +15,19 @@ Run from the repo root (npm workspaces; `backend` is a workspace):
 - `npx tsc --noEmit` (from repo root) — frontend type check
 - `npm run usage --workspace backend` (also `usage:week`, `usage:month`) — LLM cost report from `cost-log.jsonl`, written by `backend/src/lib/cost-tracker.ts`
 
+**Type checking is split.** There is no combined `typecheck:all` script — frontend (`npx tsc --noEmit` from repo root) and backend (`npm run typecheck --workspace backend`) must be run separately. CI/pre-commit hooks need both.
+
+**Backend env loading is cwd-sensitive.** `npm run dev:backend` resolves to `tsx watch src/main.ts` inside the `backend/` workspace, so `main.ts` looks at `./.env` first (i.e. `backend/.env`) and falls back to `./backend/.env` (`main.ts:24-36`). This means `npm run dev:backend` works from either repo root or `backend/`, but raw `tsx src/main.ts` invocations outside `npm run` will silently miss the env file if launched from the wrong directory.
+
 There is no test runner configured. Env: copy `.env.local.example` → `.env.local` (frontend, mainly `BACKEND_URL`) and `backend/.env.example` → `backend/.env`. Required backend vars: `LLM_API_KEY`, `FRONTEND_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. Feature-specific keys: `GROQ_API_KEY` (Interview Prep voice transcription via Groq Whisper), `JINA_API_KEY` (Outreach + CV Library URL fetching), `EXA_API_KEY` (Outreach search via `lib/exa-client.ts`), `VOYAGE_API_KEY` (embeddings via `lib/voyage.ts`). Optional overrides: `LLM_TIMEOUT_MS`, per-feature LLM keys (`LLM_API_KEY_OUTREACH` covers Dream Company + Outreach, `LLM_API_KEY_CV` for CV Optimizer, `LLM_API_KEY_INTERVIEW` for Interview Prep + CV Library), and per-feature model overrides `LLM_MODEL_DEFAULT` / `LLM_MODEL_CV_OPTIMIZER` / `LLM_MODEL_OUTREACH` / `LLM_MODEL_DREAM_COMPANY` / `LLM_MODEL_INTERVIEW_PREP` (see `backend/src/config/llm.ts`).
 
 ## Architecture
 
 Career-tools web app with five AI features (CV Optimizer, Dream Company Finder, Outreach Generator, Interview Prep, CV Library), all powered by Anthropic Claude. The Outreach Generator and CV Library extractors also use Jina Reader for URL fetching, Exa for web search, and Voyage for embeddings. **Persistence:** Supabase Postgres backs Interview Prep (sessions, assessments, coaching) and the CV Library (versions, bullets, gaps, artifacts, coach answers); the other features remain stateless request/response. **Auth:** Supabase bearer-token auth (see Authentication below). See `docs/ARCHITECTURE.md` for the canonical reference and diagrams; `docs/BACKEND.md`, `docs/FRONTEND.md`, `docs/ADD_A_FEATURE.md`, `docs/CV_KNOWLEDGE_BASE.md`, `docs/COACH_ANSWER_FLOW.md`, `docs/CV_LIBRARY_UPLOAD_FLOW.md`, `docs/PERF_BATCHED_QUERIES.md`, `docs/INTERVIEW_PREP_WORKFLOW.md`, and `docs/CONVENTIONS.md` are also authoritative.
 
-### The 4-layer request flow
+### Request flow (frontend ↔ proxy ↔ backend ↔ LLM)
 
-Every feature follows the same shape — replicate it when adding new ones:
+Every feature follows the same hop chain — replicate it when adding new ones. Conceptually three boundaries (browser → Next.js server → Fastify → LLM), but each boundary has paired client/handler files, so a request touches roughly seven modules end-to-end:
 
 ```
 UI (features/*/components)
@@ -96,10 +100,14 @@ A second auth layer lives at the Next.js edge: `middleware.ts` in the repo root 
 
 ### Rate limiting
 
-`@fastify/rate-limit` is registered globally with `global: false` (opt-in per route) in `backend/src/main.ts`, keyed by client IP, returning `{ code: 'RATE_LIMIT_EXCEEDED', message }` on 429. Current per-route caps:
+`@fastify/rate-limit` is registered globally with `global: false` (opt-in per route) in `backend/src/main.ts`, returning `{ code: 'RATE_LIMIT_EXCEEDED', message }` on 429. The plugin is configured with `hook: 'preHandler'` so route-level `keyGenerator` callbacks can read `request.userId` from the auth preHandler. Current per-route caps:
 
-- CV Optimizer `/analyze`: 5 / 10 minutes (`backend/src/routes/cv-optimizer.ts`)
-- Dream Company: 10 / minute via a `RATE_1MIN()` helper (`backend/src/routes/dream-company.ts`)
-- Outreach: 5–20 / minute depending on endpoint (`backend/src/routes/outreach.ts`)
+- CV Optimizer `/analyze`: 5 / 10 minutes, keyed by IP (`backend/src/routes/cv-optimizer.ts`)
+- Dream Company: 10 / minute, keyed by IP, via a `RATE_1MIN()` helper (`backend/src/routes/dream-company.ts`)
+- Outreach: 5–20 / minute, keyed by IP (`backend/src/routes/outreach.ts`)
+- **Interview start** (`POST /api/interview` with `action: 'start'`): **5 / hour, keyed by user**. The same route also handles per-turn `action: 'message'` calls — those are explicitly bypassed via `allowList`, otherwise a single 5-question session would self-throttle. (`backend/src/routes/interview.ts`)
+- **Coach answer** (`POST /api/interview/coach-answer`): **1 / minute, keyed by user** (`backend/src/routes/coach-answer.ts`)
+- **Coach understanding generate** (`POST /api/coach-understanding/generate`): **1 / 10 minutes, keyed by user** (`backend/src/routes/coach-understanding.ts`)
+- **Extract job from URL** (`POST /api/interview-prep/extract-job-from-url`): **5 / 10 minutes, keyed by user** (`backend/src/routes/interview-prep.ts`)
 
-When adding a new route that hits an LLM, opt it in with a `config.rateLimit` block.
+When adding a new route that hits an LLM, opt it in with a `config.rateLimit` block. For per-user limits, set `keyGenerator: (req) => req.userId ?? req.ip` and provide a route-specific `errorResponseBuilder` so the frontend can show a feature-tailored message — `hooks/use-interview.ts` reads `body.message` from the 429 response and surfaces it in the existing red error banner.

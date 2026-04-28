@@ -20,6 +20,7 @@ import type {
   SessionListItem,
   SessionDetail,
   SessionExchange,
+  SessionExchangeCoach,
   IRSScore,
 } from '@/features/interview-prep/types'
 import { PERSONAS } from '@/data/personas'
@@ -639,7 +640,9 @@ function SelectedAnswerPanel({
         )}
       </div>
 
-      {exchange?.coach && <CoachPanel coach={exchange.coach} />}
+      {exchange && exchange.coaches.length > 0 && (
+        <CoachHistoryPanel coaches={exchange.coaches} />
+      )}
 
       <div className="bg-white border border-gray-200 rounded-xl p-4">
         <h3 className="text-sm font-semibold text-blue-900 mb-3">
@@ -672,17 +675,64 @@ function SelectedAnswerPanel({
   )
 }
 
-// Read-only render of a previously-generated enhanced response.
-function CoachPanel({ coach }: { coach: NonNullable<SessionExchange['coach']> }) {
+// Stacked read-only render of every coach generation stored for this answer.
+// `coaches` is already newest-first (see backend `mapAllCoaches`); we label
+// the latest as "v{N}" so users can tell at a glance which is the most recent.
+function CoachHistoryPanel({ coaches }: { coaches: SessionExchangeCoach[] }) {
+  const total = coaches.length
   return (
-    <div className="bg-white border border-yellow-200 rounded-xl p-4 space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between px-1">
         <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-yellow-500" />
-          Enhanced Response
+          Enhanced Responses
         </h3>
+        <span className="text-xs text-gray-500">
+          {total} version{total === 1 ? '' : 's'}
+        </span>
+      </div>
+      {coaches.map((coach, idxFromNewest) => (
+        <CoachCard
+          key={`${coach.created_at}-${idxFromNewest}`}
+          coach={coach}
+          versionLabel={`v${total - idxFromNewest}`}
+          isLatest={idxFromNewest === 0}
+        />
+      ))}
+    </div>
+  )
+}
+
+function CoachCard({
+  coach,
+  versionLabel,
+  isLatest,
+}: {
+  coach: SessionExchangeCoach
+  versionLabel: string
+  isLatest: boolean
+}) {
+  return (
+    <div
+      className={`rounded-xl p-4 space-y-4 border ${
+        isLatest ? 'bg-white border-yellow-300 shadow-sm' : 'bg-gray-50 border-gray-200'
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums ${
+              isLatest ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-200 text-gray-600'
+            }`}
+          >
+            {versionLabel}
+          </span>
+          {isLatest && (
+            <span className="text-xs font-medium text-yellow-700">Latest</span>
+          )}
+        </div>
         <span className="text-xs text-gray-400" title={coach.created_at}>
-          {formatDate(coach.created_at)}
+          {formatDateTime(coach.created_at)}
         </span>
       </div>
 
@@ -712,7 +762,7 @@ function CoachPanel({ coach }: { coach: NonNullable<SessionExchange['coach']> })
           </div>
           <ul className="space-y-2">
             {coach.missing_evidence_prompts.map((p, i) => (
-              <li key={i} className="text-sm text-gray-700 bg-gray-50 rounded-lg p-2.5">
+              <li key={i} className="text-sm text-gray-700 bg-white rounded-lg p-2.5 border border-gray-100">
                 <p className="font-medium">{p.question}</p>
                 {p.bulletText && (
                   <p className="text-xs text-gray-500 mt-1 italic">

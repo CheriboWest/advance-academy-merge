@@ -25,6 +25,78 @@ interface DbSession {
   jobTargetId: string | null;
 }
 
+interface ActiveCv {
+  id: string;
+  name: string;
+  source_file_path: string | null;
+}
+
+// Returns the user's currently-active CV from the CV Library, if any.
+// We use this for two things on session start:
+//   1) populate candidate_profiles.headline (= cv.name) and .cv_file_path
+//   2) record interview_sessions.cv_version_id for traceability
+async function getActiveCv(userId: string): Promise<ActiveCv | null> {
+  const supabase = safeSupabase();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('cv_versions')
+    .select('id, name, source_file_path')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error('[db] getActiveCv error:', error);
+    return null;
+  }
+  return data ?? null;
+}
+
+async function createCandidateProfile(
+  userId: string,
+  activeCv: ActiveCv | null,
+): Promise<string | null> {
+  const supabase = safeSupabase();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('candidate_profiles')
+    .insert({
+      user_id: userId,
+      headline: activeCv?.name ?? null,
+      cv_file_path: activeCv?.source_file_path ?? null,
+    })
+    .select('id')
+    .single();
+  if (error) {
+    console.error('[db] Failed to create candidate profile:', error);
+    return null;
+  }
+  return data.id;
+}
+
+async function createInterviewPack(
+  jobTargetId: string,
+  candidateProfileId: string,
+  personaId: PersonaId,
+): Promise<string | null> {
+  const supabase = safeSupabase();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from('interview_packs')
+    .insert({
+      job_target_id: jobTargetId,
+      candidate_profile_id: candidateProfileId,
+      persona_id: personaId,
+    })
+    .select('id')
+    .single();
+  if (error) {
+    console.error('[db] Failed to create interview pack:', error);
+    return null;
+  }
+  return data.id;
+}
+
 async function getOrCreateCompany(
   companyName: string,
   companyUrl?: string,
@@ -82,15 +154,23 @@ async function createJobTarget(userId: string,
   return data.id;
 }
 
-export async function dbStartSession(userId: string, 
+export async function dbStartSession(userId: string,
   personaId: PersonaId,
   context: InterviewContext,
 ): Promise<DbSession | null> {
   const supabase = safeSupabase();
   if (!supabase) return null;
   try {
+    // Each helper is best-effort and returns null on failure — a single sub-step
+    // failing must not block session creation. The FKs we can't fill stay null.
+    const activeCv = await getActiveCv(userId);
     const companyId = await getOrCreateCompany(context.companyName, context.companyUrl);
     const jobTargetId = await createJobTarget(userId, companyId, context);
+    const candidateProfileId = await createCandidateProfile(userId, activeCv);
+    const interviewPackId =
+      jobTargetId && candidateProfileId
+        ? await createInterviewPack(jobTargetId, candidateProfileId, personaId)
+        : null;
 
     const { data, error } = await supabase
       .from('interview_sessions')
@@ -98,6 +178,9 @@ export async function dbStartSession(userId: string,
         user_id: userId,
         persona_id: personaId,
         job_target_id: jobTargetId,
+        candidate_profile_id: candidateProfileId,
+        interview_pack_id: interviewPackId,
+        cv_version_id: activeCv?.id ?? null,
         mode: 'live_ai',
         status: 'active',
         context_json: {
@@ -285,7 +368,7 @@ interface SessionExchangeRow {
   relevance_rationale: string | null;
   substance_rationale: string | null;
   asked_at: string;
-  coach: SessionExchangeCoach | null;
+  coaches: SessionExchangeCoach[];
 }
 
 interface RawCoachRow {
@@ -356,26 +439,26 @@ export async function dbGetSession(
       relevance_rationale: row.rationale_json?.relevance ?? null,
       substance_rationale: row.rationale_json?.substance ?? null,
       asked_at: row.interview_questions!.asked_at,
-      coach: pickLatestCoach(row.answer_coaching),
+      coaches: mapAllCoaches(row.answer_coaching),
     }));
 
   return { ...sessionRow, exchanges };
 }
 
 // Multiple coach generations are allowed per assessment (re-coach after JIT
-// clarifications). Surface the most recent.
-function pickLatestCoach(rows: RawCoachRow[] | null): SessionExchangeCoach | null {
-  if (!rows || rows.length === 0) return null;
-  const latest = [...rows].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  )[0];
-  if (!latest.improved_answer) return null;
-  return {
-    critique: latest.critique_json?.critique ?? '',
-    improved_answer: latest.improved_answer,
-    missing_evidence_prompts: latest.critique_json?.missingEvidencePrompts ?? [],
-    created_at: latest.created_at,
-  };
+// clarifications). Return them all, newest first, dropping rows with no
+// improved_answer payload.
+function mapAllCoaches(rows: RawCoachRow[] | null): SessionExchangeCoach[] {
+  if (!rows || rows.length === 0) return [];
+  return [...rows]
+    .filter((r) => Boolean(r.improved_answer))
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map((r) => ({
+      critique: r.critique_json?.critique ?? '',
+      improved_answer: r.improved_answer!,
+      missing_evidence_prompts: r.critique_json?.missingEvidencePrompts ?? [],
+      created_at: r.created_at,
+    }));
 }
 
 export async function dbStoreCoaching(
