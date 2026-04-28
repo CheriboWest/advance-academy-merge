@@ -423,20 +423,82 @@ export function getCoachReportWithBackend(id: string, authToken?: string) {
   )
 }
 
-export function coachAnswerWithBackend(payload: {
-  question: string
-  answer: string
-  context: { jobTitle: string; jobDescription: string; companyName: string }
-  cvVersionId?: string
-  irsScore?: { integrity: number; relevance: number; substance: number; overall: number }
-  assessmentId?: string
-}, authToken?: string) {
+// ── Coach answer (two-phase: preview → generate) ────────────────────────────
+
+export interface CoachPreviewBullet {
+  id: string
+  bulletText: string
+  sectionPath: string | null
+  similarity: number
+  gaps: Array<{
+    id: string
+    question: string
+    status: 'open' | 'answered' | 'skipped'
+    artifacts: Array<{
+      id: string
+      sourceType: 'text' | 'file' | 'url' | 'jit_clarification'
+      contentText: string | null
+      sourceUrl: string | null
+      createdAt: string
+    }>
+  }>
+}
+
+export interface UserBulletSummaryDto {
+  id: string
+  bulletText: string
+  sectionPath: string | null
+  gapCount: number
+  answeredGapCount: number
+}
+
+export interface CoachPreviewResponse {
+  selectedBulletIds: string[]
+  bullets: CoachPreviewBullet[]
+  allBullets: UserBulletSummaryDto[]
+  threshold: number
+}
+
+export function coachAnswerPreviewWithBackend(
+  payload: { question: string },
+  authToken?: string,
+) {
   const { backendUrl } = getServerEnv()
-  return fetchJson<CoachAnswerResponse>(`${backendUrl}/api/interview/coach-answer`, {
+  return fetchJson<CoachPreviewResponse>(`${backendUrl}/api/interview/coach-answer/preview`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: authHeaders(authToken),
+    timeoutMs: 30000,
+  })
+}
+
+export function coachAnswerGenerateWithBackend(
+  payload: {
+    question: string
+    answer: string
+    context: { jobTitle: string; jobDescription: string; companyName: string }
+    selectedBulletIds: string[]
+    conversationHistory: Array<{ role: 'interviewer' | 'candidate'; content: string }>
+    irsScore?: { integrity: number; relevance: number; substance: number; overall: number }
+    assessmentId?: string
+  },
+  authToken?: string,
+) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<CoachAnswerResponse>(`${backendUrl}/api/interview/coach-answer/generate`, {
     method: 'POST',
     body: JSON.stringify(payload),
     headers: authHeaders(authToken),
     timeoutMs: 90000,
+  })
+}
+
+export function getBulletDetailsWithBackend(bulletId: string, authToken?: string) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<BulletWithGaps>(`${backendUrl}/api/cv-library/bullets/${bulletId}/details`, {
+    method: 'GET',
+    headers: authHeaders(authToken),
+    timeoutMs: 15000,
   })
 }
 

@@ -6,6 +6,7 @@ import {
   deleteCvVersion,
   finalizeCvBullets,
   findSimilarBullets,
+  getBulletsWithGapsByIds,
   getCvVersion,
   listBulletsWithGaps,
   listCvVersions,
@@ -103,7 +104,25 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
     }
   });
 
+  // ── Single bullet's gaps + RAW artifacts ──────────────────────────────────
+  // Used by the coach-answer preview UI when the user adds a bullet from the
+  // picker that wasn't in the auto-selected set.
+  app.get<{ Params: { id: string } }>('/api/cv-library/bullets/:id/details', async (request, reply) => {
+    const bulletId = request.params.id;
+    try {
+      const rows = await getBulletsWithGapsByIds(request.userId, [bulletId]);
+      if (rows.length === 0) return reply.code(404).send({ error: 'Bullet not found' });
+      return rows[0];
+    } catch (err) {
+      return sendError(reply, err);
+    }
+  });
+
   // ── Similar bullets for a given bullet ────────────────────────────────────
+  // Returns up to 5 OTHER bullets above the merge similarity threshold,
+  // ordered by similarity descending. Anything below threshold is filtered
+  // server-side in match_bullets, so the response can have fewer than 5
+  // entries (or be empty) when the user has no closely-related bullets.
   app.post('/api/cv-library/bullets/:id/similar', async (request, reply) => {
     const bulletId = (request.params as { id: string }).id;
     try {
@@ -114,9 +133,11 @@ export async function registerCvLibraryRoutes(app: FastifyInstance) {
         .eq('id', bulletId)
         .single();
       if (!bullet) return reply.code(404).send({ error: 'Bullet not found' });
-      const candidates = await findSimilarBullets(bullet.user_id, bullet.bullet_text, 5);
-      // Exclude the bullet itself from results
-      return candidates.filter((c) => c.bulletId !== bulletId);
+      // Fetch 6: the bullet itself always self-matches at similarity=1 and
+      // takes one slot, so we need an extra to guarantee up to 5 OTHER bullets
+      // when enough exist above threshold.
+      const candidates = await findSimilarBullets(bullet.user_id, bullet.bullet_text, 6);
+      return candidates.filter((c) => c.bulletId !== bulletId).slice(0, 5);
     } catch (err) {
       return sendError(reply, err);
     }

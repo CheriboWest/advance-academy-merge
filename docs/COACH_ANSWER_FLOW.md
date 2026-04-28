@@ -4,16 +4,30 @@ End-to-end trace of what happens when a user clicks **See enhanced version** und
 
 The internal name for this feature is **coach-answer**.
 
+> **Note on history.** Before April 2026 this feature was a single LLM call that picked relevant bullets via an LLM-as-ranker prompt, sent the entire CV bullet pool to the rewriter, and gave the user no chance to inspect or edit the evidence before generation. That design is gone. The current flow is a **two-phase preview → generate split** with embedding retrieval, user-editable evidence, conversation history, and IRS-aware rewriting. Search history below for "Why this changed" if you need the rationale.
+
 ## The 30-second summary
 
-Clicking the button fires **one synchronous HTTP request** that runs a 4-stage pipeline on the backend:
+Clicking the button is a **two-phase interaction**, each one HTTP request:
 
-1. Pull the user's **entire CV bullet pool** from Supabase.
-2. **Rank bullets by relevance** to the interview question via a *first* LLM call → pick top 1–3.
-3. Fetch all artifacts attached to those bullets (via the `bullet_gaps` join).
-4. Call Claude *again* with the question, the candidate's answer, the chosen bullets, the artifact summaries, and strict no-fabrication rules → get back `{ critique, improvedAnswer, missingEvidencePrompts[] }`.
+1. **Preview** (`POST /api/interview/coach-answer/preview`). Server runs an embedding query over the user's whole CV bullet pool, picks the top 1–5 above a 0.50 cosine-similarity threshold, and returns those bullets along with their gaps + **raw artifact text** for the user to inspect. No LLM tokens are spent. The user sees a panel showing exactly what the AI coach is about to be shown, and can:
+   - **Toggle bullets off** they don't want sent.
+   - **Add other bullets** from their pool via a search picker (lazy-loads gaps + raw artifacts on add).
+   - **Expand a bullet** to see its gaps and the raw text the user previously supplied as artifacts.
+   - **Edit an artifact in place** (PATCH the existing CV-Library endpoint).
+   - **Add an artifact to an unanswered gap** in place (POST the existing CV-Library endpoint).
 
-The improved answer can contain `[CANDIDATE TO FILL: bulletId|question]` placeholders wherever the LLM thinks a fact is missing. Those placeholders surface as inline JIT (just-in-time) clarification forms in the UI. Saving an answer to one of them re-fires this whole pipeline.
+2. **Generate** (`POST /api/interview/coach-answer/generate`). User clicks the Generate button. Server fetches the **artifact summaries** (not raw text) for the user-edited bullet selection, builds the rewriter prompt with the question + answer + selected evidence + recent conversation history + IRS score + per-dimension rationale, and runs the rewriter LLM. Returns `{ critique, improvedAnswer, missingEvidencePrompts[] }` — same shape as before. Placeholders in `improvedAnswer` of the form `[CANDIDATE TO FILL: bulletId|question]` surface as inline JIT clarification forms; saving any of them re-fires Generate (not Preview) so the user's curated selection is preserved.
+
+## Why this changed
+
+Three concrete problems with the previous flow:
+
+1. **LLM-as-ranker was slow and expensive for what it did.** A 2–6s LLM call to pick 1–3 of N bullets, then another LLM call to do the rewrite. With 1024-dim embeddings already stored on every bullet at insert time, vector search was the obvious replacement.
+2. **The rewriter saw the entire CV pool.** Every coach-answer call sent every bullet from every CV version to the rewriter "for context." This bloated prompts, polluted them with irrelevant material, and contradicted the doc's own claim that retrieval was bullet-level.
+3. **The user had zero control over the evidence pool.** Whatever the LLM ranker picked got fed to the rewriter, full stop. If it picked the wrong bullets, you waited 10–25s, got a bad rewrite, and had to start over. Now the evidence pool is shown to the user *first*, with the underlying raw artifact text, and the rewriter doesn't run until they click Generate.
+
+The change is also why prompts now include conversation history and IRS rationale: once the user can see what's going to the LLM, "what else should the LLM see" becomes a natural design question.
 
 ## High-level diagram
 
@@ -22,93 +36,103 @@ sequenceDiagram
     autonumber
     participant U as User
     participant Panel as CoachPanel<br/>(interview-prep-screen.tsx)
-    participant Hook as useInterview.requestCoach<br/>(hooks/use-interview.ts)
-    participant Proxy as Next.js proxy<br/>app/api/interview/coach-answer
-    participant FA as Fastify route<br/>POST /api/interview/coach-answer
+    participant Hook as useInterview<br/>(hooks/use-interview.ts)
+    participant Proxy as Next.js proxy<br/>app/api/interview/coach-answer/*
+    participant FA as Fastify routes<br/>backend/src/routes/coach-answer.ts
     participant Svc as coach-answer.service
+    participant Voyage as Voyage AI<br/>(query embedding)
     participant DB as Supabase
     participant LLM as Anthropic Claude
 
+    rect rgb(245,250,255)
+    Note over U,DB: Phase 1 — Preview (embedding retrieval, no LLM)
     U->>Panel: Click "See enhanced version"
-    Panel->>Hook: requestCoach(messageId)
-    Hook->>Proxy: POST { question, answer, context, irsScore }
+    Panel->>Hook: requestCoachPreview(messageId)
+    Hook->>Proxy: POST /preview { question }
     Proxy->>FA: forward + Authorization: Bearer
-    FA->>FA: preHandler validates token<br/>→ request.userId
-    FA->>Svc: coachAnswer(body, userId)
-
-    rect rgb(245,245,255)
-    Note over Svc,DB: Stage 1 — Load full bullet pool
-    Svc->>DB: SELECT cv_bullets WHERE user_id = ?<br/>(ALL CV versions, ordered by ordinal)
-    DB-->>Svc: bullets[]
+    FA->>Svc: previewCoachAnswer(req, userId)
+    Svc->>Voyage: embed(question, input_type='query')
+    Voyage-->>Svc: 1024-d vector
+    Svc->>DB: rpc('match_bullets',<br/>{query_embedding, user_id,<br/>threshold=0.5, count=5})
+    DB-->>Svc: top-K bullets + similarity
+    Svc->>DB: SELECT cv_bullets, bullet_gaps,<br/>bullet_artifacts (raw content_text)<br/>WHERE bullet_id IN selected
+    Svc->>DB: SELECT all user bullets<br/>(lightweight summaries for picker)
+    DB-->>Svc: bullets, gaps, artifacts, allBullets
+    Svc-->>FA: CoachPreviewResponse
+    FA-->>Hook: 200 JSON
+    Hook->>Panel: setSession(message.coachPreview = response)
     end
 
-    rect rgb(255,250,235)
-    Note over Svc,LLM: Stage 2 — Rank bullets (1st LLM call)
-    Svc->>LLM: buildBulletRelevancePrompt(question, bullets[])<br/>→ "pick 1–3 bulletIds"
-    LLM-->>Svc: { bulletIds: ["...","...","..."] }
+    rect rgb(255,250,245)
+    Note over U,Panel: User reviews / edits the evidence pool
+    U->>Panel: Toggle bullets, add from picker,<br/>edit/add artifacts inline
+    Panel->>Proxy: PATCH /api/cv-library/artifacts/:id<br/>or POST /api/cv-library/gaps/:id/artifacts<br/>(reuses existing CV-Library endpoints)
+    Note over Panel: Re-fetches the changed bullet's<br/>details to refresh the panel
     end
 
     rect rgb(245,255,245)
-    Note over Svc,DB: Stage 3 — Fetch evidence for chosen bullets
-    Svc->>DB: SELECT bullet_gaps WHERE bullet_id IN (...)
-    DB-->>Svc: gaps[]
-    Svc->>DB: SELECT bullet_artifacts WHERE gap_id IN (...)<br/>(only summary_json — NOT raw content)
-    DB-->>Svc: artifacts[] (parsed summaries)
-    end
-
-    rect rgb(255,245,245)
-    Note over Svc,LLM: Stage 4 — Rewrite the answer (2nd LLM call)
-    Svc->>LLM: buildCoachAnswerPrompt(...)<br/>system: strict no-fabrication rules<br/>user: question, answer, bullets, evidence, JD
-    LLM-->>Svc: { critique, improvedAnswer, missingEvidencePrompts[] }
-    end
-
+    Note over U,LLM: Phase 2 — Generate (LLM rewriter)
+    U->>Panel: Click "Generate enhanced response"
+    Panel->>Hook: requestCoachGenerate(id, selectedBulletIds)
+    Hook->>Proxy: POST /generate { question, answer, context,<br/>selectedBulletIds, conversationHistory,<br/>irsScore, assessmentId }
+    Proxy->>FA: forward + Authorization: Bearer
+    FA->>Svc: generateCoachAnswer(req, userId)
+    Svc->>DB: SELECT cv_bullets WHERE id IN selected
+    Svc->>DB: SELECT bullet_artifacts.summary_json<br/>(NOT raw content_text)
+    Svc->>DB: SELECT rationale_json<br/>FROM answer_assessments<br/>WHERE id = assessmentId
+    Svc->>LLM: buildCoachAnswerPrompt(...)<br/>system: no-fabrication rules<br/>user: history + IRS + evidence + Q&A
+    LLM-->>Svc: { critique, improvedAnswer, missingEvidencePrompts }
+    Svc->>DB: INSERT answer_coaching<br/>(linked to assessmentId)
     Svc-->>FA: CoachAnswerResponse
-    FA-->>Proxy: 200 JSON
-    Proxy-->>Hook: response
+    FA-->>Hook: 200 JSON
     Hook->>Panel: setSession(message.coach = response)
     Panel->>U: Render improved answer<br/>+ JIT forms for placeholders
+    end
 ```
 
 ## What context is fed into the LLM (the part that matters)
 
-This is the critical part of the feature. The "enhanced response" call is a **2-LLM-call pipeline**, and each call sees a different subset of the user's data.
+This is the critical part of the feature. Only the **Generate** call touches the LLM; Preview is pure retrieval.
 
-### Call 1 — Bullet ranker
+### The Generate prompt
 
-[backend/src/lib/cv-knowledge/prompts.ts:84-99](../backend/src/lib/cv-knowledge/prompts.ts#L84-L99)
-
-| Input | Source |
-|---|---|
-| Interview question | The single question being answered (from `msg.questionAsked`) |
-| Whole CV bullet pool | `SELECT id, section_path, bullet_text FROM cv_bullets WHERE user_id = ?` — all versions, all sections |
-
-The model is asked to return up to 3 `bulletIds`. If the user has ≤ 4 bullets total, this LLM call is **skipped** and all bullets are returned. If the LLM call fails or returns no IDs, the fallback is *the first 3 bullets by ordinal*.
-
-**Retrieval shape:** this is **LLM-as-ranker**, not vector similarity. There is no embedding lookup here. The whole pool is sent in the prompt — fine for dozens of bullets, would not scale to thousands.
-
-### Call 2 — Answer rewriter (the actual "enhance")
-
-[backend/src/lib/cv-knowledge/prompts.ts:113-185](../backend/src/lib/cv-knowledge/prompts.ts#L113-L185)
+[backend/src/lib/cv-knowledge/prompts.ts — `buildCoachAnswerPrompt`](../backend/src/lib/cv-knowledge/prompts.ts)
 
 | Input | Source | Notes |
 |---|---|---|
-| `jobTitle`, `companyName`, `jobDescription` | The session context from `useInterview` | Sent verbatim |
-| **All** of the user's CV bullets | Same query as Call 1, formatted as `(section) bullet text` | Yes — sent in *both* LLM calls |
-| **Top 1–3 ranked bullets** | Output of Call 1 | These get the full "evidence block" treatment below |
-| **Artifact summaries** for those bullets | `bullet_gaps` → `bullet_artifacts.summary_json` join | See "Artifact retrieval" below |
-| Interview question | Same as Call 1 | |
+| `jobTitle`, `companyName`, `jobDescription` | The session context | Sent verbatim |
+| **Conversation history** | Last 10 turns from the active session (`COACH_HISTORY_TURNS` in `coach-answer.service.ts`) | NEW — see below |
+| **IRS score + rationale** | `irsScore` from the request body, `rationale_json` from `answer_assessments` row keyed by `assessmentId` | NEW — see below |
+| Selected bullets | The user-edited `selectedBulletIds[]` — top-1-5 from embedding retrieval, then optionally edited by the user | Each bullet contributes its `bullet_text` and `section_path` |
+| Artifact **summaries** for those bullets | `bullet_gaps` → `bullet_artifacts.summary_json` join | See "Artifact retrieval" below |
+| Interview question | The single question being enhanced | |
 | Candidate's original answer | The text the candidate typed/spoke | |
 
-The system prompt enforces three hard rules:
-1. **Only** use facts from the candidate's answer + bullets + evidence blocks.
-2. **Never** invent metrics, dates, team sizes, tech stacks, client names, percentages, or outcomes.
-3. Where a fact is missing, emit a placeholder of the form `[CANDIDATE TO FILL: <bulletId>|<short question>]`.
+The system prompt enforces hard rules:
 
-Output is JSON: `{ critique, improvedAnswer, missingEvidencePrompts[] }`.
+1. **Only** use facts from the candidate's answer + selected bullets + artifact summaries.
+2. **Never** invent metrics, dates, team sizes, tech stacks, client names, percentages, or outcomes.
+3. Where a fact is missing, emit `[CANDIDATE TO FILL: <bulletId>|<short question>]`.
+4. Use STAR structure where it fits.
+5. Match the candidate's voice. First person.
+6. **Use the IRS feedback to prioritise improvements** — if Substance scored low, lean harder on metrics; if Relevance scored low, tie back to the JD; if Integrity scored low, stay closer to what the candidate actually said.
+7. **Use the conversation history for coherence** — don't reuse phrasing the candidate already used in earlier turns and don't contradict facts they already stated.
+
+Output is JSON: `{ critique, improvedAnswer, missingEvidencePrompts[] }` — unchanged from the previous version of this feature.
+
+### Conversation history
+
+The frontend (`hooks/use-interview.ts` `requestCoachGenerate`) takes every message in `session.messages` *before* the message being enhanced and passes them through as `{ role, content }[]`. The server caps that to the last 10 turns (`COACH_HISTORY_TURNS`) — roughly the last 5 question/answer pairs, more than enough for coherence without bloating the prompt.
+
+### IRS score and rationale
+
+`irsScore` (the four numbers — Integrity, Relevance, Substance, Overall) is sent in the request body straight from `message.irsScore` on the frontend. `rationale_json` (the per-dimension explanation strings) lives in the `answer_assessments` table and is loaded server-side by `loadIrsRationale(assessmentId)` — keeping the wire payload smaller and the source of truth in the DB.
+
+If `assessmentId` is missing from the request (e.g. an answer that hasn't been scored yet), the rationale block becomes "(no IRS scoring available for this answer)" and the model proceeds without it. If the score is present but the assessment row has no rationale, the score numbers still appear and the rationale text is just elided.
 
 ### Artifact retrieval — the high-level mental model
 
-Artifacts are pieces of evidence the user uploaded earlier (a paragraph of text, a URL like a project README, or an attached file). When uploaded, each artifact was summarised by an LLM into a structured `summary_json` with four fields:
+Artifacts are pieces of evidence the user uploaded earlier (a paragraph of text, JIT-clarification answers, etc.). When uploaded, each artifact was summarised by an LLM into a structured `summary_json` with four fields:
 
 ```ts
 {
@@ -122,156 +146,165 @@ Artifacts are pieces of evidence the user uploaded earlier (a paragraph of text,
 The retrieval works like this:
 
 ```
-chosen bullet (1 of 1–3)
-   └─→ has many → bullet_gaps (the questions we identified for this bullet)
-                     └─→ has many → bullet_artifacts (each gap's evidence)
-                                       └─→ summary_json  ← THIS is what's sent to the LLM
+selected bullet (1 of 1–5, user-curated)
+   └─→ has many → bullet_gaps
+                     └─→ has many → bullet_artifacts
+                                       └─→ summary_json  ← what the LLM sees
+                                       └─→ content_text  ← what the USER sees in the preview panel,
+                                                            but NEVER sent to the LLM
 ```
 
-So **for each of the 1–3 ranked bullets, ALL of that bullet's artifact summaries are included** — no per-artifact ranking, no top-K filter on artifacts themselves. The "selection" happens purely at the bullet level. Raw content (full text of an uploaded README, full extracted PDF text, etc.) is **not** sent — only the parsed `summary_json`. This keeps the prompt token count predictable.
+So **for each selected bullet, ALL of that bullet's artifact summaries are included** — no per-artifact ranking, no top-K filter on artifacts themselves. This is intentional: each artifact answers a specific gap question for that bullet, so by construction every artifact is at least loosely on-topic for its parent bullet. The "selection" happens at the bullet level. Sending raw `content_text` to the LLM is intentionally avoided — it's an arbitrary blob of user-supplied prose; summaries are the structured form designed for prompt use. Raw text is shown to the user in the preview panel so they can verify what they previously said, but it never crosses the LLM boundary.
 
-If the chosen bullets have no answered gaps yet, the evidence block is the literal string `"(no attached evidence — rely on CV bullets and candidate answer only)"` — the LLM will lean on the bullet text alone and likely emit more `[CANDIDATE TO FILL: …]` placeholders.
+If a selected bullet has no answered gaps, the prompt explicitly tells the model so (`(no attached artifacts for this bullet)`) and the model leans on the bullet text alone, surfacing more `[CANDIDATE TO FILL: …]` placeholders.
 
 ### What is NOT sent (worth knowing)
 
-These are facts about the *current* implementation, not bugs — but they're easy to assume otherwise.
-
-- **No conversation history.** Only the single question being enhanced and the candidate's single answer go into the prompt. Earlier Q&A turns from the same session are not visible to the coach. The `requestCoach` payload at [hooks/use-interview.ts:204-222](../hooks/use-interview.ts#L204-L222) doesn't include `session.messages`.
-- **`irsScore` is sent but unused** in the prompt. The Integrity / Relevance / Substance score the answer received is in the request body but never reaches `buildCoachAnswerPrompt`. It could be used to tell the LLM *which dimension* to improve most aggressively, but currently it's effectively dead metadata for this endpoint.
-- **No raw artifact content.** Only the structured `summary_json` derived at upload time. If summarisation went wrong, it's wrong here too.
-- **No CV-version filtering.** The candidate's *active* CV is irrelevant to coach-answer — the whole pool from every CV version is searched. This is intentional (more evidence = better grounding).
-- **No per-artifact relevance ranking.** All artifacts of a chosen bullet are sent regardless of whether they relate to the question.
+- **No raw artifact `content_text`.** Only `summary_json`. If the original summarisation went wrong, it's wrong here too — but the user can fix it via the Edit button in the preview panel before clicking Generate.
+- **No CV-version filtering.** The user's *active* CV is irrelevant to coach-answer — the retrieval queries the whole bullet pool across every CV version. Intentional: more evidence = better grounding.
+- **No per-artifact relevance ranking.** Artifacts are assumed to be relevant to their parent bullet because each one answers a specific gap question for that bullet.
+- **No bullets the user explicitly removed.** The Preview pre-selection is a starting point, not a contract — if the user toggles a bullet off, it never reaches the rewriter.
 
 ## Step-by-step breakdown (with file references)
 
-### Frontend — `CoachPanel.handleClick`
+### Frontend — `CoachPanel`
 
-[features/interview-prep/components/interview-prep-screen.tsx:823-894](../features/interview-prep/components/interview-prep-screen.tsx#L823-L894)
+[features/interview-prep/components/interview-prep-screen.tsx](../features/interview-prep/components/interview-prep-screen.tsx) (search for `function CoachPanel`)
 
-- Renders the **See enhanced version** button on each candidate-answered message.
-- On first click, calls `onRequestCoach(message.id)` and toggles open. Subsequent clicks just toggle visibility (the response is cached on the message).
-- After the response lands, renders `message.coach.improvedAnswer` with `[CANDIDATE TO FILL: ...]` placeholders highlighted, plus a `JitForm` for each missing-evidence prompt.
+The button has three states based on the message:
+- No `coachPreview` yet → label "See enhanced version" → first click runs Preview.
+- `coachPreview` present, no `coach` yet → user is reviewing/editing the evidence pool. Label toggles between "Review evidence" / "Hide evidence panel".
+- `coach` present → label toggles between "Show enhanced version" / "Hide enhanced version".
 
-### Hook — `useInterview.requestCoach`
+Sub-components:
 
-[hooks/use-interview.ts:198-238](../hooks/use-interview.ts#L198-L238)
+- `CoachBulletRow` — one row per selected bullet, with similarity %, artifact count, expand toggle, and a remove button.
+- `CoachGapBlock` — inside an expanded bullet, one block per gap. Either lists artifacts with `CoachArtifactView` or shows an "unanswered" badge with an "Add answer" button that opens `CoachArtifactComposer`.
+- `CoachArtifactView` — read-only by default (raw `contentText` only); Edit button → inline textarea → PATCH `/api/cv-library/artifacts/:id` (existing endpoint, re-summarises server-side).
+- `CoachArtifactComposer` — textarea → POST `/api/cv-library/gaps/:id/artifacts` (existing endpoint).
+- `CoachBulletPicker` — searchable list of every user bullet (filtered by text + section), excluding bullets already selected. Click → lazy-loads bullet details via `GET /api/cv-library/bullets/:id/details` (new endpoint) and adds to the selection.
 
-- Looks up the message by ID. Bails if it isn't a `candidate` message with a `questionAsked`.
-- POSTs to `/api/interview/coach-answer` with `{ question, answer, context, irsScore }`.
-- On success, mutates the message in `session.messages` to attach `coach: CoachResult`.
+When any in-place edit changes an artifact, `handleRefreshBullet` re-fetches that bullet's details and updates `coachPreview.bullets` in place — no full preview re-fetch.
 
-### Next.js proxy — `app/api/interview/coach-answer/route.ts`
+### Hook — `useInterview` (preview / generate / setCoachPreview)
 
-[app/api/interview/coach-answer/route.ts:6-20](../app/api/interview/coach-answer/route.ts#L6-L20)
+[hooks/use-interview.ts](../hooks/use-interview.ts) (search for `requestCoachPreview`, `requestCoachGenerate`, `setCoachPreview`)
 
-- Pulls the bearer token via `getProxyAuthToken(request)`.
-- Forwards the JSON body via `coachAnswerWithBackend(body, authToken)`.
-- Maps `HttpClientError` to the same status the backend returned; everything else → 400.
+- `requestCoachPreview(messageId)` — POSTs `{ question }` to `/api/interview/coach-answer/preview`. On success, stashes the response on `message.coachPreview`.
+- `setCoachPreview(messageId, coachPreview)` — synchronous helper for the panel to update the in-memory preview after a picker-add or in-place artifact edit, without re-running embedding retrieval.
+- `requestCoachGenerate(messageId, selectedBulletIds)` — builds `conversationHistory` from `session.messages` *before* the target message, POSTs to `/api/interview/coach-answer/generate`. On success, stashes the rewriter response on `message.coach`.
+- `submitJitClarification(messageId, promptIndex, answer, selectedBulletIds)` — POSTs to `/api/cv-library/jit-clarification` (existing) and then re-runs `requestCoachGenerate` with the same selection. Importantly: it does NOT re-run Preview, so the user's curated bullet selection is preserved across the JIT round-trip.
 
-### Backend client — `coachAnswerWithBackend`
+### Next.js proxies
 
-[shared/api/backend-client.ts:425-438](../shared/api/backend-client.ts#L425-L438)
+- [app/api/interview/coach-answer/preview/route.ts](../app/api/interview/coach-answer/preview/route.ts)
+- [app/api/interview/coach-answer/generate/route.ts](../app/api/interview/coach-answer/generate/route.ts)
+- [app/api/cv-library/bullets/[id]/details/route.ts](../app/api/cv-library/bullets/%5Bid%5D/details/route.ts) — picker-add lazy load.
 
-- Adds the `Authorization: Bearer <token>` header.
-- Uses `timeoutMs: 90000` (90s) — generous because two sequential LLM calls.
+All three follow the standard pattern: `getProxyAuthToken` → `*WithBackend` from `shared/api/backend-client.ts` → normalize `HttpClientError`.
 
-### Auth gate — Fastify `preHandler`
+### Auth + rate limiting
 
-[backend/src/main.ts:61-74](../backend/src/main.ts#L61-L74)
+Same global Fastify auth preHandler as every other route. Per-route rate limits (in [backend/src/routes/coach-answer.ts](../backend/src/routes/coach-answer.ts)):
 
-- Validates the token, attaches `request.userId`.
+- Preview: **10 / minute, keyed by user**. Permissive because there's no LLM cost.
+- Generate: **1 / minute, keyed by user**. Strict because each call is an LLM round-trip.
 
-### Fastify route — `POST /api/interview/coach-answer`
+The single shared 1/min cap from the old design is gone. The Preview cap is loose enough that users can iterate (toggle bullets, edit artifacts, re-fetch a stale bullet) without bumping into it; the Generate cap protects the LLM budget.
 
-[backend/src/routes/coach-answer.ts:5-24](../backend/src/routes/coach-answer.ts#L5-L24)
+### Service — `previewCoachAnswer`
 
-- Validates `question`, `answer`, `context` are present.
-- Calls `coachAnswer(body, request.userId)`.
-- Maps any `Error.statusCode` to the HTTP status.
+[backend/src/services/coach-answer.service.ts](../backend/src/services/coach-answer.service.ts) — `previewCoachAnswer`
 
-### Service stage 1 — Load full bullet pool
+1. **Embed** the question via Voyage 3.5-lite (`embedText(question, 'query')`).
+2. **Call** `match_bullets` Supabase RPC with `threshold = COACH_SIMILARITY_THRESHOLD` (0.50) and `match_count = COACH_TOPK` (5). Returns rows with similarity = `1 − cosine_distance`.
+3. **In parallel** fetch:
+   - `getBulletsWithGapsByIds(userId, selectedIds)` — full gaps + RAW artifact `content_text` for the auto-selected bullets.
+   - `listUserBulletSummaries(userId)` — lightweight `{id, bulletText, sectionPath, gapCount, answeredGapCount}` for every user bullet (for the picker).
+4. **Shape** the response:
+   ```ts
+   {
+     selectedBulletIds: string[],   // similarity-ordered
+     bullets: CoachPreviewBullet[], // selected bullets with gaps + raw artifacts
+     allBullets: UserBulletSummaryDto[], // every user bullet, lightweight
+     threshold: number,             // echoed back so the UI can show "≥ 50%"
+   }
+   ```
 
-[backend/src/services/coach-answer.service.ts:46-56](../backend/src/services/coach-answer.service.ts#L46-L56)
+Typical latency: **<800ms** total (one Voyage embed call ~200–400ms, two parallel Supabase queries ~200–400ms).
 
-- One Supabase query: `SELECT id, section_path, bullet_text FROM cv_bullets WHERE user_id = ?`.
-- This becomes the `cvBullets` block in the rewriter prompt.
-- Typical latency: **<200ms**.
+### Service — `generateCoachAnswer`
 
-### Service stage 2 — Rank relevant bullets (1st LLM call)
+[backend/src/services/coach-answer.service.ts](../backend/src/services/coach-answer.service.ts) — `generateCoachAnswer`
 
-[backend/src/services/cv-knowledge.service.ts:748-778](../backend/src/services/cv-knowledge.service.ts#L748-L778)
+1. **Validate** that `selectedBulletIds` is a deduped non-null list (empty is allowed — the LLM will rely purely on the candidate's answer).
+2. **Fetch** for the selected bullets, in parallel:
+   - `getBulletsWithGapsByIds(userId, selectedIds)` — bullet text + section.
+   - `loadEvidenceSummaries(selectedIds)` — `bullet_gaps` → `bullet_artifacts.summary_json`. Raw `content_text` is *not* fetched here.
+3. **Fetch** `rationale_json` from `answer_assessments` if `assessmentId` is present.
+4. **Trim** `conversationHistory` to the last `COACH_HISTORY_TURNS` (10).
+5. **Build** the prompt via `buildCoachAnswerPrompt`.
+6. **Call** Anthropic with `max_tokens: 2048`. The model is the Interview Prep model from `config/llm.ts`.
+7. **Parse** + sanitise the JSON. If the LLM returns no `missingEvidencePrompts`, regex over the `improvedAnswer` for `[CANDIDATE TO FILL: …]` placeholders.
+8. **Decorate** prompts with bullet text from the in-memory evidence (so the JIT forms can show "re: \<bullet text\>").
+9. **Persist** to `answer_coaching` if `assessmentId` is present (best-effort; storage failure doesn't fail the request).
 
-- If `bullets.length <= 4` → return all bullets, skip the LLM.
-- Else: `llmJson(buildBulletRelevancePrompt(question, bullets))` — Claude returns up to 3 bullet IDs.
-- Filter the original bullets list to those IDs (preserves order).
-- On any failure: fall back to `bullets.slice(0, 3)`.
-- Typical latency: **2–6s**.
+Typical latency: **8–20s**, dominated by the rewriter LLM call.
 
-### Service stage 3 — Fetch evidence (artifacts) for chosen bullets
+### Single-bullet details endpoint
 
-[backend/src/services/cv-knowledge.service.ts:781-806](../backend/src/services/cv-knowledge.service.ts#L781-L806) called from [coach-answer.service.ts:62-75](../backend/src/services/coach-answer.service.ts#L62-L75)
+[backend/src/routes/cv-library.ts](../backend/src/routes/cv-library.ts) — `GET /api/cv-library/bullets/:id/details`
 
-- Two Supabase queries:
-  1. `SELECT id, bullet_id FROM bullet_gaps WHERE bullet_id IN (...)`
-  2. `SELECT gap_id, summary_json FROM bullet_artifacts WHERE gap_id IN (...)`
-- Build a `Map<bulletId, ArtifactSummary[]>` and assemble the `evidence` array passed to the prompt.
-- Typical latency: **<500ms**.
-
-### Service stage 4 — Rewrite the answer (2nd LLM call)
-
-[backend/src/services/coach-answer.service.ts:78-126](../backend/src/services/coach-answer.service.ts#L78-L126)
-
-- Build the system + user prompts via `buildCoachAnswerPrompt`.
-- `anthropic.messages.create({ model, max_tokens: 2048, system, messages: [{ role:'user', content: user }] })`.
-- Strip optional code-fences with `cleanJson`, then `JSON.parse`.
-- If the LLM returned no `missingEvidencePrompts` array, fall back to scanning the `improvedAnswer` text for `[CANDIDATE TO FILL: …]` placeholders ourselves.
-- Decorate each prompt with the bullet's text (for nicer UI labels).
-- Typical latency: **8–20s**.
-
-### Response shape
-
-```ts
-{
-  critique: string,                       // 1-2 sentences on what was weak
-  improvedAnswer: string,                 // STAR-structured rewrite with placeholders
-  missingEvidencePrompts: Array<{
-    bulletId: string | null,              // tied to a bullet, or 'none'
-    bulletText: string | null,            // server-decorated for the UI
-    question: string,                     // the gap question to ask the user
-  }>,
-}
-```
-
-The frontend stashes this in `message.coach`. The JIT forms (one per missing-evidence prompt) post answers to `POST /api/cv-library/jit-clarification`, which creates a new `bullet_artifact` of `source_type: 'jit_clarification'`. Saving any clarification then re-fires `requestCoach`, so the placeholder disappears and the rewrite gets richer.
+Wraps `getBulletsWithGapsByIds(userId, [id])`. Used by the picker for lazy loading and by `handleRefreshBullet` to update a single bullet after an in-place edit.
 
 ## Latency budget
 
-| Stage | Typical | Notes |
-|---|---|---|
-| Auth + proxy + multipart parse | <300ms | |
-| Load bullet pool | <200ms | One Supabase round-trip |
-| **Rank bullets (1st LLM call)** | **2–6s** | Skipped if ≤4 bullets |
-| Fetch artifacts | <500ms | Two Supabase round-trips |
-| **Rewrite answer (2nd LLM call)** | **8–20s** | Larger prompt + 2048 max output |
-| **Total** | **~10–25s** | What the spinner is hiding |
+| Phase | Stage | Typical | Notes |
+|---|---|---|---|
+| Preview | Auth + proxy | <300ms | |
+| Preview | **Voyage query embedding** | **200–400ms** | Single text |
+| Preview | match_bullets RPC | <200ms | HNSW index on `cv_bullets.bullet_embedding` |
+| Preview | Bullets + gaps + raw artifacts query | <300ms | One round-trip with `IN (...)` |
+| Preview | All-bullets summary query | <200ms | Lightweight fields only |
+| **Preview total** | | **~0.7–1.5s** | What the spinner is hiding |
+| Generate | Auth + proxy | <300ms | |
+| Generate | Bullets + summaries + rationale fetches | <500ms | Three parallel Supabase queries |
+| Generate | **Rewriter LLM** | **8–20s** | 2048 max output; prompt is bounded |
+| **Generate total** | | **~9–22s** | What the spinner is hiding |
 
-Backend client timeout is 90s — comfortable headroom.
+Backend client timeout is 30s for Preview, 90s for Generate.
 
 ## Failure modes
 
-- **Empty `question` or `answer`** → 400 from the route validator.
-- **No CV bullets in the user's pool** → Stage 2 returns `[]`, stage 3 returns empty evidence, the rewrite still runs on the candidate's answer + JD only. Likely yields a generic critique with many placeholders.
-- **Bullet-ranker LLM call fails** → fallback to first 3 bullets by ordinal (no error surfaced).
-- **Artifact summary missing (`summary_json IS NULL`)** → that artifact is silently dropped.
+- **Voyage API key missing or down** → `embedText` returns null → Preview returns `{ selectedBulletIds: [], bullets: [], allBullets: [...] }`. The user sees "No bullets selected" and can manually add from the picker, then click Generate.
+- **`match_bullets` RPC missing** (e.g. migration 007 hasn't been applied to this Supabase instance) → `findSimilarBulletsByEmbedding` logs an error and falls back to `findSimilarBulletsDirect`, which returns an arbitrary slice of the user's bullets with `similarity: 0`. The Preview UI still works but the auto-selection is meaningless. **Run migration 007 to fix.** This same fallback affects the CV-Library "Merge bullet" feature, which calls the same code path with `threshold = MERGE_SIMILARITY_THRESHOLD` (0.40).
+- **No bullets pass the threshold** → Preview returns empty `bullets[]` + non-empty `allBullets[]`. The UI shows "No clearly relevant bullets found — add some manually below." User can pick from the full pool.
+- **User clicks Generate with zero bullets selected** → 200 OK with a `(no attached evidence)` block in the prompt. The LLM rewrites from the answer alone; expect many placeholders.
+- **`rationale_json` lookup fails** → silently elided from the prompt. The score numbers still appear if `irsScore` was passed.
 - **Rewriter LLM returns invalid JSON** → 502 with `"Failed to parse coach LLM response"`.
-- **Rewriter LLM returns no `missingEvidencePrompts`** → we regex the `improvedAnswer` for `[CANDIDATE TO FILL: …]` placeholders and synthesise the prompts.
-- **Token expired mid-flight** → backend `preHandler` returns 401; the user sees "Failed to coach".
+- **Rewriter LLM returns no `missingEvidencePrompts`** → server regexes the `improvedAnswer` for placeholders and synthesises the prompts.
+- **Rate limited** → 429 with `{ code: 'RATE_LIMIT_EXCEEDED', scope, message }`. The frontend's existing `readErrorMessage` reads `body.message` and surfaces it in the red error banner.
+- **JIT clarification mid-flight** → re-runs Generate (not Preview), so the user's curated selection is preserved.
 
 ## Possible improvements
 
-These aren't bugs — just things the user's question hinted at that *aren't* in the current implementation, in case we want to revisit:
+These aren't bugs — just design space we haven't explored:
 
-1. **Include conversation history.** Today the coach sees only one question + one answer. Sending the recent (≤ 5) prior turns would let it avoid repeating phrasing the candidate already used and stay coherent across a multi-turn session. Trade-off: more tokens per call.
-2. **Use `irsScore` in the prompt.** The candidate's IRS breakdown is already sent. Telling the rewriter "Substance was 4/10 — focus on adding metrics and concrete results" would make the rewrite more targeted. Cheap to add.
-3. **Per-artifact ranking, not per-bullet.** Today we send *all* artifacts of the chosen bullets. With many filled gaps per bullet, the prompt grows linearly. A second ranker pass (or an embedding pre-filter) could pick the top-K most relevant artifacts across the chosen bullets — closer to a real "find 3 most relevant filled artifacts" retrieval.
-4. **Replace the bullet-ranker LLM call with embedding similarity.** The infra already exists for `findSimilarBullets` (pgvector + `match_bullets` RPC). Reusing it here would shave 2–6s off latency *and* scale past the "send the whole pool" approach. Trade-off: embedding-similarity is dumber than an LLM ranker for paraphrased questions, so a hybrid (embedding top-20 → LLM picks 3) is probably the right answer.
+1. **Hybrid retrieval (embedding pre-filter → LLM re-rank).** The embedding ranker can miss strongly-paraphrased questions (e.g. "tell me about a tough decision" vs a bullet about a specific design call). A cheap LLM pass over the top-20 by embedding could pick a better top-5. Adds 1–3s to Preview, costs LLM tokens — would need a clear quality win to justify.
+2. **Per-artifact ranking.** Today every artifact of a chosen bullet goes into the prompt. With many filled gaps per bullet, the prompt grows linearly. A second pass could pick the top-K artifacts across selected bullets. The simplest version: filter artifacts whose summary embeds close to the question.
+3. **Cache Preview responses.** A user who asks the same question twice in the same session (rare but possible — e.g. retrying after editing artifacts) gets a fresh Voyage embed each time. A 60s in-memory cache keyed by `(userId, question)` would cut latency to ~0 on retry.
+4. **Show similarity bands in the UI.** "Strong match (≥70%)" / "Likely match (50–70%)" colour bands would let the user judge which auto-selected bullets to keep at a glance.
+5. **Allow "Generate from question only" without any bullets.** Already works (server allows empty `selectedBulletIds`), but the UI doesn't make it discoverable. A "Skip — generate from my answer alone" button would expose it.
+
+## Index of touchpoints
+
+- Migration: [supabase/migrations/007_match_bullets_rpc.sql](../supabase/migrations/007_match_bullets_rpc.sql)
+- Service: [backend/src/services/coach-answer.service.ts](../backend/src/services/coach-answer.service.ts)
+- Service helpers (retrieval, per-bullet, picker pool): [backend/src/services/cv-knowledge.service.ts](../backend/src/services/cv-knowledge.service.ts) — `findRelevantBulletsForCoach`, `getBulletsWithGapsByIds`, `listUserBulletSummaries`, `findSimilarBullets` (merge feature)
+- Prompt: [backend/src/lib/cv-knowledge/prompts.ts](../backend/src/lib/cv-knowledge/prompts.ts) — `buildCoachAnswerPrompt`
+- Routes: [backend/src/routes/coach-answer.ts](../backend/src/routes/coach-answer.ts), [backend/src/routes/cv-library.ts](../backend/src/routes/cv-library.ts) (`/bullets/:id/details`)
+- Backend client: [shared/api/backend-client.ts](../shared/api/backend-client.ts) — `coachAnswerPreviewWithBackend`, `coachAnswerGenerateWithBackend`, `getBulletDetailsWithBackend`
+- Proxies: [app/api/interview/coach-answer/preview/route.ts](../app/api/interview/coach-answer/preview/route.ts), [app/api/interview/coach-answer/generate/route.ts](../app/api/interview/coach-answer/generate/route.ts), [app/api/cv-library/bullets/[id]/details/route.ts](../app/api/cv-library/bullets/%5Bid%5D/details/route.ts)
+- Hook: [hooks/use-interview.ts](../hooks/use-interview.ts) — `requestCoachPreview`, `requestCoachGenerate`, `setCoachPreview`, `submitJitClarification`
+- UI: [features/interview-prep/components/interview-prep-screen.tsx](../features/interview-prep/components/interview-prep-screen.tsx) — `CoachPanel`, `CoachBulletRow`, `CoachGapBlock`, `CoachArtifactView`, `CoachArtifactComposer`, `CoachBulletPicker`
+- Types: [features/interview-prep/types.ts](../features/interview-prep/types.ts) — `CoachPreview`, `CoachPreviewBullet`, `UserBulletSummaryDto`; [backend/src/types/cv-knowledge.ts](../backend/src/types/cv-knowledge.ts) — server-side equivalents
