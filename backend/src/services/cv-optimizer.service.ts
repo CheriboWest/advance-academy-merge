@@ -738,7 +738,7 @@ async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeCvResult
   const [mainResponse, atsCheck] = await Promise.all([
     anthropic.messages.create({
       model,
-      max_tokens: 4096,
+      max_tokens: 16384,
       system: `${todayInstruction()}\n\n${SYSTEM_PROMPT}`,
       messages: [{ role: 'user', content: userPrompt }],
     }),
@@ -747,6 +747,11 @@ async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeCvResult
       return null;
     }),
   ]);
+
+  if (mainResponse.stop_reason === 'max_tokens') {
+    console.error('CV analysis hit max_tokens cap — response truncated, falling back.');
+    return null;
+  }
 
   const block = mainResponse.content[0];
   if (block.type !== 'text') return null;
