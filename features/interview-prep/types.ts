@@ -26,7 +26,7 @@ export interface InterviewContext {
   jobDescription: string
   companyName: string
   companyUrl: string
-  extraLinks: string
+  extraLinks: string[]
 }
 
 export interface IRSScorePart {
@@ -222,7 +222,9 @@ export interface SessionDetail extends SessionListItem {
         cvText?: string
         jobDescription?: string
         companyUrl?: string | null
-        extraLinks?: string | null
+        // Older sessions stored a newline-separated string; newer ones store an
+        // array. Reading code must handle both.
+        extraLinks?: string | string[] | null
       })
     | null
   exchanges: SessionExchange[]

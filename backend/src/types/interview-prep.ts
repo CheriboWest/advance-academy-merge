@@ -3,7 +3,7 @@ export interface ExtractedJob {
   jobDescription: string;
   companyName: string;
   companyUrl: string;
-  extraLinks: string;
+  extraLinks: string[];
 }
 
 // ── Interview-prep core types (mirrors features/interview-prep/types.ts) ────
@@ -26,7 +26,7 @@ export interface InterviewContext {
   jobDescription: string;
   companyName: string;
   companyUrl: string;
-  extraLinks: string;
+  extraLinks: string[];
 }
 
 export interface IRSScorePart {

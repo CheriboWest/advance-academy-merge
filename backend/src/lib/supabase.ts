@@ -17,10 +17,6 @@ export function getSupabase(): SupabaseClient {
   return cached;
 }
 
-export function getMvpUserId(): string {
-  return process.env.MVP_USER_ID?.trim() || '00000000-0000-0000-0000-000000000000';
-}
-
 export async function getUserIdFromToken(token: string): Promise<string> {
   const supabase = getSupabase();
   const { data: { user }, error } = await supabase.auth.getUser(token);

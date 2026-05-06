@@ -1,0 +1,404 @@
+// AdvanceAcademy schema — derived from schema_May_5_2026.sql
+// Auth, RLS, GRANTs, and Supabase boilerplate are intentionally omitted.
+
+Project advance_academy {
+  database_type: 'PostgreSQL'
+  Note: 'Career-tools app: CV Library, Interview Prep, Outreach, Dream Company.'
+}
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  email text [not null, unique]
+  full_name text
+  created_at timestamptz [not null, default: `now()`]
+  Note: 'Core user identity table.'
+}
+
+// ─── CV Library ──────────────────────────────────────────────────────────────
+
+Table cv_versions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  name text [not null]
+  source_file_path text
+  raw_text text [not null]
+  detected_field text
+  is_active boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'idx_cv_versions_user']
+    user_id [unique, name: 'idx_cv_versions_one_active_per_user', note: 'WHERE is_active = true']
+  }
+}
+
+Table cv_bullets {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  cv_version_id uuid [ref: > cv_versions.id]
+  section_path text
+  bullet_text text [not null]
+  ordinal integer [not null]
+  bullet_embedding `vector(1024)`
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'idx_cv_bullets_user']
+    cv_version_id [name: 'idx_cv_bullets_version']
+    bullet_embedding [type: hnsw, name: 'idx_cv_bullets_embedding_hnsw', note: 'vector_cosine_ops']
+  }
+}
+
+Table cv_version_bullets {
+  id uuid [pk, default: `gen_random_uuid()`]
+  cv_version_id uuid [not null, ref: > cv_versions.id]
+  bullet_id uuid [not null, ref: > cv_bullets.id]
+  ordinal integer [not null]
+  section_path text
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    cv_version_id [name: 'idx_cvb_version']
+    bullet_id [name: 'idx_cvb_bullet']
+    (cv_version_id, bullet_id) [unique, name: 'idx_cvb_unique']
+  }
+}
+
+Table bullet_gaps {
+  id uuid [pk, default: `gen_random_uuid()`]
+  bullet_id uuid [not null, ref: > cv_bullets.id]
+  question text [not null]
+  rationale text
+  ordinal integer [not null]
+  status text [not null, default: 'open']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    bullet_id [name: 'idx_bullet_gaps_bullet']
+    (bullet_id, ordinal) [unique, name: 'idx_bullet_gaps_unique_ordinal']
+  }
+}
+
+Table bullet_artifacts {
+  id uuid [pk, default: `gen_random_uuid()`]
+  gap_id uuid [not null, ref: > bullet_gaps.id]
+  source_type text [not null]
+  content_text text
+  source_url text
+  source_file_path text
+  summary_json jsonb
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    gap_id [name: 'idx_bullet_artifacts_gap']
+  }
+}
+
+Table coach_understanding_reports {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  report_md text [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'idx_coach_reports_user']
+  }
+}
+
+Table cv_analysis_jobs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  status text [not null, note: "queued | running | completed | failed"]
+  submitted_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+  result_json jsonb
+  error_json jsonb
+
+  Indexes {
+    user_id [name: 'idx_cv_analysis_jobs_user']
+    updated_at [name: 'idx_cv_analysis_jobs_updated_at', note: 'DESC']
+  }
+}
+
+// ─── Candidate / company / job target ────────────────────────────────────────
+
+Table candidate_profiles {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  full_name text
+  headline text
+  summary text
+  parsed_cv_json jsonb
+  cv_file_path text
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'idx_candidate_profiles_user']
+  }
+}
+
+Table companies {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name text [not null]
+  canonical_domain text
+  website_url text
+  linkedin_url text
+  description text
+  industry text
+  company_size text
+  headquarters text
+  research_status text [default: 'pending']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    name [name: 'idx_companies_name']
+    canonical_domain [name: 'idx_companies_domain']
+  }
+}
+
+Table company_research_reports {
+  id uuid [pk, default: `gen_random_uuid()`]
+  company_id uuid [not null, ref: > companies.id]
+  source_inputs_json jsonb
+  summary_json jsonb
+  recent_activity_json jsonb
+  products_services_json jsonb
+  raw_sources_json jsonb
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    company_id [name: 'idx_company_research_company']
+  }
+}
+
+Table job_targets {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [not null, ref: > users.id]
+  company_id uuid [ref: > companies.id]
+  title text [not null]
+  location text
+  seniority text
+  jd_text text
+  parsed_jd_json jsonb
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'idx_job_targets_user']
+    company_id [name: 'idx_job_targets_company']
+  }
+}
+
+// ─── Interview prep ──────────────────────────────────────────────────────────
+
+Table personas {
+  id text [pk]
+  name text [not null]
+  title text
+  description text
+  config_json jsonb
+  is_active boolean [not null, default: true]
+}
+
+Table rubric_templates {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name text [not null]
+  rubric_type text [not null, default: 'IRS']
+  schema_json jsonb [not null]
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table job_rubrics {
+  id uuid [pk, default: `gen_random_uuid()`]
+  job_target_id uuid [not null, ref: > job_targets.id]
+  rubric_template_id uuid [not null, ref: > rubric_templates.id]
+  competencies_json jsonb
+  weights_json jsonb
+  generated_from_json jsonb
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    job_target_id [name: 'idx_job_rubrics_target']
+  }
+}
+
+Table interview_packs {
+  id uuid [pk, default: `gen_random_uuid()`]
+  job_target_id uuid [not null, ref: > job_targets.id]
+  candidate_profile_id uuid [not null, ref: > candidate_profiles.id]
+  persona_id text [not null, ref: > personas.id]
+  company_research_report_id uuid [ref: > company_research_reports.id]
+  plan_json jsonb
+  question_set_json jsonb
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    job_target_id [name: 'idx_interview_packs_target']
+  }
+}
+
+Table interview_sessions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id uuid [ref: > users.id]
+  candidate_profile_id uuid [ref: > candidate_profiles.id]
+  job_target_id uuid [ref: > job_targets.id]
+  interview_pack_id uuid [ref: > interview_packs.id]
+  cv_version_id uuid [ref: > cv_versions.id]
+  persona_id text [not null, ref: > personas.id]
+  mode text [not null, default: 'live_ai']
+  status text [not null, default: 'active']
+  started_at timestamptz [not null, default: `now()`]
+  ended_at timestamptz
+  final_score_json jsonb
+  final_report_json jsonb
+  context_json jsonb
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'idx_sessions_user']
+    status [name: 'idx_sessions_status']
+    cv_version_id [name: 'idx_sessions_cv_version']
+  }
+}
+
+Table interview_questions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  session_id uuid [not null, ref: > interview_sessions.id]
+  competency_id text
+  question_text text [not null]
+  question_type text
+  source text [not null, default: 'generated']
+  asked_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    session_id [name: 'idx_questions_session']
+  }
+}
+
+Table transcript_turns {
+  id uuid [pk, default: `gen_random_uuid()`]
+  session_id uuid [not null, ref: > interview_sessions.id]
+  speaker text [not null]
+  turn_index integer [not null]
+  start_ms integer
+  end_ms integer
+  content text [not null]
+  derived_question_id uuid
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    session_id [name: 'idx_transcript_turns_session']
+  }
+}
+
+Table session_media {
+  id uuid [pk, default: `gen_random_uuid()`]
+  session_id uuid [not null, ref: > interview_sessions.id]
+  media_type text [not null]
+  storage_path text [not null]
+  duration_seconds numeric
+  transcription_status text [default: 'pending']
+  diarization_status text [default: 'pending']
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    session_id [name: 'idx_session_media_session']
+  }
+}
+
+Table answer_assessments {
+  id uuid [pk, default: `gen_random_uuid()`]
+  session_id uuid [not null, ref: > interview_sessions.id]
+  question_id uuid [not null, ref: > interview_questions.id]
+  transcript_turn_id uuid [ref: > transcript_turns.id]
+  candidate_answer text
+  integrity_score numeric [not null]
+  relevance_score numeric [not null]
+  substance_score numeric [not null]
+  overall_score numeric [not null]
+  rationale_json jsonb
+  evidence_json jsonb
+  missing_signals_json jsonb
+  confidence numeric [default: 1.0]
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    session_id [name: 'idx_assessments_session']
+    question_id [name: 'idx_assessments_question']
+  }
+}
+
+Table answer_coaching {
+  id uuid [pk, default: `gen_random_uuid()`]
+  assessment_id uuid [not null, ref: > answer_assessments.id]
+  original_answer text
+  critique_json jsonb
+  improved_answer text
+  best_sample_answer text
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    assessment_id [name: 'idx_coaching_assessment']
+  }
+}
+
+Table question_bank_entries {
+  id uuid [pk, default: `gen_random_uuid()`]
+  company_id uuid [ref: > companies.id]
+  company_name text
+  country text [default: 'UK']
+  role_family text
+  job_title text
+  seniority text
+  question_text text [not null]
+  question_type text
+  source_type text [not null, default: 'curated']
+  source_url text
+  confidence numeric [default: 0.8]
+  tags `text[]`
+  created_at timestamptz [not null, default: `now()`]
+
+  Indexes {
+    company_id [name: 'idx_question_bank_company']
+    company_name [name: 'idx_question_bank_company_name']
+    role_family [name: 'idx_question_bank_role']
+    question_type [name: 'idx_question_bank_type']
+  }
+}
+
+// ─── Table groups (visual grouping in dbdiagram.io) ──────────────────────────
+
+TableGroup cv_library {
+  cv_versions
+  cv_bullets
+  cv_version_bullets
+  bullet_gaps
+  bullet_artifacts
+  coach_understanding_reports
+  cv_analysis_jobs
+}
+
+TableGroup company_and_job {
+  companies
+  company_research_reports
+  job_targets
+  candidate_profiles
+}
+
+TableGroup interview_prep {
+  personas
+  rubric_templates
+  job_rubrics
+  interview_packs
+  interview_sessions
+  interview_questions
+  transcript_turns
+  session_media
+  answer_assessments
+  answer_coaching
+  question_bank_entries
+}

@@ -135,7 +135,7 @@ export interface ExtractedJob {
   jobDescription: string
   companyName: string
   companyUrl: string
-  extraLinks: string
+  extraLinks: string[]
 }
 
 export function extractJobFromUrlWithBackend(payload: { url: string }, authToken?: string) {

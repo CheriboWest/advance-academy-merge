@@ -64,7 +64,7 @@ backend/src/
 │   └── coach-understanding.service.ts   Markdown "AI Coach Understanding" reports (profile + duplicate detection + gap analysis)
 ├── lib/                                 Pure helpers
 │   ├── llm-anthropic.ts                 Anthropic SDK wrapper (assertLlmConfigured / createAnthropicClient / getFeatureModel)
-│   ├── supabase.ts                      Supabase service-role client + getMvpUserId()
+│   ├── supabase.ts                      Supabase service-role client + getUserIdFromToken() (auth-hook validator)
 │   ├── voyage.ts                        Voyage embedding HTTP client — embedText / embedTexts / isVoyageConfigured
 │   ├── dream-company/prompts.ts
 │   ├── outreach/prompts.ts

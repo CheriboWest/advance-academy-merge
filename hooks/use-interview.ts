@@ -47,7 +47,7 @@ export function useInterview() {
     jobDescription: '',
     companyName: '',
     companyUrl: '',
-    extraLinks: '',
+    extraLinks: [],
   })
   const [selectedPersona, setSelectedPersona] = useState<PersonaId | null>(null)
   const [mode, setMode] = useState<InterviewMode>('text')
@@ -436,7 +436,7 @@ export function useInterview() {
       jobDescription: '',
       companyName: '',
       companyUrl: '',
-      extraLinks: '',
+      extraLinks: [],
     })
     setSelectedPersona(null)
     setMode('text')

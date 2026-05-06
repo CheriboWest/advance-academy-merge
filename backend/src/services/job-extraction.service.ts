@@ -17,7 +17,7 @@ const EMPTY: ExtractedJob = {
   jobDescription: '',
   companyName: '',
   companyUrl: '',
-  extraLinks: '',
+  extraLinks: [],
 };
 
 function cleanJsonResponse(text: string): string {
@@ -33,6 +33,25 @@ function coerceString(value: unknown): string {
   return '';
 }
 
+// Accept either a JSON array of strings (preferred) or a newline-separated
+// string (older prompt shape) and return a clean string[]. Empty entries
+// are dropped.
+function coerceUrlArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((v): v is string => typeof v === 'string')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
 function buildPrompt(markdown: string): string {
   return `You are extracting structured data from a job posting. Below is the markdown of a job listing page.
 
@@ -41,9 +60,9 @@ Return ONLY valid JSON (no prose, no code fences) with EXACTLY these keys:
 - jobDescription: string — the full responsibilities + requirements text. Preserve bullet points using "- ". Do NOT summarize.
 - companyName: string — the hiring company's name
 - companyUrl: string — the hiring company's main website (NOT the job listing URL). Empty if not found.
-- extraLinks: string — newline-separated list of other relevant URLs found on the page (apply link, careers page, recruiter LinkedIn). Empty if none.
+- extraLinks: string[] — JSON array of other relevant URLs found on the page (apply link, careers page, recruiter LinkedIn). Each entry must be a full http(s) URL. Return [] if none. Maximum 30 entries.
 
-For ANY field you cannot confidently determine, return an empty string "". Never invent values.
+For ANY string field you cannot confidently determine, return an empty string "". For extraLinks return []. Never invent values.
 
 Job posting markdown:
 """
@@ -93,6 +112,6 @@ export async function extractJobFromUrl(url: string): Promise<ExtractedJob> {
     jobDescription: coerceString(parsed.jobDescription),
     companyName: coerceString(parsed.companyName),
     companyUrl: coerceString(parsed.companyUrl),
-    extraLinks: coerceString(parsed.extraLinks),
+    extraLinks: coerceUrlArray(parsed.extraLinks),
   };
 }
