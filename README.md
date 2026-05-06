@@ -69,3 +69,5 @@ Backend (required for LLM features):
 ```bash
 copy backend\\.env.example backend\\.env
 ```
+
+
