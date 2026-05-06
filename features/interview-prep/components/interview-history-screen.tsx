@@ -459,12 +459,13 @@ function JobContextCard({
 }) {
   const [expanded, setExpanded] = useState(false)
   if (!ctx) return null
+  const extraLinksList = normalizeExtraLinks(ctx.extraLinks)
   const hasAnyField =
     ctx.jobTitle ||
     ctx.companyName ||
     ctx.companyUrl ||
     ctx.jobDescription ||
-    ctx.extraLinks
+    extraLinksList.length > 0
   if (!hasAnyField) return null
 
   return (
@@ -494,7 +495,7 @@ function JobContextCard({
               value={ctx.companyUrl}
               isLink
             />
-            <ContextField label="Extra links" value={ctx.extraLinks} />
+            <ExtraLinksField links={extraLinksList} />
           </div>
           {ctx.jobDescription && (
             <div>
@@ -508,6 +509,42 @@ function JobContextCard({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// Older sessions persisted extraLinks as a newline-separated string; newer
+// ones use string[]. Normalize to string[] for display.
+function normalizeExtraLinks(value: string | string[] | null | undefined): string[] {
+  if (Array.isArray(value)) return value.filter((s) => typeof s === 'string' && s.trim()).map((s) => s.trim())
+  if (typeof value === 'string') return value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
+  return []
+}
+
+function ExtraLinksField({ links }: { links: string[] }) {
+  return (
+    <div>
+      <div className="text-xs text-gray-400 uppercase tracking-wide">Extra links</div>
+      <div className="text-gray-900 mt-0.5 wrap-break-word">
+        {links.length === 0 ? (
+          <span className="text-gray-400">—</span>
+        ) : (
+          <ul className="space-y-0.5">
+            {links.map((url, idx) => (
+              <li key={idx}>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-700 hover:underline break-all"
+                >
+                  {url}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   )
 }

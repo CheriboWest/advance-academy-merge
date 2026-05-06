@@ -140,7 +140,7 @@ flowchart LR
 
 The app has **two storage layers**:
 
-- **Supabase Postgres** — backs Interview Prep and the CV Library. The backend talks to it via `backend/src/lib/supabase.ts` (`getSupabase()`, `getMvpUserId()`). Tables (see `supabase/migrations/`):
+- **Supabase Postgres** — backs Interview Prep and the CV Library. The backend talks to it via `backend/src/lib/supabase.ts` (`getSupabase()` for service-role access, `getUserIdFromToken()` for the auth preHandler). Tables (see `supabase/migrations/`):
   - `interview_sessions`, `interview_questions`, `answer_assessments`, `answer_coaching` — interview transcripts + IRS scores + per-answer coaching
   - `cv_versions`, `cv_bullets`, `cv_version_bullets`, `bullet_gaps`, `bullet_artifacts` — the CV Library knowledge base. `cv_bullets` is a **user-scoped pool**: bullets belong to a `user_id`, not a `cv_version_id`, and multiple CV versions reference the same bullet via the `cv_version_bullets` junction table (M:N). This is what makes a single gap/artifact visible across every CV the user uploads — see [CV_KNOWLEDGE_BASE.md](./CV_KNOWLEDGE_BASE.md) for the design rationale.
   - `cv_bullets.bullet_embedding` is a `vector(1024)` column (pgvector) populated by Voyage `voyage-3.5-lite`. Used for cross-CV similarity search during the two-phase upload flow.

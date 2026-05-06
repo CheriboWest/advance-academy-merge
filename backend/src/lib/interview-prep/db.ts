@@ -19,6 +19,39 @@ function safeSupabase() {
   }
 }
 
+const MAX_ADDITIONAL_URLS_PER_COMPANY = 30;
+const MAX_URL_LENGTH = 2048;
+
+// Reject anything that isn't a syntactically valid http(s) URL within length
+// limits. The DB has matching CHECK constraints + a trigger for the per-company
+// cap, but we filter here too so a single bad row doesn't fail the whole batch.
+function isValidHttpUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > MAX_URL_LENGTH) return false;
+  try {
+    const u = new URL(trimmed);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeAdditionalUrls(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of input) {
+    if (!isValidHttpUrl(raw)) continue;
+    const trimmed = raw.trim();
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+    if (out.length >= MAX_ADDITIONAL_URLS_PER_COMPANY) break;
+  }
+  return out;
+}
+
 interface DbSession {
   id: string;
   companyId: string | null;
@@ -129,6 +162,39 @@ async function getOrCreateCompany(
   return created.id;
 }
 
+// Best-effort: persist the user-provided "Additional Links" into the
+// company_additional_url table. Skips invalid/duplicate entries and
+// respects the 30-per-company cap (also enforced by a trigger DB-side).
+async function insertCompanyAdditionalUrls(
+  companyId: string,
+  rawUrls: unknown,
+): Promise<void> {
+  const supabase = safeSupabase();
+  if (!supabase) return;
+  const cleaned = sanitizeAdditionalUrls(rawUrls);
+  if (cleaned.length === 0) return;
+
+  const { data: existingRows } = await supabase
+    .from('company_additional_url')
+    .select('url')
+    .eq('company_id', companyId);
+  const existingSet = new Set((existingRows ?? []).map((r) => r.url as string));
+  const slotsLeft = MAX_ADDITIONAL_URLS_PER_COMPANY - existingSet.size;
+  if (slotsLeft <= 0) return;
+
+  const baseOrdinal = existingSet.size;
+  const toInsert = cleaned
+    .filter((u) => !existingSet.has(u))
+    .slice(0, slotsLeft)
+    .map((url, idx) => ({ company_id: companyId, url, ordinal: baseOrdinal + idx }));
+  if (toInsert.length === 0) return;
+
+  const { error } = await supabase
+    .from('company_additional_url')
+    .insert(toInsert);
+  if (error) console.error('[db] Failed to insert company additional URLs:', error);
+}
+
 async function createJobTarget(userId: string, 
   companyId: string | null,
   context: InterviewContext,
@@ -165,6 +231,9 @@ export async function dbStartSession(userId: string,
     // failing must not block session creation. The FKs we can't fill stay null.
     const activeCv = await getActiveCv(userId);
     const companyId = await getOrCreateCompany(context.companyName, context.companyUrl);
+    if (companyId) {
+      await insertCompanyAdditionalUrls(companyId, context.extraLinks);
+    }
     const jobTargetId = await createJobTarget(userId, companyId, context);
     const candidateProfileId = await createCandidateProfile(userId, activeCv);
     const interviewPackId =
@@ -189,7 +258,7 @@ export async function dbStartSession(userId: string,
           jobDescription: context.jobDescription,
           companyName: context.companyName,
           companyUrl: context.companyUrl || null,
-          extraLinks: context.extraLinks || null,
+          extraLinks: context.extraLinks?.length ? context.extraLinks : null,
         },
       })
       .select('id')

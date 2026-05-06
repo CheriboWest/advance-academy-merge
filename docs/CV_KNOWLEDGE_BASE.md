@@ -112,7 +112,7 @@ New dependency: `@supabase/supabase-js` (already hoisted in the workspace root).
 
 | File | Purpose |
 |---|---|
-| [backend/src/lib/supabase.ts](../backend/src/lib/supabase.ts) | Server-side Supabase client (service-role key, RLS bypassed) + `getMvpUserId()` |
+| [backend/src/lib/supabase.ts](../backend/src/lib/supabase.ts) | Server-side Supabase client (service-role key, RLS bypassed) + `getUserIdFromToken()` for the Fastify auth preHandler |
 | [backend/src/lib/voyage.ts](../backend/src/lib/voyage.ts) ⭐ | Plain-`fetch` client for Voyage `/v1/embeddings`. Exports `embedText`, `embedTexts`, `isVoyageConfigured`. 1024-dim `voyage-3.5-lite` model. |
 | [backend/src/types/cv-knowledge.ts](../backend/src/types/cv-knowledge.ts) | Row types, `CvVersionSummary`, `BulletWithGaps`, `CoachAnswerRequest/Response`, `MissingEvidencePrompt`, `ArtifactSummary`, `SimilarBulletCandidate` ⭐, `ParsedBulletWithCandidates` ⭐, `BulletResolution` ⭐, `CvUploadPhase1Response` ⭐, `CvFinalizeResponse` ⭐ |
 | [backend/src/lib/cv-knowledge/prompts.ts](../backend/src/lib/cv-knowledge/prompts.ts) | All prompt builders: bullet extraction, gap generation (field-aware), artifact summarize-with-quotes, bullet relevance ranking, coach-answer (constrained "no invention" prompt with placeholder format) |

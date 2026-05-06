@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import type {
   InterviewMessage,
+  InterviewContext,
   CoachPreview,
   CoachPreviewBullet,
   UserBulletSummaryDto,
@@ -292,16 +293,16 @@ function SetupStep({
         jobDescription?: string
         companyName?: string
         companyUrl?: string
-        extraLinks?: string
+        extraLinks?: string[]
       } = await res.json()
 
       // Only overwrite fields that came back non-empty so user-typed data is preserved.
-      const updates: Record<string, string> = {}
+      const updates: Partial<InterviewContext> = {}
       if (data.jobTitle) updates.jobTitle = data.jobTitle
       if (data.jobDescription) updates.jobDescription = data.jobDescription
       if (data.companyName) updates.companyName = data.companyName
       if (data.companyUrl) updates.companyUrl = data.companyUrl
-      if (data.extraLinks) updates.extraLinks = data.extraLinks
+      if (data.extraLinks?.length) updates.extraLinks = data.extraLinks
       updateContext(updates)
 
       const filled = Object.keys(updates).length
@@ -484,18 +485,10 @@ function SetupStep({
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-semibold text-blue-900 mb-2">
-            Additional Links <span className="text-gray-400 font-normal">(optional)</span>
-          </label>
-          <input
-            type="text"
-            value={context.extraLinks}
-            onChange={(e) => updateContext({ extraLinks: e.target.value })}
-            placeholder="LinkedIn profile, portfolio, etc."
-            className="w-full p-3 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
-          />
-        </div>
+        <AdditionalLinksField
+          value={context.extraLinks}
+          onChange={(next) => updateContext({ extraLinks: next })}
+        />
       </div>
 
       <div className="lg:col-span-2 flex justify-end">
@@ -507,6 +500,115 @@ function SetupStep({
           Choose Interviewer <ArrowRight className="w-4 h-4" />
         </button>
       </div>
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Additional Links field — variable-length list of URLs with per-row
+// validation. Backed by company_additional_url table on save (max 30).
+// Validation rules mirror the backend in db.ts:sanitizeAdditionalUrls.
+// ──────────────────────────────────────────────────────────────────────────
+
+const ADDITIONAL_LINKS_MAX = 30
+const ADDITIONAL_LINK_MAX_LENGTH = 2048
+
+function validateLink(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null // empty rows are fine — they just won't be saved
+  if (trimmed.length > ADDITIONAL_LINK_MAX_LENGTH) {
+    return `URL is too long (max ${ADDITIONAL_LINK_MAX_LENGTH} characters)`
+  }
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return 'Not a valid URL'
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return 'URL must start with http:// or https://'
+  }
+  return null
+}
+
+function AdditionalLinksField({
+  value,
+  onChange,
+}: {
+  value: string[]
+  onChange: (next: string[]) => void
+}) {
+  // Always render at least one empty input so the user has somewhere to type.
+  const rows = value.length > 0 ? value : ['']
+
+  const handleChange = (idx: number, next: string) => {
+    const out = [...rows]
+    out[idx] = next
+    onChange(out)
+  }
+
+  const handleRemove = (idx: number) => {
+    const out = rows.filter((_, i) => i !== idx)
+    onChange(out)
+  }
+
+  const handleAdd = () => {
+    if (rows.length >= ADDITIONAL_LINKS_MAX) return
+    onChange([...rows, ''])
+  }
+
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-blue-900 mb-2">
+        Additional Links{' '}
+        <span className="text-gray-400 font-normal">
+          (optional · max {ADDITIONAL_LINKS_MAX})
+        </span>
+      </label>
+      <div className="space-y-2">
+        {rows.map((url, idx) => {
+          const err = validateLink(url)
+          return (
+            <div key={idx}>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={url}
+                  onChange={(e) => handleChange(idx, e.target.value)}
+                  maxLength={ADDITIONAL_LINK_MAX_LENGTH}
+                  placeholder="https://linkedin.com/in/..."
+                  className={`flex-1 p-3 border rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 ${
+                    err ? 'border-red-300' : 'border-gray-200'
+                  }`}
+                />
+                {rows.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(idx)}
+                    aria-label="Remove link"
+                    className="px-3 py-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl border border-gray-200 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              {err && (
+                <p className="mt-1 text-xs text-red-600 flex items-center gap-1.5">
+                  <AlertCircle className="w-3 h-3" /> {err}
+                </p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={handleAdd}
+        disabled={rows.length >= ADDITIONAL_LINKS_MAX}
+        className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700 hover:text-blue-900 disabled:opacity-40 disabled:cursor-not-allowed"
+      >
+        <Plus className="w-4 h-4" /> Add link
+      </button>
     </div>
   )
 }

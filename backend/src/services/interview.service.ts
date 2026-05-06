@@ -46,7 +46,7 @@ ${context.jobDescription}
 """
 ${cvText}
 """
-${context.extraLinks ? `\nAdditional candidate links: ${context.extraLinks}\n` : ''}
+${context.extraLinks?.length ? `\nAdditional candidate links:\n${context.extraLinks.map((u) => `- ${u}`).join('\n')}\n` : ''}
 === RULES FOR YOUR QUESTIONS ===
 1. Tailor questions to the job above, but base any reference to "what the candidate said/wrote/claims" ONLY on the CV section — never on the Job Description.
 2. Do NOT paraphrase, quote, or attribute Job Description text to the candidate. The JD is the role's requirements, not the candidate's statements.

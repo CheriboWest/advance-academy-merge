@@ -25,6 +25,8 @@ There is no test runner configured. Env: copy `.env.local.example` → `.env.loc
 
 Career-tools web app with five AI features (CV Optimizer, Dream Company Finder, Outreach Generator, Interview Prep, CV Library), all powered by Anthropic Claude. The Outreach Generator and CV Library extractors also use Jina Reader for URL fetching, Exa for web search, and Voyage for embeddings. **Persistence:** Supabase Postgres backs Interview Prep (sessions, assessments, coaching) and the CV Library (versions, bullets, gaps, artifacts, coach answers); the other features remain stateless request/response. **Auth:** Supabase bearer-token auth (see Authentication below). See `docs/ARCHITECTURE.md` for the canonical reference and diagrams; `docs/BACKEND.md`, `docs/FRONTEND.md`, `docs/ADD_A_FEATURE.md`, `docs/CV_KNOWLEDGE_BASE.md`, `docs/COACH_ANSWER_FLOW.md`, `docs/CV_LIBRARY_UPLOAD_FLOW.md`, `docs/PERF_BATCHED_QUERIES.md`, `docs/INTERVIEW_PREP_WORKFLOW.md`, and `docs/CONVENTIONS.md` are also authoritative.
 
+**Stack:** Frontend is Next.js 16 (App Router) + React 19 + Tailwind v4 + shadcn/ui (`components.json`) + TanStack Query. Backend is Fastify 5 + Anthropic SDK + Supabase. Cross-layer types live in `packages/contracts` (`@advance-academy/contracts`).
+
 ### Request flow (frontend ↔ proxy ↔ backend ↔ LLM)
 
 Every feature follows the same hop chain — replicate it when adding new ones. Conceptually three boundaries (browser → Next.js server → Fastify → LLM), but each boundary has paired client/handler files, so a request touches roughly seven modules end-to-end:
@@ -66,7 +68,7 @@ Types and error shapes shared between frontend and backend live in `packages/con
 
 ### Persistence
 
-- **Interview Prep + CV Library** persist to Supabase via `backend/src/lib/supabase.ts` (`getSupabase()`, `getMvpUserId()`). Migrations live in `supabase/migrations/`. See `docs/CV_KNOWLEDGE_BASE.md` for the schema and the coach-answer / JIT-clarification flow.
+- **Interview Prep + CV Library** persist to Supabase via `backend/src/lib/supabase.ts` (`getSupabase()` for service-role access, `getUserIdFromToken()` for the auth hook). Migrations live in `supabase/migrations/` and are applied manually through the Supabase SQL editor (no migration CLI in this project); `supabase/migrations/schema_May_5_2026.sql` is the latest full schema dump and is the authoritative reference for table shapes / RLS / the `match_bullets` RPC. See `docs/CV_KNOWLEDGE_BASE.md` for the coach-answer / JIT-clarification flow.
 - **CV Optimizer** uses an async job pattern: `POST /api/cv-optimizer/analyze` returns `202 + jobId`; the client polls `GET /api/cv-optimizer/jobs/:jobId`. Jobs are persisted to the Supabase `cv_analysis_jobs` table via `createCvAnalysisJob` / `getCvAnalysisJob` in `backend/src/services/cv-optimizer.service.ts`, so polls are safe across multiple backend instances.
 
 ### CV Library design notes
@@ -99,8 +101,6 @@ Supabase-based bearer-token auth is enforced on the backend. A Fastify `preHandl
 The Next.js proxy layer pulls the user's token with `getProxyAuthToken()` and forwards it through `shared/api/backend-client.ts`, which sets the `Authorization` header when a token is present. Frontend calls that need auth must thread the token through the proxy — see the recent fixes in commits `e72a65f`, `f776727`, `a4f46ca` for the canonical wiring.
 
 A second auth layer lives at the Next.js edge: `middleware.ts` in the repo root checks every non-`/api`, non-public route for an `aa-session` cookie and redirects to `/login` if missing. This gates page navigation only — it intentionally excludes `/api/*` so the proxy routes can run their own bearer-token forwarding. Public paths are `/login` and `/register`.
-
-`getMvpUserId()` still exists in `backend/src/lib/supabase.ts` but is dead code — do not reach for it; use `request.userId` from the auth hook instead.
 
 ### Rate limiting
 
