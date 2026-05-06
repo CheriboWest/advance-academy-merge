@@ -24,7 +24,8 @@ import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
 
 const EXA_OPTIONS = {
   useAutoprompt: true,
-  type: "fast"
+  type: "fast",
+  numResults: 20,
 } as const;
 
 function cleanJsonResponse(text: string): string {
@@ -86,7 +87,7 @@ export async function generateTargetRoles(
 
   const response = await withRetry(() => anthropic.messages.create({
     model,
-    max_tokens: 4096,
+    max_tokens: 8192,
     system: 'You are a career intelligence engine. Return only valid JSON.',
     messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
   }));

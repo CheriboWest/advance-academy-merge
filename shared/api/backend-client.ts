@@ -71,7 +71,7 @@ export function generateRoadmapWithBackend(payload: { profile: DreamCompanyInput
     method: 'POST',
     body: JSON.stringify(payload),
     headers: authHeaders(authToken),
-    timeoutMs: 120000,
+    timeoutMs: 180000,
   })
 }
 

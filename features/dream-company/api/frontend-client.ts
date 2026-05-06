@@ -34,7 +34,7 @@ export async function generateRoadmap(
     method: 'POST',
     body: JSON.stringify({ profile, analysis, selectedRoles }),
     headers: await getAuthHeaders(),
-    timeoutMs: 120000,
+    timeoutMs: 180000,
   })
 }
 
