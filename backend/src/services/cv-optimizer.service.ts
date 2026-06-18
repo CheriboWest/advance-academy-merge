@@ -717,7 +717,7 @@ Rules:
 - An Action Plan is generated in a separate call — do NOT produce an expertReview or actionPlan field here.
 - Do not invent facts. Do not be encouraging if the CV is weak. Score what is actually present.`;
 
-async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeCvResult | null> {
+export async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeCvResult | null> {
   assertLlmConfigured('cvOptimizer');
 
   const anthropic = createAnthropicClient('cvOptimizer');
