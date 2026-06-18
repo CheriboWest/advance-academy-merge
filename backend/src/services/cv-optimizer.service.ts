@@ -429,7 +429,7 @@ function formatSignalName(signal: string): string {
 
 // ─── Build full ATS check from two dimensions ───────────────────────────────
 
-async function buildAtsCheck(body: AnalyzeCvRequest): Promise<AtsCheck> {
+export async function buildAtsCheck(body: AnalyzeCvRequest): Promise<AtsCheck> {
   // Dimension 1: extract keywords from JD
   const keywords = await extractAtsKeywords(body.jobDescription, body.targetRole);
 
@@ -519,7 +519,7 @@ function normalizeActionPlanItems(raw: unknown): ActionPlanItem[] {
     .filter((i) => i.title.length > 0);
 }
 
-async function generateActionPlan(context: ActionPlanEvaluationContext): Promise<ActionPlan> {
+export async function generateActionPlan(context: ActionPlanEvaluationContext): Promise<ActionPlan> {
   assertLlmConfigured('cvOptimizer');
   const anthropic = createAnthropicClient();
   const model = getFeatureModel('cvOptimizer');
@@ -579,7 +579,7 @@ async function generateActionPlan(context: ActionPlanEvaluationContext): Promise
 
 // ─── Composite score computation ────────────────────────────────────────────
 
-function computeCompositeScore(
+export function computeCompositeScore(
   sections: AnalyzeCvResult['sections'],
   atsCheck: AtsCheck,
   bulletEvaluations: BulletEvaluation[],
