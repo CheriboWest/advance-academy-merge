@@ -11,6 +11,7 @@ import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../
 import { runJsonTask } from '../../lib/run-json-task.js';
 import { CV_BULLETS_PROMPT } from '../../prompts/cv-bullets.prompt.js';
 import { todayInstruction } from './today-instruction.js';
+import { normalizeBullets } from './normalizers.js';
 import type { BulletEvaluation, RewriteSuggestion } from '@advance-academy/contracts/cv-optimizer';
 
 export interface BulletsInput {
@@ -45,8 +46,5 @@ export async function analyzeBullets(input: BulletsInput): Promise<BulletsOut> {
     label: 'cv-bullets',
   });
 
-  return {
-    bulletEvaluations: raw.bulletEvaluations ?? [],
-    rewriteSuggestions: raw.rewriteSuggestions ?? [],
-  };
+  return normalizeBullets(raw);
 }

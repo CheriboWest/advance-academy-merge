@@ -10,6 +10,7 @@
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../../lib/llm-anthropic.js';
 import { runJsonTask } from '../../lib/run-json-task.js';
 import { CV_ALIGNMENT_PROMPT } from '../../prompts/cv-alignment.prompt.js';
+import { normalizeAlignment } from './normalizers.js';
 import type { JdAlignment } from '@advance-academy/contracts/cv-optimizer';
 
 export interface AlignmentInput {
@@ -46,11 +47,5 @@ export async function analyzeAlignment(input: AlignmentInput): Promise<Alignment
     label: 'cv-alignment',
   });
 
-  return {
-    jdAlignment: raw.jdAlignment ?? {
-      matchedRequirements: [],
-      missingRequirements: [],
-      alignmentSummary: '',
-    },
-  };
+  return normalizeAlignment(raw);
 }

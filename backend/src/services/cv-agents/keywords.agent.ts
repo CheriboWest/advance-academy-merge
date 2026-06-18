@@ -12,6 +12,7 @@
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../../lib/llm-anthropic.js';
 import { runJsonTask } from '../../lib/run-json-task.js';
 import { CV_KEYWORDS_PROMPT } from '../../prompts/cv-keywords.prompt.js';
+import { normalizeKeywords } from './normalizers.js';
 import type { KeywordHighlight } from '@advance-academy/contracts/cv-optimizer';
 
 export interface KeywordsInput {
@@ -50,7 +51,5 @@ export async function extractKeywords(input: KeywordsInput): Promise<KeywordsOut
     label: 'cv-keywords',
   });
 
-  return {
-    keywordHighlights: raw.keywordHighlights ?? [],
-  };
+  return normalizeKeywords(raw);
 }
