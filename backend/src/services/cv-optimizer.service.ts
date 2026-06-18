@@ -114,7 +114,7 @@ function buildJobError(message: string, details?: unknown): ApiErrorResponse {
 
 // ─── Fallback (no LLM) ────────────────────────────────────────────────────────
 
-function buildFallbackAnalysis(body: AnalyzeCvRequest): AnalyzeCvResult {
+export function buildFallbackAnalysis(body: AnalyzeCvRequest): AnalyzeCvResult {
   const cvText = body.currentCvText.trim();
   const targetRole = body.targetRole.trim();
   const hasMetrics = /\b\d+%|\b\d+\+|\$\d+|\b\d+\s?(users|projects|clients|sales|team members)\b/i.test(cvText);
@@ -498,7 +498,7 @@ interface ActionPlanEvaluationContext {
   keywordHighlights: KeywordHighlight[];
 }
 
-function buildActionPlanFallback(): ActionPlan {
+export function buildActionPlanFallback(): ActionPlan {
   return {
     summary: 'Action plan unavailable — LLM not configured.',
     projectsToBuild: [],

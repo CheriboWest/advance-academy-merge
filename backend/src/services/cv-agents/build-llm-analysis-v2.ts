@@ -7,19 +7,28 @@
  * computeCompositeScore, and generateActionPlan — WITHOUT normalizeResult (the
  * agents own normalization) and WITHOUT touching the live monolith path.
  *
- * Intentionally NOT production-ready. The four agents and the ATS pipeline run
- * in PARALLEL via Promise.all (each isolated by its own fallback), then
- * computeCompositeScore and generateActionPlan run sequentially. NO model
- * routing. generateActionPlan() is still called bare, so the remaining gaps vs
- * buildLlmAnalysis() stay visible (action-plan failure rejects; no no-LLM
- * short-circuit). Nothing imports this; it is fully dormant.
+ * Reliability now mirrors the monolith: a no-LLM short-circuit returns
+ * buildFallbackAnalysis() before any work, the four agents and the ATS pipeline
+ * fan out in PARALLEL via Promise.all (each isolated by its own fallback), then
+ * computeCompositeScore (sync) and generateActionPlan run sequentially with the
+ * action plan isolated to buildActionPlanFallback(). It never throws. Remaining
+ * non-reliability gaps vs buildLlmAnalysis(): NO model routing, and split-prompt
+ * output that still needs quality evaluation. Nothing imports this; it is fully
+ * dormant.
  */
 import { analyzeStructure } from './structure.agent.js';
 import { extractKeywords } from './keywords.agent.js';
 import { analyzeBullets } from './bullets.agent.js';
 import { analyzeAlignment } from './alignment.agent.js';
 import { fallbackStructure, fallbackKeywords, fallbackBullets, fallbackAlignment } from './fallbacks.js';
-import { buildAtsCheck, computeCompositeScore, generateActionPlan } from '../cv-optimizer.service.js';
+import {
+  buildAtsCheck,
+  computeCompositeScore,
+  generateActionPlan,
+  buildActionPlanFallback,
+  buildFallbackAnalysis,
+} from '../cv-optimizer.service.js';
+import { getLlmConfig } from '../../config/llm.js';
 import type { AnalyzeCvResult, AtsCheck } from '@advance-academy/contracts/cv-optimizer';
 
 export type BuildLlmAnalysisV2Input = {
@@ -40,6 +49,13 @@ const EMPTY_ATS_CHECK: AtsCheck = {
 
 export async function buildLlmAnalysisV2(input: BuildLlmAnalysisV2Input): Promise<AnalyzeCvResult> {
   const { targetRole, cvText, jobDescription } = input;
+
+  // No-LLM short-circuit — mirror analyzeCv(): if the LLM is disabled, return the
+  // local fallback analysis without running any agent, ATS, action-plan, or
+  // Promise.all work.
+  if (!getLlmConfig('cvOptimizer').enabled) {
+    return buildFallbackAnalysis({ targetRole, currentCvText: cvText, jobDescription });
+  }
 
   // 1–5: fan out the four agents + the ATS pipeline in parallel. Each branch
   // carries its own fallback, so every promise resolves and Promise.all never
@@ -67,7 +83,8 @@ export async function buildLlmAnalysisV2(input: BuildLlmAnalysisV2Input): Promis
     bullets.bulletEvaluations,
   );
 
-  // 7: action plan over the full evaluation context (bare — no fallback yet, by design).
+  // 7: action plan over the full evaluation context, isolated to the monolith's
+  // fallback (mirrors buildLlmAnalysis()).
   const actionPlan = await generateActionPlan({
     targetRole,
     jobDescription,
@@ -76,7 +93,7 @@ export async function buildLlmAnalysisV2(input: BuildLlmAnalysisV2Input): Promis
     bulletEvaluations: bullets.bulletEvaluations,
     jdAlignment: alignment.jdAlignment,
     keywordHighlights: keywords.keywordHighlights,
-  });
+  }).catch(() => buildActionPlanFallback());
 
   // 8: assemble the contract result (same field set/names as buildLlmAnalysis).
   return {
