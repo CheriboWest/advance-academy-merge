@@ -24,6 +24,7 @@ import type {
 } from '@advance-academy/contracts/cv-optimizer';
 import type { ApiErrorResponse, JobStatus, JobStatusResponse } from '@advance-academy/contracts/jobs';
 import { getLlmConfig } from '../config/llm.js';
+import { getCvOptimizerFeatures } from '../config/features.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 import { getSupabase } from '../lib/supabase.js';
 
@@ -806,6 +807,18 @@ export async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeC
 // ─── Job runner ───────────────────────────────────────────────────────────────
 
 async function analyzeCv(body: AnalyzeCvRequest): Promise<AnalyzeCvResult> {
+  // Feature flag (default off): route through the parallel V2 agent pipeline.
+  // Dynamic import keeps V2 off this file's static module graph — V2 imports
+  // back from here, so a static import would introduce a permanent cycle.
+  if (getCvOptimizerFeatures().useV2) {
+    const { buildLlmAnalysisV2 } = await import('./cv-agents/build-llm-analysis-v2.js');
+    return buildLlmAnalysisV2({
+      targetRole: body.targetRole,
+      cvText: body.currentCvText,
+      jobDescription: body.jobDescription,
+    });
+  }
+
   if (!getLlmConfig('cvOptimizer').enabled) {
     return buildFallbackAnalysis(body);
   }
