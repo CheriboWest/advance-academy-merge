@@ -48,6 +48,7 @@ const EMPTY_ATS_CHECK: AtsCheck = {
 };
 
 export async function buildLlmAnalysisV2(input: BuildLlmAnalysisV2Input): Promise<AnalyzeCvResult> {
+  console.log('🔥 Using CV Optimizer V2');
   const { targetRole, cvText, jobDescription } = input;
 
   // No-LLM short-circuit — mirror analyzeCv(): if the LLM is disabled, return the
