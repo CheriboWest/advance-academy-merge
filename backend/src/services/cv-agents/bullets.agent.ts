@@ -7,7 +7,8 @@
  * maxTokens of the four agents (largest output). Not wired into
  * buildLlmAnalysis(); nothing calls this yet.
  */
-import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../../lib/llm-anthropic.js';
+import { assertLlmConfigured, createAnthropicClient } from '../../lib/llm-anthropic.js';
+import { cvAgentModel } from './models.js';
 import { runJsonTask } from '../../lib/run-json-task.js';
 import { CV_BULLETS_PROMPT } from '../../prompts/cv-bullets.prompt.js';
 import { todayInstruction } from './today-instruction.js';
@@ -27,8 +28,7 @@ export interface BulletsOut {
 export async function analyzeBullets(input: BulletsInput): Promise<BulletsOut> {
   assertLlmConfigured('cvOptimizer');
   const anthropic = createAnthropicClient('cvOptimizer');
-  // TODO: route to Haiku/Sonnet via centralized MODELS config.
-  const model = getFeatureModel('cvOptimizer');
+  const model = cvAgentModel('bullets');
 
   const user = [
     `TARGET ROLE: ${input.targetRole}`,

@@ -9,7 +9,8 @@
  * NOTE: this JD keyword extraction intentionally overlaps the ATS pipeline's
  * extractAtsKeywords() — deduplication is out of scope for this refactor.
  */
-import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../../lib/llm-anthropic.js';
+import { assertLlmConfigured, createAnthropicClient } from '../../lib/llm-anthropic.js';
+import { cvAgentModel } from './models.js';
 import { runJsonTask } from '../../lib/run-json-task.js';
 import { CV_KEYWORDS_PROMPT } from '../../prompts/cv-keywords.prompt.js';
 import { normalizeKeywords } from './normalizers.js';
@@ -28,8 +29,7 @@ export interface KeywordsOut {
 export async function extractKeywords(input: KeywordsInput): Promise<KeywordsOut> {
   assertLlmConfigured('cvOptimizer');
   const anthropic = createAnthropicClient('cvOptimizer');
-  // TODO: route to Haiku/Sonnet via centralized MODELS config.
-  const model = getFeatureModel('cvOptimizer');
+  const model = cvAgentModel('keywords');
 
   const user = [
     `TARGET ROLE: ${input.targetRole}`,

@@ -7,7 +7,8 @@
  * the caller's normalizeResult handles that. Not wired into buildLlmAnalysis();
  * nothing calls this yet.
  */
-import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../../lib/llm-anthropic.js';
+import { assertLlmConfigured, createAnthropicClient } from '../../lib/llm-anthropic.js';
+import { cvAgentModel } from './models.js';
 import { runJsonTask } from '../../lib/run-json-task.js';
 import { CV_STRUCTURE_PROMPT } from '../../prompts/cv-structure.prompt.js';
 import { todayInstruction } from './today-instruction.js';
@@ -28,8 +29,7 @@ export interface StructureOut {
 export async function analyzeStructure(input: StructureInput): Promise<StructureOut> {
   assertLlmConfigured('cvOptimizer');
   const anthropic = createAnthropicClient('cvOptimizer');
-  // TODO: route to Haiku/Sonnet via centralized MODELS config.
-  const model = getFeatureModel('cvOptimizer');
+  const model = cvAgentModel('structure');
 
   const user = [
     `TARGET ROLE: ${input.targetRole}`,

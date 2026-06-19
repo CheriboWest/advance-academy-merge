@@ -7,7 +7,8 @@
  * todayInstruction(): requirement matching does not judge date realism. Not
  * wired into buildLlmAnalysis(); nothing calls this yet.
  */
-import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../../lib/llm-anthropic.js';
+import { assertLlmConfigured, createAnthropicClient } from '../../lib/llm-anthropic.js';
+import { cvAgentModel } from './models.js';
 import { runJsonTask } from '../../lib/run-json-task.js';
 import { CV_ALIGNMENT_PROMPT } from '../../prompts/cv-alignment.prompt.js';
 import { normalizeAlignment } from './normalizers.js';
@@ -26,8 +27,7 @@ export interface AlignmentOut {
 export async function analyzeAlignment(input: AlignmentInput): Promise<AlignmentOut> {
   assertLlmConfigured('cvOptimizer');
   const anthropic = createAnthropicClient('cvOptimizer');
-  // TODO: route to Haiku/Sonnet via centralized MODELS config.
-  const model = getFeatureModel('cvOptimizer');
+  const model = cvAgentModel('alignment');
 
   const user = [
     `TARGET ROLE: ${input.targetRole}`,
