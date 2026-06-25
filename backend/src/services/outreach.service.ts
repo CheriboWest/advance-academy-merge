@@ -1,5 +1,6 @@
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry } from '../lib/llm-anthropic.js';
 import { OUTREACH_SYSTEM_PROMPT, buildOutreachUserMessageParts } from '../lib/outreach/prompts.js';
+import { truncateLinkedInMessage } from '../lib/outreach/truncate.js';
 import { newCostBucket } from '../lib/cost-tracker.js';
 import { extractContent } from './outreach-extractor.service.js';
 import type { OutreachRequest, OutreachResult } from '../types/outreach.js';
@@ -78,14 +79,7 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
   };
 
   if (request.outputs.linkedIn && typeof parsed.linkedInMessage === 'string') {
-    const LINKEDIN_MAX = 300;
-    let msg = parsed.linkedInMessage.trim();
-    if (msg.length > LINKEDIN_MAX) {
-      const cut = msg.slice(0, LINKEDIN_MAX - 3);
-      const lastSpace = cut.lastIndexOf(' ');
-      msg = (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd() + '…';
-    }
-    result.linkedInMessage = msg;
+    result.linkedInMessage = truncateLinkedInMessage(parsed.linkedInMessage);
   }
 
   if (request.outputs.email && parsed.email && typeof parsed.email === 'object') {
