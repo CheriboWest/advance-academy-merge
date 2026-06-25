@@ -111,16 +111,17 @@ export async function generateRoadmapWithJobs(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.roadmap');
 
-  // Exa search + LLM roadmap in parallel
-  const [jobs, roadmapResponse] = await Promise.all([
-    searchJobsForRoles(selectedRoles, profile, cost),
-    withRetry(() => anthropic.messages.create({
-      model,
-      max_tokens: 4096,
-      system: 'You are a career intelligence engine. Return only valid JSON.',
-      messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, []) }],
-    })),
-  ]);
+  // Fetch the Exa job listings FIRST so the roadmap prompt can reference real, current
+  // openings. Running the search and the LLM call in parallel meant the prompt was always
+  // built with an empty job list (AAT-9). Still exactly one Exa search — no extra calls.
+  const jobs = await searchJobsForRoles(selectedRoles, profile, cost);
+
+  const roadmapResponse = await withRetry(() => anthropic.messages.create({
+    model,
+    max_tokens: 4096,
+    system: 'You are a career intelligence engine. Return only valid JSON.',
+    messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, jobs) }],
+  }));
   cost.llm('roadmap', model, roadmapResponse.usage);
   cost.flush();
 
