@@ -78,6 +78,7 @@ export function DreamCompanyScreen() {
     roles,
     selectedRoles,
     jobs,
+    jobsError,
     roadmap,
     loading,
     error,
@@ -341,6 +342,7 @@ export function DreamCompanyScreen() {
             roles={roles}
             selectedRoles={selectedRoles}
             jobs={jobs}
+            jobsError={jobsError}
             roadmap={roadmap}
             currentStep={currentStep}
             onToggleRole={toggleRole}
@@ -397,6 +399,7 @@ function ResultsPanel({
   roles,
   selectedRoles,
   jobs,
+  jobsError,
   roadmap,
   currentStep,
   onToggleRole,
@@ -405,6 +408,7 @@ function ResultsPanel({
   roles: TargetRole[] | null
   selectedRoles: TargetRole[]
   jobs: ExaJobListing[] | null
+  jobsError: string | null
   roadmap: CareerRoadmap | null
   currentStep: string
   onToggleRole: (role: TargetRole) => void
@@ -434,7 +438,7 @@ function ResultsPanel({
       )}
       {hasRoadmap && (
         <TabsContent value="roadmap">
-          <RoadmapAndJobsTab roadmap={roadmap} jobs={jobs} />
+          <RoadmapAndJobsTab roadmap={roadmap} jobs={jobs} jobsError={jobsError} />
         </TabsContent>
       )}
     </Tabs>
@@ -606,7 +610,7 @@ function RolesTab({
 
 // ─── Roadmap & Jobs Tab ─────────────────────────────────────
 
-function RoadmapAndJobsTab({ roadmap, jobs }: { roadmap: CareerRoadmap; jobs: ExaJobListing[] | null }) {
+function RoadmapAndJobsTab({ roadmap, jobs, jobsError }: { roadmap: CareerRoadmap; jobs: ExaJobListing[] | null; jobsError: string | null }) {
   return (
     <div className="space-y-8 mt-4">
       {/* Future You Card */}
@@ -625,6 +629,14 @@ function RoadmapAndJobsTab({ roadmap, jobs }: { roadmap: CareerRoadmap; jobs: Ex
           </div>
         </CardContent>
       </Card>
+
+      {/* Job search failed — distinct from a genuine empty result (AAT-10) */}
+      {jobsError && (
+        <div className="flex items-start gap-2 p-4 rounded-lg border border-amber-300 bg-amber-50">
+          <Briefcase className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">{jobsError}</p>
+        </div>
+      )}
 
       {/* Currently Hiring */}
       {jobs && jobs.length > 0 && (

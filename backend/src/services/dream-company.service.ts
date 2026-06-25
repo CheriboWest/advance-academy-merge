@@ -114,7 +114,7 @@ export async function generateRoadmapWithJobs(
   // Fetch the Exa job listings FIRST so the roadmap prompt can reference real, current
   // openings. Running the search and the LLM call in parallel meant the prompt was always
   // built with an empty job list (AAT-9). Still exactly one Exa search — no extra calls.
-  const jobs = await searchJobsForRoles(selectedRoles, profile, cost);
+  const { jobs, error: jobsError } = await searchJobsForRoles(selectedRoles, profile, cost);
 
   const roadmapResponse = await withRetry(() => anthropic.messages.create({
     model,
@@ -132,14 +132,14 @@ export async function generateRoadmapWithJobs(
     throw Object.assign(new Error('Failed to parse LLM response'), { step: 'careerRoadmap' });
   }
 
-  return { jobs, roadmap };
+  return { jobs, roadmap, jobsError };
 }
 
 async function searchJobsForRoles(
   selectedRoles: TargetRole[],
   profile: DreamCompanyInput,
   costBucket?: CostBucket,
-): Promise<ExaJobListing[]> {
+): Promise<{ jobs: ExaJobListing[]; error: string | null }> {
   try {
     const exa = getExaClient();
     const roleTitles = selectedRoles.map((r) => r.title).join(' OR ');
@@ -147,14 +147,20 @@ async function searchJobsForRoles(
     const searchResponse = await withExaRetry(() => exa.searchAndContents(query, EXA_OPTIONS));
     costBucket?.exa('exa.search.jobs', 1);
 
-    return searchResponse.results.map((result: { title: string | null; url: string; text?: string; publishedDate?: string }) => ({
+    const jobs = searchResponse.results.map((result: { title: string | null; url: string; text?: string; publishedDate?: string }) => ({
       title: result.title ?? result.url,
       url: result.url,
       snippet: (result.text ?? '').slice(0, 200),
       publishedDate: result.publishedDate ?? undefined,
     }));
-  } catch {
-    return [];
+    // A genuine zero-result search is NOT an error — error stays null (AAT-10).
+    return { jobs, error: null };
+  } catch (err) {
+    // Exa outage / bad key / timeout: log it and surface a distinct failure state
+    // instead of masquerading as "no jobs found".
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[dream-company] Exa job search failed:', message);
+    return { jobs: [], error: 'Could not load live job listings — the job search service is unavailable. Your roadmap below is still valid.' };
   }
 }
 

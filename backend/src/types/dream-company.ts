@@ -37,6 +37,11 @@ export interface ExaJobListing {
 export interface RoadmapResponse {
   jobs: ExaJobListing[];
   roadmap: CareerRoadmap;
+  /**
+   * Set when the live job search failed (Exa outage, bad key, timeout). Distinct from
+   * a genuine empty result, where `jobs` is `[]` and `jobsError` is `null` (AAT-10).
+   */
+  jobsError: string | null;
 }
 
 export interface FutureYou {
