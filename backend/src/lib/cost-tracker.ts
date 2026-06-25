@@ -138,7 +138,9 @@ export function newCostBucket(requestLabel: string): CostBucket {
       // eslint-disable-next-line no-console
       console.log(
         `[cost] ${requestLabel} :: ${label.padEnd(22)} model=${model} ` +
-          `in=${num(u.input_tokens)} out=${num(u.output_tokens)} cost=${fmtUsd(cost)}`,
+          `in=${num(u.input_tokens)} out=${num(u.output_tokens)} ` +
+          `cache_read=${num(u.cache_read_input_tokens)} cache_write=${num(u.cache_creation_input_tokens)} ` +
+          `cost=${fmtUsd(cost)}`,
       );
       return cost;
     },

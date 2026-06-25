@@ -1,8 +1,13 @@
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry } from '../lib/llm-anthropic.js';
-import { OUTREACH_SYSTEM_PROMPT, buildOutreachUserPrompt } from '../lib/outreach/prompts.js';
+import { OUTREACH_SYSTEM_PROMPT, buildOutreachUserMessageParts } from '../lib/outreach/prompts.js';
 import { newCostBucket } from '../lib/cost-tracker.js';
 import { extractContent } from './outreach-extractor.service.js';
 import type { OutreachRequest, OutreachResult } from '../types/outreach.js';
+
+// Anthropic prompt caching breakpoint (5-minute ephemeral). Applied to the static
+// system prompt and the sender's CV so repeat requests re-read them instead of
+// re-billing full input tokens (AAT-18).
+const CACHE_CONTROL = { type: 'ephemeral' as const };
 
 function firstTextContent(response: { content: Array<{ type: string; text?: string }> }): string {
   const block = response.content[0];
@@ -27,14 +32,25 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
   );
   const insightContext = insightTexts.filter((t) => t.trim()).join('\n\n---\n\n');
 
+  // Split the user prompt so the stable CV prefix can carry its own cache breakpoint.
+  // On Sonnet-4 the cacheable minimum is 1024 tokens — the ~660-token system prompt is
+  // below that on its own, so the breakpoint sits at the end of `system + CV`, which
+  // clears the threshold and is byte-stable across a user's repeat requests.
+  const { stable, variable } = buildOutreachUserMessageParts(request, jdContext, insightContext);
+
   const response = await withRetry(() => anthropic.messages.create({
     model,
     max_tokens: 1500,
-    system: OUTREACH_SYSTEM_PROMPT,
+    system: [
+      { type: 'text', text: OUTREACH_SYSTEM_PROMPT, cache_control: CACHE_CONTROL },
+    ],
     messages: [
       {
         role: 'user',
-        content: buildOutreachUserPrompt(request, jdContext, insightContext),
+        content: [
+          { type: 'text', text: stable, cache_control: CACHE_CONTROL },
+          { type: 'text', text: `\n\n${variable}` },
+        ],
       },
     ],
   }));
