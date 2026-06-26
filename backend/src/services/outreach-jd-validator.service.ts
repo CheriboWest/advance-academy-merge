@@ -38,6 +38,48 @@ function heuristicJdSlice(content: string, maxChars = 4000): string {
   return content.slice(skip, skip + maxChars).trim();
 }
 
+/**
+ * Shown to the user when the LLM response can't be parsed into a validation
+ * verdict. We must NOT assert the page is a valid JD in this case (AAT-16) —
+ * otherwise navigation/footer junk flows into the generation prompt.
+ */
+export const JD_PARSE_FAILURE_REASON =
+  "We couldn't read this page as a job description. Please paste the job description text directly instead.";
+
+/**
+ * Pure interpreter for the validator LLM's raw text response. Kept separate from
+ * the network/LLM call so the parse-failure path is unit-testable (AAT-16).
+ *
+ * On any parse failure (no JSON object, or malformed JSON) it returns
+ * `valid: false` with a clear reason — never `valid: true` with a raw slice.
+ */
+export function interpretJdValidation(rawText: string, excerpt: string): JdValidationResult {
+  const match = rawText.match(/\{[\s\S]*\}/);
+  if (!match) {
+    console.warn('[outreach-jd-validator] LLM response contained no JSON object — treating as not a JD.');
+    return { valid: false, reason: JD_PARSE_FAILURE_REASON };
+  }
+
+  let parsed: { isJobDescription?: boolean; reason?: string; extractedJd?: string | null };
+  try {
+    parsed = JSON.parse(match[0]);
+  } catch {
+    console.warn('[outreach-jd-validator] LLM response JSON failed to parse — treating as not a JD.');
+    return { valid: false, reason: JD_PARSE_FAILURE_REASON };
+  }
+
+  if (!parsed.isJobDescription) {
+    return { valid: false, reason: parsed.reason || undefined };
+  }
+
+  // Prefer LLM-extracted text; fall back to heuristic slice if extraction is empty.
+  const jdText = (typeof parsed.extractedJd === 'string' && parsed.extractedJd.trim())
+    ? parsed.extractedJd.trim()
+    : excerpt.slice(0, 1500);
+
+  return { valid: true, jdText, reason: parsed.reason || undefined };
+}
+
 export async function validateJdUrl(url: string): Promise<JdValidationResult> {
   assertLlmConfigured('outreach');
 
@@ -88,31 +130,5 @@ or:
     }],
   });
 
-  const rawText = firstTextContent(response);
-  const match = rawText.match(/\{[\s\S]*\}/);
-  if (!match) {
-    // Cannot parse — be lenient: return a heuristic slice rather than raw full content
-    return { valid: true, jdText: excerpt.slice(0, 1500) };
-  }
-
-  try {
-    const parsed = JSON.parse(match[0]) as {
-      isJobDescription?: boolean;
-      reason?: string;
-      extractedJd?: string | null;
-    };
-
-    if (!parsed.isJobDescription) {
-      return { valid: false, reason: parsed.reason || undefined };
-    }
-
-    // Prefer LLM-extracted text; fall back to heuristic slice if extraction is empty
-    const jdText = (typeof parsed.extractedJd === 'string' && parsed.extractedJd.trim())
-      ? parsed.extractedJd.trim()
-      : excerpt.slice(0, 1500);
-
-    return { valid: true, jdText, reason: parsed.reason || undefined };
-  } catch {
-    return { valid: true, jdText: excerpt.slice(0, 1500) };
-  }
+  return interpretJdValidation(firstTextContent(response), excerpt);
 }

@@ -25,18 +25,28 @@ INTENT GUIDELINES:
 - agency_recruiter: Pitch to a headhunter. Focus on metrics, top skills, availability, and the specific Target Role. Reference the JOB DESCRIPTION as proof of relevance.
 `;
 
-export function buildOutreachUserPrompt(
+/**
+ * Splits the outreach user prompt into a STABLE prefix (the sender's CV +
+ * portfolio — identical across every request for the same user) and the VARIABLE
+ * remainder (target, JD, company insights, intent, output format). The split lets
+ * the caller put a prompt-cache breakpoint at the end of the stable prefix so the
+ * `system prompt + CV` span is cached and re-read on repeat requests (AAT-18).
+ *
+ * The two parts joined with `\n\n` are byte-identical to the previous single-string
+ * prompt, so model behaviour is unchanged.
+ */
+export function buildOutreachUserMessageParts(
   request: OutreachRequest,
   jdContext: string,
   insightContext: string,
-): string {
-  const sections: string[] = [];
-
-  sections.push(`SENDER CV:\n${request.cvText.trim()}`);
+): { stable: string; variable: string } {
+  const stableSections: string[] = [`SENDER CV:\n${request.cvText.trim()}`];
 
   if (request.portfolioText && request.portfolioText.trim()) {
-    sections.push(`SENDER PORTFOLIO / ADDITIONAL CONTEXT:\n${request.portfolioText.trim()}`);
+    stableSections.push(`SENDER PORTFOLIO / ADDITIONAL CONTEXT:\n${request.portfolioText.trim()}`);
   }
+
+  const sections: string[] = [];
 
   const targetLines: string[] = [`- Company: ${request.targetCompany}`];
   if (request.targetCountry && request.targetCountry.trim()) {
@@ -113,5 +123,14 @@ Before you finalize your response, count the characters of linkedInMessage. If i
 
   sections.push(formatBlock);
 
-  return sections.join('\n\n');
+  return { stable: stableSections.join('\n\n'), variable: sections.join('\n\n') };
+}
+
+export function buildOutreachUserPrompt(
+  request: OutreachRequest,
+  jdContext: string,
+  insightContext: string,
+): string {
+  const { stable, variable } = buildOutreachUserMessageParts(request, jdContext, insightContext);
+  return `${stable}\n\n${variable}`;
 }
