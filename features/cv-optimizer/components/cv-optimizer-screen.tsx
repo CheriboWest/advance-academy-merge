@@ -878,8 +878,12 @@ export function CvOptimizerScreen() {
     try {
       const { text } = await parseFileForCvOptimizer(file)
       updateField('currentCvText', text)
-    } catch {
-      setParseError('Failed to extract text from CV file. Try pasting it manually.')
+    } catch (error) {
+      console.error('CV file parse failed', error)
+      const status = (error as { status?: number })?.status
+      const detail = (error as { payload?: { message?: string } })?.payload?.message
+      const suffix = status ? ` (${status}${detail ? `: ${detail}` : ''})` : ''
+      setParseError(`Failed to extract text from CV file${suffix}. Try pasting it manually.`)
       setCvFile(null)
       setCvFileName(null)
     } finally { setCvParsing(false) }
@@ -922,8 +926,12 @@ export function CvOptimizerScreen() {
     try {
       const { text } = await parseFileForCvOptimizer(file)
       updateField('jobDescription', text)
-    } catch {
-      setParseError('Failed to extract text from JD file. Try pasting it manually.')
+    } catch (error) {
+      console.error('JD file parse failed', error)
+      const status = (error as { status?: number })?.status
+      const detail = (error as { payload?: { message?: string } })?.payload?.message
+      const suffix = status ? ` (${status}${detail ? `: ${detail}` : ''})` : ''
+      setParseError(`Failed to extract text from JD file${suffix}. Try pasting it manually.`)
       setJdFileName(null)
     } finally { setJdParsing(false) }
   }
