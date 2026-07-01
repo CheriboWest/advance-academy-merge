@@ -1,24 +1,20 @@
 /**
- * Centralized model routing for the dormant CV Optimizer agents.
+ * Centralized model routing for the CV Optimizer V2 branches.
  *
- * Local to cv-agents — does NOT touch config/llm.ts. Lightweight agents
- * (structure, keywords, alignment) route to Haiku; the reasoning-heavy bullets
- * agent stays on the configured cvOptimizer (Sonnet-tier) model. Resolution is
- * lazy so env/test overrides apply at call time.
+ * All V2 branches currently route to Haiku for latency: the lightweight agents
+ * (structure/keywords/alignment) plus bullets and the ATS pipeline. bullets was
+ * moved off Sonnet after profiling showed it dominated the fan-out (~41s); ats
+ * became the next bottleneck once bullets sped up. If bullets quality regresses,
+ * override just that branch via LLM_MODEL_CV_BULLETS.
  *
- * Only the four V2-only agents consume this. buildAtsCheck and
- * generateActionPlan are shared with the live monolith and are intentionally
- * NOT routed here.
+ * Local to cv-agents — does NOT touch config/llm.ts. Only the V2 path consumes
+ * this. The live monolith (buildLlmAnalysis) is unaffected.
  *
- * Override precedence (per call):
- *   1. LLM_MODEL_CV_<AGENT>  (e.g. LLM_MODEL_CV_STRUCTURE) — per-agent override
- *   2. tier default:
- *        - lightweight → LLM_MODEL_CV_HAIKU or DEFAULT_HAIKU_MODEL
- *        - bullets     → getFeatureModel('cvOptimizer')
+ * Override precedence (per call, lazy — read at call time):
+ *   1. LLM_MODEL_CV_<BRANCH>  (e.g. LLM_MODEL_CV_BULLETS) — per-branch override
+ *   2. LLM_MODEL_CV_HAIKU or DEFAULT_HAIKU_MODEL
  */
-import { getFeatureModel } from '../../lib/llm-anthropic.js';
-
-export type CvAgent = 'structure' | 'keywords' | 'bullets' | 'alignment';
+export type CvAgent = 'structure' | 'keywords' | 'bullets' | 'alignment' | 'ats';
 
 const DEFAULT_HAIKU_MODEL = 'claude-haiku-4-5';
 
@@ -27,19 +23,9 @@ function envValue(key: string): string | undefined {
   return v && v.length > 0 ? v : undefined;
 }
 
-/** Haiku-tier model for lightweight agents (env-overridable via LLM_MODEL_CV_HAIKU). */
-function haikuModel(): string {
-  return envValue('LLM_MODEL_CV_HAIKU') ?? DEFAULT_HAIKU_MODEL;
-}
-
-/** Sonnet-tier model for reasoning-heavy agents — reuses the configured cvOptimizer model. */
-function sonnetModel(): string {
-  return getFeatureModel('cvOptimizer');
-}
-
-/** Resolve the model for a CV agent. Lazy — reads config/env at call time. */
+/** Resolve the model for a CV V2 branch. */
 export function cvAgentModel(agent: CvAgent): string {
-  const perAgent = envValue(`LLM_MODEL_CV_${agent.toUpperCase()}`);
-  if (perAgent) return perAgent;
-  return agent === 'bullets' ? sonnetModel() : haikuModel();
+  return envValue(`LLM_MODEL_CV_${agent.toUpperCase()}`)
+    ?? envValue('LLM_MODEL_CV_HAIKU')
+    ?? DEFAULT_HAIKU_MODEL;
 }

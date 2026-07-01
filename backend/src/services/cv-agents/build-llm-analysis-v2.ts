@@ -30,6 +30,7 @@ import {
   buildFallbackAnalysis,
 } from '../cv-optimizer.service.js';
 import { getLlmConfig } from '../../config/llm.js';
+import { cvAgentModel } from './models.js';
 import type { AnalyzeCvResult, AtsCheck } from '@advance-academy/contracts/cv-optimizer';
 
 export type BuildLlmAnalysisV2Input = {
@@ -81,7 +82,7 @@ export async function buildLlmAnalysisV2(input: BuildLlmAnalysisV2Input): Promis
     timed('structure', () => analyzeStructure({ targetRole, cvText, jobDescription }), fallbackStructure),
     timed('keywords', () => extractKeywords({ targetRole, cvText, jobDescription }), fallbackKeywords),
     timed('bullets', () => analyzeBullets({ targetRole, cvText }), fallbackBullets),
-    timed('ats', () => buildAtsCheck({ targetRole, currentCvText: cvText, jobDescription }), () => EMPTY_ATS_CHECK),
+    timed('ats', () => buildAtsCheck({ targetRole, currentCvText: cvText, jobDescription }, cvAgentModel('ats')), () => EMPTY_ATS_CHECK),
     jobDescription
       ? timed('alignment', () => analyzeAlignment({ targetRole, cvText, jobDescription }), fallbackAlignment)
       : Promise.resolve(fallbackAlignment()),

@@ -233,13 +233,14 @@ Rules:
 async function extractAtsKeywords(
   jobDescription: string | undefined,
   targetRole: string,
+  modelOverride?: string,
 ): Promise<AtsExtractedKeyword[]> {
   const jdText = jobDescription?.trim();
   if (!jdText) return [];
 
   assertLlmConfigured('cvOptimizer');
   const anthropic = createAnthropicClient();
-  const model = getFeatureModel('cvOptimizer');
+  const model = modelOverride ?? getFeatureModel('cvOptimizer');
 
   const response = await anthropic.messages.create({
     model,
@@ -309,6 +310,7 @@ async function scoreAtsRelevance(
   cvText: string,
   targetRole: string,
   keywords: AtsExtractedKeyword[],
+  modelOverride?: string,
 ): Promise<AtsRelevanceResult> {
   if (keywords.length === 0) {
     return { keywordMatches: [], signals: [] };
@@ -316,7 +318,7 @@ async function scoreAtsRelevance(
 
   assertLlmConfigured('cvOptimizer');
   const anthropic = createAnthropicClient();
-  const model = getFeatureModel('cvOptimizer');
+  const model = modelOverride ?? getFeatureModel('cvOptimizer');
 
   const keywordList = keywords.map((k) =>
     `- "${k.keyword}" (category: ${k.category}, mandatory: ${k.mandatory})`,
@@ -430,12 +432,12 @@ function formatSignalName(signal: string): string {
 
 // ─── Build full ATS check from two dimensions ───────────────────────────────
 
-export async function buildAtsCheck(body: AnalyzeCvRequest): Promise<AtsCheck> {
+export async function buildAtsCheck(body: AnalyzeCvRequest, modelOverride?: string): Promise<AtsCheck> {
   // Dimension 1: extract keywords from JD
-  const keywords = await extractAtsKeywords(body.jobDescription, body.targetRole);
+  const keywords = await extractAtsKeywords(body.jobDescription, body.targetRole, modelOverride);
 
   // Dimension 2: score relevance against CV
-  const relevance = await scoreAtsRelevance(body.currentCvText, body.targetRole, keywords);
+  const relevance = await scoreAtsRelevance(body.currentCvText, body.targetRole, keywords, modelOverride);
 
   // Merge keyword match results back into the keyword list
   for (const match of relevance.keywordMatches) {
