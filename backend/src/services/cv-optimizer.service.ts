@@ -24,6 +24,7 @@ import type {
 } from '@advance-academy/contracts/cv-optimizer';
 import type { ApiErrorResponse, JobStatus, JobStatusResponse } from '@advance-academy/contracts/jobs';
 import { getLlmConfig } from '../config/llm.js';
+import { getCvOptimizerFeatures } from '../config/features.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 import { getSupabase } from '../lib/supabase.js';
 
@@ -114,7 +115,7 @@ function buildJobError(message: string, details?: unknown): ApiErrorResponse {
 
 // ─── Fallback (no LLM) ────────────────────────────────────────────────────────
 
-function buildFallbackAnalysis(body: AnalyzeCvRequest): AnalyzeCvResult {
+export function buildFallbackAnalysis(body: AnalyzeCvRequest): AnalyzeCvResult {
   const cvText = body.currentCvText.trim();
   const targetRole = body.targetRole.trim();
   const hasMetrics = /\b\d+%|\b\d+\+|\$\d+|\b\d+\s?(users|projects|clients|sales|team members)\b/i.test(cvText);
@@ -232,13 +233,14 @@ Rules:
 async function extractAtsKeywords(
   jobDescription: string | undefined,
   targetRole: string,
+  modelOverride?: string,
 ): Promise<AtsExtractedKeyword[]> {
   const jdText = jobDescription?.trim();
   if (!jdText) return [];
 
   assertLlmConfigured('cvOptimizer');
   const anthropic = createAnthropicClient();
-  const model = getFeatureModel('cvOptimizer');
+  const model = modelOverride ?? getFeatureModel('cvOptimizer');
 
   const response = await anthropic.messages.create({
     model,
@@ -308,6 +310,7 @@ async function scoreAtsRelevance(
   cvText: string,
   targetRole: string,
   keywords: AtsExtractedKeyword[],
+  modelOverride?: string,
 ): Promise<AtsRelevanceResult> {
   if (keywords.length === 0) {
     return { keywordMatches: [], signals: [] };
@@ -315,7 +318,7 @@ async function scoreAtsRelevance(
 
   assertLlmConfigured('cvOptimizer');
   const anthropic = createAnthropicClient();
-  const model = getFeatureModel('cvOptimizer');
+  const model = modelOverride ?? getFeatureModel('cvOptimizer');
 
   const keywordList = keywords.map((k) =>
     `- "${k.keyword}" (category: ${k.category}, mandatory: ${k.mandatory})`,
@@ -429,12 +432,12 @@ function formatSignalName(signal: string): string {
 
 // ─── Build full ATS check from two dimensions ───────────────────────────────
 
-async function buildAtsCheck(body: AnalyzeCvRequest): Promise<AtsCheck> {
+export async function buildAtsCheck(body: AnalyzeCvRequest, modelOverride?: string): Promise<AtsCheck> {
   // Dimension 1: extract keywords from JD
-  const keywords = await extractAtsKeywords(body.jobDescription, body.targetRole);
+  const keywords = await extractAtsKeywords(body.jobDescription, body.targetRole, modelOverride);
 
   // Dimension 2: score relevance against CV
-  const relevance = await scoreAtsRelevance(body.currentCvText, body.targetRole, keywords);
+  const relevance = await scoreAtsRelevance(body.currentCvText, body.targetRole, keywords, modelOverride);
 
   // Merge keyword match results back into the keyword list
   for (const match of relevance.keywordMatches) {
@@ -498,7 +501,7 @@ interface ActionPlanEvaluationContext {
   keywordHighlights: KeywordHighlight[];
 }
 
-function buildActionPlanFallback(): ActionPlan {
+export function buildActionPlanFallback(): ActionPlan {
   return {
     summary: 'Action plan unavailable — LLM not configured.',
     projectsToBuild: [],
@@ -519,7 +522,7 @@ function normalizeActionPlanItems(raw: unknown): ActionPlanItem[] {
     .filter((i) => i.title.length > 0);
 }
 
-async function generateActionPlan(context: ActionPlanEvaluationContext): Promise<ActionPlan> {
+export async function generateActionPlan(context: ActionPlanEvaluationContext): Promise<ActionPlan> {
   assertLlmConfigured('cvOptimizer');
   const anthropic = createAnthropicClient();
   const model = getFeatureModel('cvOptimizer');
@@ -579,7 +582,7 @@ async function generateActionPlan(context: ActionPlanEvaluationContext): Promise
 
 // ─── Composite score computation ────────────────────────────────────────────
 
-function computeCompositeScore(
+export function computeCompositeScore(
   sections: AnalyzeCvResult['sections'],
   atsCheck: AtsCheck,
   bulletEvaluations: BulletEvaluation[],
@@ -717,7 +720,8 @@ Rules:
 - An Action Plan is generated in a separate call — do NOT produce an expertReview or actionPlan field here.
 - Do not invent facts. Do not be encouraging if the CV is weak. Score what is actually present.`;
 
-async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeCvResult | null> {
+export async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeCvResult | null> {
+  console.log('🐘 Using Monolith');
   assertLlmConfigured('cvOptimizer');
 
   const anthropic = createAnthropicClient('cvOptimizer');
@@ -806,6 +810,18 @@ async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeCvResult
 // ─── Job runner ───────────────────────────────────────────────────────────────
 
 async function analyzeCv(body: AnalyzeCvRequest): Promise<AnalyzeCvResult> {
+  // Feature flag (default off): route through the parallel V2 agent pipeline.
+  // Dynamic import keeps V2 off this file's static module graph — V2 imports
+  // back from here, so a static import would introduce a permanent cycle.
+  if (getCvOptimizerFeatures().useV2) {
+    const { buildLlmAnalysisV2 } = await import('./cv-agents/build-llm-analysis-v2.js');
+    return buildLlmAnalysisV2({
+      targetRole: body.targetRole,
+      cvText: body.currentCvText,
+      jobDescription: body.jobDescription,
+    });
+  }
+
   if (!getLlmConfig('cvOptimizer').enabled) {
     return buildFallbackAnalysis(body);
   }

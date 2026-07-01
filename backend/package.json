@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json --incremental false",
     "start": "tsx src/main.ts",
+    "start:prod": "node dist/main.js",
     "start:dev": "tsx watch src/main.ts",
     "typecheck": "tsc --noEmit",
     "usage": "tsx scripts/usage-report.ts",
