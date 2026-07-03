@@ -131,7 +131,9 @@ export async function generateTargetRoles(
 
   const response = await withRetry(() => anthropic.messages.create({
     model,
-    max_tokens: 8192,
+    // 10 roles ≈ ~1200 output tokens (measured: 20 roles ≈ 2384). 4096 leaves a wide safety
+    // margin; M1.2's stop_reason=max_tokens guard turns any truncation into a clean 502.
+    max_tokens: 4096,
     system: 'You are a career intelligence engine. Return only valid JSON.',
     messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
   }));

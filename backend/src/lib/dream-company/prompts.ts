@@ -61,7 +61,7 @@ MARKET ASSESSMENT:
 - Readiness Score: ${analysis.readinessScore}/100
 
 YOUR TASK:
-Identify exactly 20 job titles that match this candidate's CURRENT abilities. These should be roles they could realistically apply for right now based on their existing skills and experience.
+Identify exactly 10 job titles that match this candidate's CURRENT abilities. These should be roles they could realistically apply for right now based on their existing skills and experience. Prioritise quality and variety — cover distinct role types and levels rather than near-duplicate titles.
 
 For each role provide:
 - title: specific job title (e.g., "Senior Frontend Engineer", not just "Engineer")
