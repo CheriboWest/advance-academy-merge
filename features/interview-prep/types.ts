@@ -141,6 +141,8 @@ export interface StartSessionRequest {
 export interface StartSessionResponse {
   sessionId: string
   openingQuestion: string
+  dbSessionId?: string
+  questionId?: string
 }
 
 export interface SendMessageRequest {
@@ -149,6 +151,8 @@ export interface SendMessageRequest {
   messageHistory: Array<{ role: 'interviewer' | 'candidate'; content: string }>
   personaId: PersonaId
   context: InterviewContext
+  dbSessionId?: string
+  questionId?: string
 }
 
 export interface SendMessageResponse {
@@ -156,6 +160,7 @@ export interface SendMessageResponse {
   irsScore: IRSScore
   isComplete: boolean
   assessmentId?: string
+  nextQuestionId?: string
 }
 
 export interface EvaluateSessionResponse {

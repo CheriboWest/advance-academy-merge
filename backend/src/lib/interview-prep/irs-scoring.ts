@@ -1,6 +1,8 @@
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../llm-anthropic.js';
 import type { IRSScore, InterviewContext } from '../../types/interview-prep.js';
 
+const CACHE_CONTROL_1H = { type: 'ephemeral' as const, ttl: '1h' as const };
+
 const IRS_SYSTEM_PROMPT = `You are an expert interview coach and evaluator. Your task is to score
 a candidate's interview answer using the IRS rubric:
 
@@ -36,29 +38,52 @@ export async function scoreAnswer(
   answer: string,
   context?: InterviewContext,
 ): Promise<IRSScore> {
-  assertLlmConfigured('interviewPrep');
-  const anthropic = createAnthropicClient('interviewPrep');
-  const model = getFeatureModel('interviewPrep');
+  assertLlmConfigured('interviewScoring');
+  const anthropic = createAnthropicClient('interviewScoring');
+  const model = getFeatureModel('interviewScoring');
 
-  let userPrompt = `INTERVIEW QUESTION: ${question}\n\nCANDIDATE ANSWER: ${answer}`;
+  const userPrompt = `INTERVIEW QUESTION: ${question}\n\nCANDIDATE ANSWER: ${answer}`;
+  let system: string | Array<{
+    type: 'text';
+    text: string;
+    cache_control?: typeof CACHE_CONTROL_1H;
+  }> = IRS_SYSTEM_PROMPT;
   if (context) {
     const cvText = context.cvText.slice(0, 8000);
-    userPrompt =
+    const contextPrompt =
       `=== JOB BEING INTERVIEWED FOR ===\n` +
       `Title: ${context.jobTitle}\n` +
       `Company: ${context.companyName}\n` +
       `Job Description (the role's requirements — NOT things the candidate claimed):\n"""\n${context.jobDescription}\n"""\n\n` +
       `=== CANDIDATE'S CV (the ONLY source of claims the candidate has made) ===\n"""\n${cvText}\n"""\n\n` +
-      `When judging Integrity, compare the answer ONLY against the CV section above. Do not treat Job Description text as claims the candidate made.\n\n` +
-      userPrompt;
+      `When judging Integrity, compare the answer ONLY against the CV section above. Do not treat Job Description text as claims the candidate made.`;
+    system = [
+      { type: 'text', text: IRS_SYSTEM_PROMPT },
+      { type: 'text', text: contextPrompt, cache_control: CACHE_CONTROL_1H },
+    ];
   }
 
+  const startedAt = performance.now();
   const response = await anthropic.messages.create({
     model,
-    max_tokens: 512,
-    system: IRS_SYSTEM_PROMPT,
+    max_tokens: 384,
+    system,
     messages: [{ role: 'user', content: userPrompt }],
   });
+  console.log(JSON.stringify({
+    event: 'interview-prep.irs',
+    durationMs: Math.round(performance.now() - startedAt),
+    model,
+    systemChars:
+      typeof system === 'string'
+        ? system.length
+        : system.reduce((sum, block) => sum + block.text.length, 0),
+    answerChars: answer.length,
+    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: response.usage.cache_creation_input_tokens ?? 0,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+  }));
 
   const block = response.content.find((b) => b.type === 'text');
   if (!block || block.type !== 'text') {

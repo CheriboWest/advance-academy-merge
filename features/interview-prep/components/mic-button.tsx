@@ -80,7 +80,13 @@ export function MicButton({ disabled, transcribing, onTranscribe, onTranscribed 
 
     let stream: MediaStream
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      })
     } catch (err) {
       const name = err instanceof Error ? err.name : ''
       if (name === 'NotAllowedError' || name === 'SecurityError') {
@@ -97,7 +103,9 @@ export function MicButton({ disabled, transcribing, onTranscribe, onTranscribed 
     chunksRef.current = []
 
     const mimeType = pickSupportedMimeType()
-    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+    const recorderOptions: MediaRecorderOptions = { audioBitsPerSecond: 48_000 }
+    if (mimeType) recorderOptions.mimeType = mimeType
+    const recorder = new MediaRecorder(stream, recorderOptions)
     recorderRef.current = recorder
 
     recorder.ondataavailable = (event) => {

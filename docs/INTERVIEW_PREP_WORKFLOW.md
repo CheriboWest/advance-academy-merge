@@ -49,22 +49,22 @@ Two route files exist at every layer — keep them straight when adding endpoint
                                  ▼
             ┌──────────────────────────────────────────────┐
             │ startInterviewSession()                      │
-            │  - LLM call #1: opening question             │
-            │  - dbStartSession + dbStoreQuestion          │
-            │  → { sessionId, openingQuestion, dbSessionId}│
+            │  - opening LLM + dbStartSession concurrently │
+            │  - store opening question once               │
+            │  → { sessionId, dbSessionId, questionId, ...}│
             └────────────────────┬─────────────────────────┘
                                  │
                           (loop 5–6×)
                                  │
            POST /api/interview { action: 'message', personaId,
-                                 content, messageHistory, context, dbSessionId }
+                                 content, prior messageHistory, context,
+                                 dbSessionId, questionId }
                                  ▼
             ┌──────────────────────────────────────────────┐
             │ sendInterviewMessage()                       │
-            │  - LLM call #2: scoreAnswer (IRS rubric)     │
-            │  - dbStoreQuestion + dbStoreAssessment       │
-            │  - LLM call #3: interviewer reply            │
-            │  → { reply, irsScore, isComplete }           │
+            │  - IRS score + interviewer reply concurrently│
+            │  - assessment + next question concurrently   │
+            │  → { reply, irsScore, nextQuestionId, ... }  │
             └────────────────────┬─────────────────────────┘
                                  │
                        (when isComplete = true)
@@ -80,13 +80,13 @@ Two route files exist at every layer — keep them straight when adding endpoint
             └──────────────────────────────────────────────┘
 ```
 
-`isLastTurn` triggers when `candidateTurnCount >= 5` ([interview.service.ts:121](../backend/src/services/interview.service.ts#L121)). On that turn the system prompt gets a "this is the final exchange" addendum so the LLM wraps up gracefully.
+`isLastTurn` triggers on the fifth candidate answer. `messageHistory` contains only completed prior turns; the current answer is sent once in `content`. On the final turn the system prompt gets a "this is the final exchange" addendum so the LLM wraps up gracefully.
 
 ---
 
 ## The four LLM call sites
 
-Every call uses the `interviewPrep` LLM feature config ([backend/src/config/llm.ts:7](../backend/src/config/llm.ts#L7)) — model is overridable via `LLM_MODEL_INTERVIEW_PREP`, API key via `LLM_API_KEY_INTERVIEW`. Default model is the project-wide default (currently `claude-sonnet-4-20250514` = Sonnet 4.0).
+Opening, interviewer, coach, and feedback calls use `LLM_MODEL_INTERVIEW_PREP`. IRS scoring uses `LLM_MODEL_INTERVIEW_SCORING` when set and otherwise falls back to the Interview Prep model. Both use `LLM_API_KEY_INTERVIEW`.
 
 | # | Site | Function | Per-session frequency | What's repeated |
 |---|---|---|---|---|
@@ -112,7 +112,7 @@ persona.systemPrompt           // ~150–200 tokens (depends on persona)
 
 **Goal:** avoid re-paying for the ~3500–5700 tokens of persona+JD+CV context that's sent unchanged on every interviewer turn.
 
-**Applied to:** [`startInterviewSession`](../backend/src/services/interview.service.ts#L46) and [`sendInterviewMessage`](../backend/src/services/interview.service.ts#L89).
+**Applied to:** opening questions, interviewer turns, and IRS scoring. Final feedback is a single call and remains uncached.
 
 **Pattern (multi-turn, two breakpoints, 1-hour TTL):**
 
@@ -148,16 +148,13 @@ messages: [
 
 Turn 1 writes the cache (read=0). Turn 2+ should show `cache_read` ≈ the prior `cache_write` total. If `cache_read` stays at 0 across turns, a silent invalidator is in play — most likely `body.context` differs byte-for-byte between client requests (e.g., the client rebuilt `cvText` with whitespace differences, or appended a timestamp). Diff the rendered system prompt across two consecutive requests.
 
-**Sonnet 4.0 caching limits to remember:**
-- Min cacheable prefix: **1024 tokens** (our prefix is ~3500–5700, well above).
+**Caching limits to remember:**
+- Minimum cacheable size is model-specific. Inspect the emitted usage fields; a marker on a short prefix may silently produce no cache entry.
 - Max **4 `cache_control` breakpoints per request** (we use 2).
 - 20-block message lookback window for breakpoint #2 (a 6-turn session has ~12 message blocks, well under 20).
 - Caches are **model-scoped** — if you migrate to Sonnet 4.6/4.7 the cache rebuilds on the first post-migration request.
 
-**Why the IRS scorer (#2) and feedback engine (#4) are NOT cached:**
-
-- `scoreAnswer` could in principle benefit (the JD+CV prefix is the same across the 5–6 calls in a session), but the JD+CV is currently in the **user message**, not the system block — caching would require restructuring to pull it into a cached system prefix. Possible future optimization.
-- `generateFeedbackReport` is a single one-shot call per session and its system prompt is sub-1024 tokens (~250 tok). A `cache_control` marker would silently no-op (below the minimum prefix) or pay the 2× write premium for a cache that's never read.
+The IRS scorer keeps the stable rubric + CV/JD in cached system blocks and sends only the current question/answer as the user message. `generateFeedbackReport` remains uncached because its transcript is unique and used once.
 
 ---
 
@@ -171,7 +168,7 @@ Backed by Supabase Postgres ([backend/src/lib/interview-prep/db.ts](../backend/s
 | `interview_questions` | Each interviewer question issued in the session |
 | `interview_assessments` | One row per candidate answer — links question → answer text + IRS sub-scores |
 
-Persistence is **write-through**: routes call `dbStoreQuestion` / `dbStoreAssessment` inline as the session runs, so the DB is the source of truth even if the client crashes mid-session. The client-side `sessionId` (`session_${Date.now()}_…`) and the DB `dbSessionId` are different identifiers — both are returned from `start` and the client must thread the `dbSessionId` back on every subsequent call.
+Persistence is **write-through** and best-effort. Each question is stored once and its `questionId` is threaded through the client so the later assessment references the existing row. Assessment and next-question writes run concurrently after both LLM calls finish. The client-side `sessionId` and DB `dbSessionId` remain different identifiers.
 
 ---
 

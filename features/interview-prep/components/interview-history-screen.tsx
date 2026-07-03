@@ -31,25 +31,33 @@ export function InterviewHistoryScreen() {
   const [sessions, setSessions] = useState<SessionListItem[]>([])
   const [selected, setSelected] = useState<SessionDetail | null>(null)
   const [loadingList, setLoadingList] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchList()
   }, [])
 
-  async function fetchList() {
-    setLoadingList(true)
+  async function fetchList(cursor?: string) {
+    if (cursor) setLoadingMore(true)
+    else setLoadingList(true)
     setError(null)
     try {
-      const res = await authedFetch('/api/interview/sessions')
+      const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+      const res = await authedFetch(`/api/interview/sessions${query}`)
       if (!res.ok) throw new Error('Failed to load sessions')
       const data = await res.json()
-      setSessions(data.sessions ?? [])
+      setSessions((previous) =>
+        cursor ? [...previous, ...(data.sessions ?? [])] : (data.sessions ?? []),
+      )
+      setNextCursor(data.nextCursor ?? null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sessions')
     } finally {
-      setLoadingList(false)
+      if (cursor) setLoadingMore(false)
+      else setLoadingList(false)
     }
   }
 
@@ -77,6 +85,9 @@ export function InterviewHistoryScreen() {
           error={error}
           onOpen={openSession}
           openingId={loadingDetail}
+          onLoadMore={() => nextCursor && fetchList(nextCursor)}
+          hasMore={Boolean(nextCursor)}
+          loadingMore={loadingMore}
         />
       ) : (
         <DetailView session={selected} onBack={() => setSelected(null)} />
@@ -95,12 +106,18 @@ function ListView({
   error,
   onOpen,
   openingId,
+  onLoadMore,
+  hasMore,
+  loadingMore,
 }: {
   sessions: SessionListItem[]
   loading: boolean
   error: string | null
   onOpen: (id: string) => void
   openingId: boolean
+  onLoadMore: () => void
+  hasMore: boolean
+  loadingMore: boolean
 }) {
   return (
     <>
@@ -137,15 +154,28 @@ function ListView({
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {sessions.map((s) => (
-            <SessionCard
-              key={s.id}
-              session={s}
-              onClick={() => onOpen(s.id)}
-              disabled={openingId}
-            />
-          ))}
+        <div className="space-y-4">
+          <div className="space-y-3">
+            {sessions.map((s) => (
+              <SessionCard
+                key={s.id}
+                session={s}
+                onClick={() => onOpen(s.id)}
+                disabled={openingId}
+              />
+            ))}
+          </div>
+          {hasMore && (
+            <button
+              type="button"
+              onClick={onLoadMore}
+              disabled={loadingMore || openingId}
+              className="mx-auto flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-blue-900 hover:border-blue-300 disabled:opacity-50"
+            >
+              {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loadingMore ? 'Loading…' : 'Load more'}
+            </button>
+          )}
         </div>
       )}
     </>

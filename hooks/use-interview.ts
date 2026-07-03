@@ -13,23 +13,6 @@ import type {
   CoachPreview,
 } from '@/features/interview-prep/types'
 
-const STORAGE_KEY = 'interview_sessions'
-
-function loadSessions(): InterviewSession[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
-function saveSessions(sessions: InterviewSession[]) {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions))
-}
-
 async function readErrorMessage(res: Response, fallback: string): Promise<string> {
   const data = (await res.json().catch(() => null)) as
     | { code?: string; message?: string; error?: string }
@@ -59,6 +42,7 @@ export function useInterview() {
 
   // DB session ID tracked via ref (doesn't need to trigger re-renders)
   const dbSessionIdRef = useRef<string | null>(null)
+  const questionIdRef = useRef<string | null>(null)
 
   const updateContext = useCallback((updates: Partial<InterviewContext>) => {
     setContext((prev) => ({ ...prev, ...updates }))
@@ -90,6 +74,7 @@ export function useInterview() {
       if (data.dbSessionId) {
         dbSessionIdRef.current = data.dbSessionId
       }
+      questionIdRef.current = data.questionId ?? null
 
       const openingMessage: InterviewMessage = {
         id: `msg_${Date.now()}`,
@@ -109,10 +94,6 @@ export function useInterview() {
 
       setSession(newSession)
       setStep('interview')
-
-      const sessions = loadSessions()
-      sessions.unshift(newSession)
-      saveSessions(sessions)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start session')
     } finally {
@@ -140,7 +121,9 @@ export function useInterview() {
       [...session.messages].reverse().find((m) => m.role === 'interviewer')?.content ?? ''
 
     try {
-      const messageHistory = updatedMessages.map((m) => ({
+      // Completed turns only. The current answer is carried separately in
+      // `content`, preventing it from being sent to the interviewer twice.
+      const messageHistory = session.messages.map((m) => ({
         role: m.role,
         content: m.content,
       }))
@@ -156,12 +139,14 @@ export function useInterview() {
           personaId: session.personaId,
           context: session.context,
           dbSessionId: dbSessionIdRef.current,
+          questionId: questionIdRef.current,
         }),
       })
 
       if (!res.ok) throw new Error('Failed to send message')
 
       const data = await res.json()
+      questionIdRef.current = data.nextQuestionId ?? null
 
       const scoredCandidate: InterviewMessage = {
         ...candidateMessage,
@@ -189,13 +174,6 @@ export function useInterview() {
       }
 
       setSession(updatedSession)
-
-      const sessions = loadSessions()
-      const idx = sessions.findIndex((s) => s.id === session.id)
-      if (idx >= 0) {
-        sessions[idx] = updatedSession
-      }
-      saveSessions(sessions)
 
       if (data.isComplete) {
         await evaluateSession(updatedSession)
@@ -372,13 +350,6 @@ export function useInterview() {
 
       setSession(completedSession)
       setStep('report')
-
-      const sessions = loadSessions()
-      const idx = sessions.findIndex((s) => s.id === completedSession.id)
-      if (idx >= 0) {
-        sessions[idx] = completedSession
-      }
-      saveSessions(sessions)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate report')
     } finally {
@@ -446,6 +417,7 @@ export function useInterview() {
     setInput('')
     setTranscribing(false)
     dbSessionIdRef.current = null
+    questionIdRef.current = null
   }, [])
 
   const lastScore: IRSScore | undefined = session?.messages

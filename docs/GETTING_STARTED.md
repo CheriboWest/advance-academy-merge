@@ -45,6 +45,7 @@ The full list of variables the backend reads:
 | `LLM_MODEL_OUTREACH` | same as default | Model for Outreach |
 | `LLM_MODEL_DREAM_COMPANY` | same as default | Model for Dream Company |
 | `LLM_MODEL_INTERVIEW_PREP` | same as default | Model for Interview Prep + CV Library + coach-answer |
+| `LLM_MODEL_INTERVIEW_SCORING` | Interview Prep model | Optional separately validated model for IRS scoring |
 | `JINA_API_KEY` | *(empty)* | Optional bearer token for `https://r.jina.ai/` URL scraping (Outreach + CV Library + job-extract) |
 | `SUPABASE_URL` | *(empty)* | **Required** for Interview Prep + CV Library persistence |
 | `SUPABASE_SERVICE_ROLE_KEY` | *(empty)* | **Required** for Interview Prep + CV Library persistence (server-side only — never expose to the browser) |

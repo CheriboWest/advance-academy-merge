@@ -1,20 +1,20 @@
 # LLM Token Budget — Interview Prep & CV Library
 
-Reference for sizing `max_tokens`, understanding input-token footprints, and a plan to measure real output ranges. Scope: only the two tools this doc owns — Interview Prep and CV Library. All Claude calls use `LLM_MODEL_INTERVIEW_PREP` (default `claude-sonnet-4-20250514`).
+Reference for sizing `max_tokens`, understanding input-token footprints, and measuring real output ranges. Scope: Interview Prep and CV Library. Interview generation uses `LLM_MODEL_INTERVIEW_PREP`; IRS scoring can use `LLM_MODEL_INTERVIEW_SCORING` and falls back to the Interview Prep model.
 
 Token conversion used throughout: **4 chars ≈ 1 token** for English text. Actual counts vary ±20%; run the measurement plan at the bottom to pin them down.
 
 ---
 
-## 1. Prompt-caching status — NOT ENABLED
+## 1. Prompt-caching status — ENABLED FOR LIVE INTERVIEWS
 
-Grepped the entire `backend/` for `cache_control`, `ephemeral`, `prompt_caching`, `anthropic-beta`: **no matches.** Every `anthropic.messages.create(...)` call sends the full system prompt + context as uncached input. That means:
+Interview opening and next-question calls cache the byte-stable persona + CV/JD prefix for one hour. Each next-question call also places a breakpoint on the last assistant turn so the growing conversation prefix can be reused.
 
-- **Interview Prep session (5 turns):** the persona prompt + CV (sliced to 12k chars) + JD get re-sent **11 times** — once in `startInterviewSession`, then 5× in `sendInterviewMessage` (next-question) + 5× inside `scoreAnswer` (IRS). With the default context, that's ~3,500 tokens × 11 ≈ **38,500 tokens billed at full rate** that would cost ~90% less if cached.
-- **CV Library Phase 2:** the gap-generation system prompt is identical per bullet but loops uncached. Not huge in absolute terms (~250 tokens × N), but free savings.
-- **Coach Answer:** the long constrained system prompt is rebuilt from scratch every click.
+- **IRS scoring:** the rubric + CV/JD context is now a cached one-hour system prefix; the current question and answer remain uncached. Cache minimums differ by model, so use the emitted `cacheReadTokens` / `cacheWriteTokens` telemetry to verify hits.
+- **Final feedback:** remains uncached because it is one call per session.
+- **CV Library and Coach Answer:** are unchanged and should be evaluated separately before adding cache writes.
 
-**Recommendation:** add `cache_control: { type: 'ephemeral' }` on the system prompt block for (in priority order) IRS scoring, next-question generation, coach answer. Expect ~40–60% cost drop on Interview Prep. Note that Anthropic caches expire after ~5 min; real savings depend on turn cadence and click cadence.
+The backend emits structured `interview-prep.start`, `.turn`, `.irs`, `.feedback`, and `.evaluate` telemetry with latency, token, prompt-size, and cache fields. Logs intentionally exclude prompt text.
 
 Docs: https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
 
@@ -29,7 +29,7 @@ Columns: **what goes in the call**, **where its size comes from**, **typical inp
 | # | User action | What's in the input | Sources | Typ. input tok | Hard cap on input | Current `max_tokens` | Recommended `max_tokens` |
 |---|---|---|---|---|---|---|---|
 | IP-1 | Click **Start Interview** | Persona system prompt + context preamble (JD verbatim + CV sliced to **12,000 chars**) + 1 short user message ("begin the interview…") | [interview.service.ts:22-43](../backend/src/services/interview.service.ts#L22) `buildContextPreamble`; persona from [personas.ts](../backend/src/lib/interview-prep/personas.ts) | 2,500 – 5,500 | CV 12k chars ≈ 3,000 tok; JD free-form (no cap) | **256** | 256 is fine — opening question is ≤3 sentences |
-| IP-2 | **IRS scoring** (runs on every candidate answer, inside `sendInterviewMessage`) | IRS system prompt (~400 tok) + JD verbatim + CV sliced to **8,000 chars** + question + answer | [irs-scoring.ts:43-54](../backend/src/lib/interview-prep/irs-scoring.ts#L43) | 2,500 – 4,000 | CV 8k chars ≈ 2,000 tok | **512** | **384** suffices — output is fixed-shape JSON: 3 score+rationale entries + overall (~250–350 tok). Drop to 384 to fail fast if the model rambles. |
+| IP-2 | **IRS scoring** (runs concurrently with next-question generation) | Cached IRS system/context prefix + current question + answer | [irs-scoring.ts](../backend/src/lib/interview-prep/irs-scoring.ts) | 2,500 – 4,000 | CV 8k chars ≈ 2,000 tok | **384** | 384; output is fixed-shape JSON |
 | IP-3 | **Generate next question** (same click as IP-2) | Persona + full context preamble (JD + CV 12k chars) + entire message history (grows per turn) + new candidate answer + optional "final turn" addendum | interview.service.ts:111-131 | Turn 1: ~4,000 · Turn 5: ~6,500 | Message history unbounded | **300** | 300 is fine — each question is 1–3 sentences |
 | IP-4 | **End interview → feedback report** | Feedback system prompt (~400 tok) + JD + company + full transcript (all Q/A with IRS tags) + aggregate IRS | [feedback-engine.service.ts:37-54](../backend/src/services/feedback-engine.service.ts#L37) | 2,000 – 6,000 | Transcript grows with turn count | **1,024** | 1,024 is fine — output is 3 strengths + 3 improvements + 2-3 sentence summary. Measured typical: ~500–800 tok |
 | IP-5 | **Voice mode submit** (optional) | Audio blob via Groq Whisper `whisper-large-v3-turbo` — not Claude. | [transcription.service.ts](../backend/src/services/transcription.service.ts) | N/A (audio) | 25 MB file | N/A | N/A — billed per second of audio |
@@ -59,7 +59,7 @@ Biggest wins:
 - CV-8 (rank bullets): **4,096 → 256** (16× tighter)
 - CV-3 (gap gen): **4,096 → 768** (5× tighter)
 - CV-5 / CV-10 (artifact summary): **4,096 → 1,024** (4× tighter)
-- IP-2 (IRS): **512 → 384**
+- IP-2 (IRS): **384** (implemented)
 
 ---
 
@@ -130,7 +130,7 @@ For each `label`, compute:
 
 Rule of thumb when setting `max_tokens`: **p99 output × 1.5**, rounded up to the next nice number. Anything above that, the model is degenerate or prompt is broken — fail fast, don't pay for more tokens.
 
-### 4.4 Optional — after caching is enabled
+### 4.4 Validate caching in production
 
 Re-run the Interview Prep portion. Expect `cache_read_input_tokens` to be ~3,000+ on turns 2–5 of a session (the persona + CV preamble). Compute effective cost:
 - Cache write: `cache_creation_input_tokens` × $3.75/M (Sonnet 4 rate is 1.25× base for writes)
@@ -145,8 +145,7 @@ Full cache pricing details: https://docs.anthropic.com/en/docs/build-with-claude
 
 Ordered by ROI:
 
-1. **Add caching on the interview persona + CV context** (IP-1, IP-2, IP-3) — biggest single cost lever, one afternoon of work.
-2. **Add an input cap to CV-11** (Coach Understanding) — prevents the call from breaking silently once a power user hits ~60 bullets.
-3. **Add the telemetry hook from 4.1** — cheap, unblocks every future tuning decision.
-4. **Tighten `max_tokens` per section 2** — no cost impact but catches prompt-regression faster.
-5. **Consider swapping `LLM_MODEL_INTERVIEW_PREP` to Haiku 4.5 for CV-3 (gap generation)** — the task is constrained and repetitive; Haiku likely does it fine at ~3× lower cost. Validate quality against 20-bullet sample before rolling out.
+1. **Measure the new parallel turn path** at p50/p95 and confirm interviewer and IRS cache hits.
+2. **Evaluate `LLM_MODEL_INTERVIEW_SCORING` candidates** on a human-reviewed answer set before changing production.
+3. **Add an input cap to CV-11** (Coach Understanding).
+4. **Tighten remaining CV Library output limits** per section 2.

@@ -70,9 +70,13 @@ export async function registerInterviewRoutes(app: FastifyInstance) {
     }
   });
 
-  app.get('/api/interview/sessions', async (request) => {
-    const sessions = await dbListSessions(request.userId);
-    return { sessions };
+  app.get<{ Querystring: { cursor?: string; limit?: string } }>('/api/interview/sessions', async (request) => {
+    const requestedLimit = Number(request.query.limit);
+    return dbListSessions(
+      request.userId,
+      request.query.cursor,
+      Number.isFinite(requestedLimit) ? requestedLimit : 20,
+    );
   });
 
   app.get<{ Params: { id: string } }>('/api/interview/sessions/:id', async (request, reply) => {

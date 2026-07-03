@@ -229,13 +229,18 @@ export async function dbStartSession(userId: string,
   try {
     // Each helper is best-effort and returns null on failure — a single sub-step
     // failing must not block session creation. The FKs we can't fill stay null.
-    const activeCv = await getActiveCv(userId);
-    const companyId = await getOrCreateCompany(context.companyName, context.companyUrl);
-    if (companyId) {
-      await insertCompanyAdditionalUrls(companyId, context.extraLinks);
-    }
-    const jobTargetId = await createJobTarget(userId, companyId, context);
-    const candidateProfileId = await createCandidateProfile(userId, activeCv);
+    const [activeCv, companyId] = await Promise.all([
+      getActiveCv(userId),
+      getOrCreateCompany(context.companyName, context.companyUrl),
+    ]);
+    const additionalUrlsPromise = companyId
+      ? insertCompanyAdditionalUrls(companyId, context.extraLinks)
+      : Promise.resolve();
+    const [jobTargetId, candidateProfileId] = await Promise.all([
+      createJobTarget(userId, companyId, context),
+      createCandidateProfile(userId, activeCv),
+      additionalUrlsPromise,
+    ]);
     const interviewPackId =
       jobTargetId && candidateProfileId
         ? await createInterviewPack(jobTargetId, candidateProfileId, personaId)
@@ -299,6 +304,30 @@ export async function dbStoreQuestion(
     return { id: data.id };
   } catch (err) {
     console.error('[db] dbStoreQuestion error:', err);
+    return null;
+  }
+}
+
+export async function dbQuestionBelongsToSession(
+  sessionId: string,
+  questionId: string,
+): Promise<boolean | null> {
+  const supabase = safeSupabase();
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('interview_questions')
+      .select('id')
+      .eq('id', questionId)
+      .eq('session_id', sessionId)
+      .maybeSingle();
+    if (error) {
+      console.error('[db] Failed to validate question:', error);
+      return null;
+    }
+    return Boolean(data);
+  } catch (err) {
+    console.error('[db] dbQuestionBelongsToSession error:', err);
     return null;
   }
 }
@@ -395,22 +424,47 @@ export async function dbUpdateSessionStatus(sessionId: string, status: string): 
   }
 }
 
-export async function dbListSessions(userId: string): Promise<unknown[]> {
+export async function dbListSessions(
+  userId: string,
+  cursor?: string,
+  pageSize = 20,
+): Promise<{ sessions: unknown[]; nextCursor: string | null }> {
   const supabase = safeSupabase();
-  if (!supabase) return [];
-  const { data, error } = await supabase
+  if (!supabase) return { sessions: [], nextCursor: null };
+  const boundedPageSize = Math.min(50, Math.max(1, pageSize));
+  let query = supabase
     .from('interview_sessions')
     .select(
-      'id, persona_id, mode, status, started_at, ended_at, final_score_json, context_json',
+      'id, persona_id, mode, status, started_at, ended_at, final_score_json, job_title:context_json->>jobTitle, company_name:context_json->>companyName',
     )
     .eq('user_id', userId)
     .order('started_at', { ascending: false })
-    .limit(100);
+    .limit(boundedPageSize + 1);
+  if (cursor) query = query.lt('started_at', cursor);
+  const { data, error } = await query;
   if (error) {
     console.error('[db] dbListSessions error:', error);
-    return [];
+    return { sessions: [], nextCursor: null };
   }
-  return data ?? [];
+  const rows = data ?? [];
+  const hasNextPage = rows.length > boundedPageSize;
+  const page = rows.slice(0, boundedPageSize);
+  const sessions = page.map((row) => {
+    const summary = row as Record<string, unknown>;
+    const { job_title: jobTitle, company_name: companyName, ...session } = summary;
+    return {
+      ...session,
+      context_json: {
+        jobTitle: typeof jobTitle === 'string' ? jobTitle : undefined,
+        companyName: typeof companyName === 'string' ? companyName : undefined,
+      },
+    };
+  });
+  const last = page.at(-1) as Record<string, unknown> | undefined;
+  return {
+    sessions,
+    nextCursor: hasNextPage && typeof last?.started_at === 'string' ? last.started_at : null,
+  };
 }
 
 interface MissingEvidencePromptRow {

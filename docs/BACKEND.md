@@ -143,6 +143,7 @@ Two entry points, use the right one for the job:
 | Dream Company | `LLM_MODEL_DREAM_COMPANY` | `LLM_MODEL_DEFAULT` |
 | Outreach | `LLM_MODEL_OUTREACH` | `LLM_MODEL_DEFAULT` |
 | Interview Prep | `LLM_MODEL_INTERVIEW_PREP` | `LLM_MODEL_DEFAULT` |
+| Interview IRS scoring | `LLM_MODEL_INTERVIEW_SCORING` | `LLM_MODEL_INTERVIEW_PREP` |
 
 To change a model for a single feature, set only the feature-specific env var.
 

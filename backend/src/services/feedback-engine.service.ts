@@ -54,12 +54,22 @@ export async function generateFeedbackReport(session: InterviewSession): Promise
     userPrompt = `JOB TITLE: ${session.context.jobTitle}\nCOMPANY: ${session.context.companyName}\nJOB DESCRIPTION: ${session.context.jobDescription}\n\n${userPrompt}`;
   }
 
+  const startedAt = performance.now();
   const response = await anthropic.messages.create({
     model,
     max_tokens: 1024,
     system: FEEDBACK_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userPrompt }],
   });
+  console.log(JSON.stringify({
+    event: 'interview-prep.feedback',
+    durationMs: Math.round(performance.now() - startedAt),
+    model,
+    promptChars: userPrompt.length,
+    transcriptMessages: session.messages.length,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+  }));
 
   const block = response.content.find((b) => b.type === 'text');
   if (!block || block.type !== 'text') {

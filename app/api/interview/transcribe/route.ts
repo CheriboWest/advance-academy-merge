@@ -1,25 +1,45 @@
 import { getProxyAuthToken } from '@/shared/api/proxy-auth'
 import { NextResponse } from 'next/server'
-import { transcribeInterviewAudioWithBackend } from '@/shared/api/backend-client'
-import { HttpClientError } from '@/shared/api/http-client'
+import { getServerEnv } from '@/shared/env/server'
 
 export async function POST(request: Request) {
   const authToken = getProxyAuthToken(request)
-  try {
-    const formData = await request.formData()
-    const response = await transcribeInterviewAudioWithBackend(formData, authToken)
-    return NextResponse.json(response)
-  } catch (error) {
-    if (error instanceof HttpClientError) {
-      return NextResponse.json(error.payload, { status: error.status || 500 })
-    }
+  const contentType = request.headers.get('content-type')
+  if (!contentType?.toLowerCase().startsWith('multipart/form-data') || !request.body) {
+    return NextResponse.json({ error: 'Invalid multipart body.' }, { status: 400 })
+  }
 
+  try {
+    const { backendUrl } = getServerEnv()
+    const headers: Record<string, string> = { 'Content-Type': contentType }
+    if (authToken) headers.Authorization = `Bearer ${authToken}`
+
+    // Preserve the multipart stream instead of buffering the full recording in
+    // Next and constructing a second FormData payload.
+    const init: RequestInit & { duplex: 'half' } = {
+      method: 'POST',
+      headers,
+      body: request.body,
+      duplex: 'half',
+      signal: AbortSignal.timeout(60_000),
+    }
+    const response = await fetch(`${backendUrl}/api/interview/transcribe`, init)
+    return new Response(response.body, {
+      status: response.status,
+      headers: {
+        'Content-Type': response.headers.get('content-type') ?? 'application/json',
+      },
+    })
+  } catch (error) {
     return NextResponse.json(
       {
-        code: 'INVALID_REQUEST',
-        message: error instanceof Error ? error.message : 'Invalid multipart body.',
+        code: error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'PROXY_ERROR',
+        message:
+          error instanceof Error && error.name === 'TimeoutError'
+            ? 'Transcription timed out.'
+            : 'Transcription proxy failed.',
       },
-      { status: 400 },
+      { status: error instanceof Error && error.name === 'TimeoutError' ? 504 : 502 },
     )
   }
 }

@@ -5,7 +5,8 @@ export type LlmFeature =
   | 'cvOptimizer'
   | 'outreach'
   | 'dreamCompany'
-  | 'interviewPrep';
+  | 'interviewPrep'
+  | 'interviewScoring';
 
 export interface LlmFeatureConfig {
   enabled: boolean;
@@ -72,6 +73,10 @@ function getFeatureModels(provider: LlmProvider): Record<LlmFeature, string> {
     outreach: readRequiredString(process.env.LLM_MODEL_OUTREACH, defaultModel),
     dreamCompany: readRequiredString(process.env.LLM_MODEL_DREAM_COMPANY, defaultModel),
     interviewPrep: readRequiredString(process.env.LLM_MODEL_INTERVIEW_PREP, defaultModel),
+    interviewScoring: readRequiredString(
+      process.env.LLM_MODEL_INTERVIEW_SCORING,
+      readRequiredString(process.env.LLM_MODEL_INTERVIEW_PREP, defaultModel),
+    ),
   };
 }
 
@@ -89,6 +94,7 @@ function getFeatureApiKey(feature: LlmFeature): string {
     case 'cvOptimizer':
       return pick(process.env.LLM_API_KEY_CV);
     case 'interviewPrep':
+    case 'interviewScoring':
       return pick(process.env.LLM_API_KEY_INTERVIEW);
     case 'default':
     default:

@@ -368,9 +368,10 @@ export function evaluateInterviewWithBackend(payload: unknown, authToken?: strin
   })
 }
 
-export function listInterviewSessionsWithBackend(authToken?: string) {
+export function listInterviewSessionsWithBackend(authToken?: string, cursor?: string) {
   const { backendUrl } = getServerEnv()
-  return fetchJson<{ sessions: unknown[] }>(`${backendUrl}/api/interview/sessions`, {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+  return fetchJson<{ sessions: unknown[]; nextCursor: string | null }>(`${backendUrl}/api/interview/sessions${query}`, {
     method: 'GET',
     headers: authHeaders(authToken),
     timeoutMs: 15000,

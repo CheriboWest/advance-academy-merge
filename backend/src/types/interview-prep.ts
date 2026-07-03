@@ -88,12 +88,14 @@ export interface SendMessageBody {
   personaId: PersonaId;
   context: InterviewContext;
   dbSessionId?: string;
+  questionId?: string;
 }
 
 export interface StartSessionResponse {
   sessionId: string;
   openingQuestion: string;
   dbSessionId?: string;
+  questionId?: string;
 }
 
 export interface SendMessageResponse {
@@ -101,6 +103,7 @@ export interface SendMessageResponse {
   irsScore: IRSScore;
   isComplete: boolean;
   assessmentId?: string;
+  nextQuestionId?: string;
 }
 
 export interface EvaluateSessionBody {
