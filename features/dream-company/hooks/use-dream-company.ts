@@ -8,7 +8,11 @@ import type {
   ExaJobListing,
   CareerRoadmap,
 } from '@/types/dream-company'
-import { analyzeProfile, generateRoles, generateRoadmap, parseCV } from '@/features/dream-company/api/frontend-client'
+import { analyzeProfileStream, generateRolesStream, generateRoadmapStream, parseCV } from '@/features/dream-company/api/frontend-client'
+
+// Rough per-step output sizes (chars of streamed JSON) used to turn the live token stream into
+// a progress %. Approximate on purpose — the bar caps at 96% and snaps to 100 only on completion.
+const EXPECTED_CHARS = { analyze: 2200, roles: 2600, roadmap: 3200 } as const
 
 export type DreamCompanyStep =
   | 'idle'
@@ -37,8 +41,21 @@ export function useDreamCompany() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentStep, setCurrentStep] = useState<DreamCompanyStep>('idle')
+  const [progress, setProgress] = useState(0)
 
   const profileRef = useRef<DreamCompanyInput | null>(null)
+  const charsRef = useRef(0)
+
+  // Begin a streamed step: reset the progress bar and return an onDelta that advances it as
+  // tokens arrive (capped at 96% until the step's `done` result lands).
+  const beginStep = useCallback((expected: number) => {
+    charsRef.current = 0
+    setProgress(0)
+    return (text: string) => {
+      charsRef.current += text.length
+      setProgress(Math.min(96, Math.round((charsRef.current / expected) * 100)))
+    }
+  }, [])
 
   const generateFromProfile = useCallback(
     async (profile: DreamCompanyInput): Promise<void> => {
@@ -53,23 +70,24 @@ export function useDreamCompany() {
       setCurrentStep('analyzing')
 
       try {
-        // Step 1: Profile Analysis
-        const analysisResult = await analyzeProfile(profile)
+        // Step 1: Profile Analysis (streamed)
+        const analysisResult = await analyzeProfileStream(profile, beginStep(EXPECTED_CHARS.analyze))
         setAnalysis(analysisResult)
         setCurrentStep('generating-roles')
 
-        // Step 2: Target Roles
-        const rolesResult = await generateRoles(profile, analysisResult)
+        // Step 2: Target Roles (streamed)
+        const rolesResult = await generateRolesStream(profile, analysisResult, beginStep(EXPECTED_CHARS.roles))
         setRoles(rolesResult)
         setCurrentStep('picking')
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An unknown error occurred')
         setCurrentStep('idle')
       } finally {
+        setProgress(0)
         setLoading(false)
       }
     },
-    [],
+    [beginStep],
   )
 
   const toggleRole = useCallback((role: TargetRole) => {
@@ -92,8 +110,8 @@ export function useDreamCompany() {
       setCurrentStep('building-roadmap')
 
       try {
-        // Step 3: Exa job search + Roadmap
-        const result = await generateRoadmap(profile, analysis, selectedRoles)
+        // Step 3: Exa job search + Roadmap (streamed)
+        const result = await generateRoadmapStream(profile, analysis, selectedRoles, beginStep(EXPECTED_CHARS.roadmap))
         setJobs(result.jobs)
         setJobsError(result.jobsError)
         setRoadmap(result.roadmap)
@@ -102,10 +120,11 @@ export function useDreamCompany() {
         setError(err instanceof Error ? err.message : 'An unknown error occurred')
         setCurrentStep('picking')
       } finally {
+        setProgress(0)
         setLoading(false)
       }
     },
-    [analysis, selectedRoles],
+    [analysis, selectedRoles, beginStep],
   )
 
   const uploadCV = useCallback(async (file: File): Promise<DreamCompanyInput | null> => {
@@ -138,6 +157,7 @@ export function useDreamCompany() {
     setLoading(false)
     setError(null)
     setCurrentStep('idle')
+    setProgress(0)
   }, [])
 
   return {
@@ -150,6 +170,7 @@ export function useDreamCompany() {
     loading,
     error,
     currentStep,
+    progress,
     generateFromProfile,
     toggleRole,
     buildRoadmap,
