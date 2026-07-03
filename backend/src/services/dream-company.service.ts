@@ -29,10 +29,11 @@ const EXA_OPTIONS = {
 } as const;
 
 /**
- * Per-step SDK timeouts (ms), env-overridable. Defaults are aligned with the proxy budgets in
- * shared/api/backend-client.ts (analyze 30s, roles 60s, roadmap 180s, parse-cv 120s) so the
+ * Per-step SDK timeouts (ms), env-overridable. Sized under the proxy budgets in
+ * shared/api/backend-client.ts (analyze 60s, roles 60s, roadmap 180s, parse-cv 120s) so the
  * backend aborts in step with the client instead of hanging on the SDK's 10-minute default.
  * A single global timeout would kill the slow roles/roadmap steps on the happy path.
+ * analyze is 45s (not 30s): measured ~26–29s on prod, so 30s left almost no headroom.
  */
 function stepTimeoutMs(envVar: string, fallbackMs: number): number {
   const parsed = Number(process.env[envVar]);
@@ -40,7 +41,7 @@ function stepTimeoutMs(envVar: string, fallbackMs: number): number {
 }
 
 const DREAM_TIMEOUTS = {
-  analyze: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_ANALYZE_MS', 30_000),
+  analyze: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_ANALYZE_MS', 45_000),
   roles: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_ROLES_MS', 60_000),
   roadmap: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_ROADMAP_MS', 120_000),
   parseCv: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_PARSECV_MS', 90_000),
