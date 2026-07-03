@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import multipart from '@fastify/multipart';
+import { APIConnectionTimeoutError } from '@anthropic-ai/sdk';
 import {
   generateProfileAnalysis,
   generateTargetRoles,
@@ -22,13 +23,31 @@ function handleServiceError(error: unknown, request: { log: { error: (e: unknown
     error && typeof error === 'object' && 'step' in error
       ? String((error as { step: string }).step)
       : undefined;
-  if (step) {
-    return reply.code(500).send({ error: 'Failed to parse LLM response', step });
-  }
   const statusCode =
     error && typeof error === 'object' && 'statusCode' in error
       ? Number((error as { statusCode?: number }).statusCode)
       : undefined;
+  // Truncated LLM output (max_tokens) — retryable 502, not a bare 500. Checked before the
+  // `step` branch because truncation errors also carry `step` for debugging.
+  if (statusCode === 502) {
+    return reply.code(502).send({
+      error:
+        error instanceof Error
+          ? error.message
+          : 'The AI response was cut off. Please try again.',
+      ...(step ? { step } : {}),
+    });
+  }
+  // SDK request exceeded its per-step timeout — controlled abort, not a hang. 504 + retry hint.
+  if (error instanceof APIConnectionTimeoutError) {
+    request.log.error(error);
+    return reply.code(504).send({
+      error: 'The AI service took too long to respond. Please try again.',
+    });
+  }
+  if (step) {
+    return reply.code(500).send({ error: 'Failed to parse LLM response', step });
+  }
   if (statusCode === 503) {
     return reply.code(503).send({
       error:

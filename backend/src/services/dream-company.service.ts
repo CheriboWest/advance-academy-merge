@@ -28,6 +28,30 @@ const EXA_OPTIONS = {
   numResults: 20,
 } as const;
 
+/**
+ * Per-step SDK timeouts (ms), env-overridable. Defaults are aligned with the proxy budgets in
+ * shared/api/backend-client.ts (analyze 30s, roles 60s, roadmap 180s, parse-cv 120s) so the
+ * backend aborts in step with the client instead of hanging on the SDK's 10-minute default.
+ * A single global timeout would kill the slow roles/roadmap steps on the happy path.
+ */
+function stepTimeoutMs(envVar: string, fallbackMs: number): number {
+  const parsed = Number(process.env[envVar]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
+}
+
+const DREAM_TIMEOUTS = {
+  analyze: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_ANALYZE_MS', 30_000),
+  roles: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_ROLES_MS', 60_000),
+  roadmap: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_ROADMAP_MS', 120_000),
+  parseCv: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_PARSECV_MS', 90_000),
+};
+
+// maxRetries: 0 because withRetry() already handles 429 backoff — layering the SDK's own
+// retries on top would multiply the effective timeout wall-time and defeat the bounded abort.
+function dreamClient(timeoutMs: number) {
+  return createAnthropicClient('dreamCompany', { timeoutMs, maxRetries: 0 });
+}
+
 function cleanJsonResponse(text: string): string {
   return text
     .replace(/^```(?:json)?\s*\n?/, '')
@@ -43,6 +67,30 @@ function extractText(response: { content: Array<{ type: string; text?: string }>
   return '';
 }
 
+/**
+ * Parse an LLM JSON response for one Dream Company step.
+ * Distinguishes a truncated response (hit max_tokens → retryable 502) from genuinely
+ * malformed JSON (→ 500 with step), so the user never gets a raw parse error or a
+ * confusing 500 when the model simply ran out of output budget.
+ */
+function parseStepResponse<T>(
+  response: { stop_reason?: string | null; content: Array<{ type: string; text?: string }> },
+  step: string,
+): T {
+  if (response.stop_reason === 'max_tokens') {
+    console.error(`[dream-company] ${step} hit max_tokens — response truncated.`);
+    throw Object.assign(
+      new Error('The AI response was too long and got cut off. Please try again.'),
+      { statusCode: 502, step },
+    );
+  }
+  try {
+    return JSON.parse(extractText(response)) as T;
+  } catch {
+    throw Object.assign(new Error('Failed to parse LLM response'), { step });
+  }
+}
+
 export function validateDreamCompanyProfile(profile: DreamCompanyInput | undefined): string[] {
   const missing: string[] = [];
   if (!profile?.degree) missing.push('degree');
@@ -56,7 +104,7 @@ export async function generateProfileAnalysis(
   profile: DreamCompanyInput,
 ): Promise<ProfileAnalysis> {
   assertLlmConfigured('dreamCompany');
-  const anthropic = createAnthropicClient('dreamCompany');
+  const anthropic = dreamClient(DREAM_TIMEOUTS.analyze());
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.analyze');
 
@@ -69,11 +117,7 @@ export async function generateProfileAnalysis(
   cost.llm('analyze', model, response.usage);
   cost.flush();
 
-  try {
-    return JSON.parse(extractText(response));
-  } catch {
-    throw Object.assign(new Error('Failed to parse LLM response'), { step: 'profileAnalysis' });
-  }
+  return parseStepResponse<ProfileAnalysis>(response, 'profileAnalysis');
 }
 
 export async function generateTargetRoles(
@@ -81,7 +125,7 @@ export async function generateTargetRoles(
   analysis: ProfileAnalysis,
 ): Promise<TargetRole[]> {
   assertLlmConfigured('dreamCompany');
-  const anthropic = createAnthropicClient('dreamCompany');
+  const anthropic = dreamClient(DREAM_TIMEOUTS.roles());
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.roles');
 
@@ -94,11 +138,7 @@ export async function generateTargetRoles(
   cost.llm('roles', model, response.usage);
   cost.flush();
 
-  try {
-    return JSON.parse(extractText(response));
-  } catch {
-    throw Object.assign(new Error('Failed to parse LLM response'), { step: 'targetRoles' });
-  }
+  return parseStepResponse<TargetRole[]>(response, 'targetRoles');
 }
 
 export async function generateRoadmapWithJobs(
@@ -107,7 +147,7 @@ export async function generateRoadmapWithJobs(
   selectedRoles: TargetRole[],
 ): Promise<RoadmapResponse> {
   assertLlmConfigured('dreamCompany');
-  const anthropic = createAnthropicClient('dreamCompany');
+  const anthropic = dreamClient(DREAM_TIMEOUTS.roadmap());
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.roadmap');
 
@@ -125,12 +165,7 @@ export async function generateRoadmapWithJobs(
   cost.llm('roadmap', model, roadmapResponse.usage);
   cost.flush();
 
-  let roadmap: CareerRoadmap;
-  try {
-    roadmap = JSON.parse(extractText(roadmapResponse));
-  } catch {
-    throw Object.assign(new Error('Failed to parse LLM response'), { step: 'careerRoadmap' });
-  }
+  const roadmap = parseStepResponse<CareerRoadmap>(roadmapResponse, 'careerRoadmap');
 
   return { jobs, roadmap, jobsError };
 }
@@ -173,7 +208,7 @@ export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string)
   }
 
   assertLlmConfigured('dreamCompany');
-  const anthropic = createAnthropicClient('dreamCompany');
+  const anthropic = dreamClient(DREAM_TIMEOUTS.parseCv());
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.parseCv');
 
@@ -227,10 +262,32 @@ export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string)
   cost.llm(isPdf ? 'parseCv.pdf' : 'parseCv.docx', model, response.usage);
   cost.flush();
 
-  const block = response.content[0];
-  if (block.type !== 'text') {
-    throw new Error('Failed to parse CV');
+  // Truncated output (CV too long for max_tokens) — surface a friendly 422 instead of
+  // crashing on partial JSON. max_tokens here is only 2048, so long CVs can hit this.
+  if (response.stop_reason === 'max_tokens') {
+    console.error('[dream-company] parseCv hit max_tokens — CV likely too long, response truncated.');
+    throw Object.assign(
+      new Error('This CV is too long to read reliably. Please shorten it and try again.'),
+      { statusCode: 422 },
+    );
   }
 
-  return JSON.parse(cleanJsonResponse(block.text)) as Record<string, unknown>;
+  const block = response.content[0];
+  if (block?.type !== 'text') {
+    console.error('[dream-company] parseCv: no text block in LLM response.');
+    throw Object.assign(
+      new Error('Could not read this CV. Please try a different file.'),
+      { statusCode: 422 },
+    );
+  }
+
+  try {
+    return JSON.parse(cleanJsonResponse(block.text)) as Record<string, unknown>;
+  } catch {
+    console.error('[dream-company] parseCv: LLM returned invalid JSON.');
+    throw Object.assign(
+      new Error('Could not read this CV. Please try a different file or format.'),
+      { statusCode: 422 },
+    );
+  }
 }
