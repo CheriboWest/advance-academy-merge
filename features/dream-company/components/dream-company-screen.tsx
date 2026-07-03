@@ -22,7 +22,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
+import { ProgressBar } from '@/shared/hooks/progress-bar'
 import { useDreamCompany, STEP_LABELS } from '@/features/dream-company/hooks/use-dream-company'
+
+// Honest time expectations shown while a step streams (M2.3). Kept truthful to the measured
+// ~1–2 min total so the wait reads as "worth it" rather than "stuck".
+const STEP_TIME_HINT: Record<string, string> = {
+  analyzing: 'Reading your profile in depth — usually 20–40 seconds.',
+  'generating-roles': 'Matching you to the best-fit roles — usually 20–30 seconds.',
+  'building-roadmap':
+    'Searching live jobs and writing your personalised roadmap — this can take 1–2 minutes for the most accurate plan.',
+}
 import type {
   DreamCompanyInput,
   ProfileAnalysis,
@@ -83,6 +93,7 @@ export function DreamCompanyScreen() {
     loading,
     error,
     currentStep,
+    progress,
     generateFromProfile,
     toggleRole,
     buildRoadmap,
@@ -323,6 +334,14 @@ export function DreamCompanyScreen() {
                 'Find My Dream Roles'
               )}
             </Button>
+          )}
+
+          {/* Live streaming progress + time expectation (M2.1 / M2.3) */}
+          {loading && STEP_TIME_HINT[currentStep] && (
+            <div className="rounded-lg bg-blue-50/60 border border-blue-100 p-3">
+              <ProgressBar progress={progress} phase={STEP_LABELS[currentStep]} />
+              <p className="mt-2 text-xs text-blue-900/60">{STEP_TIME_HINT[currentStep]}</p>
+            </div>
           )}
 
           {/* Step Progress */}

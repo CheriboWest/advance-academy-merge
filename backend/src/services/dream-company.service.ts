@@ -131,7 +131,9 @@ export async function generateTargetRoles(
 
   const response = await withRetry(() => anthropic.messages.create({
     model,
-    max_tokens: 8192,
+    // 10 roles ≈ ~1200 output tokens (measured: 20 roles ≈ 2384). 4096 leaves a wide safety
+    // margin; M1.2's stop_reason=max_tokens guard turns any truncation into a clean 502.
+    max_tokens: 4096,
     system: 'You are a career intelligence engine. Return only valid JSON.',
     messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
   }));
@@ -167,6 +169,88 @@ export async function generateRoadmapWithJobs(
 
   const roadmap = parseStepResponse<CareerRoadmap>(roadmapResponse, 'careerRoadmap');
 
+  return { jobs, roadmap, jobsError };
+}
+
+// ---- Streaming variants (M2.1) --------------------------------------------------------
+// Mirror the three generate functions but use messages.stream: `onDelta` receives text
+// chunks as the model produces them (for the SSE routes), and the final parsed object is
+// returned exactly as the non-streaming path — same prompts, models, per-step timeouts, and
+// the M1.2 truncation guard (parseStepResponse). No quality change: identical request bodies.
+
+export async function streamProfileAnalysis(
+  profile: DreamCompanyInput,
+  onDelta?: (text: string) => void,
+): Promise<ProfileAnalysis> {
+  assertLlmConfigured('dreamCompany');
+  const anthropic = dreamClient(DREAM_TIMEOUTS.analyze());
+  const model = getFeatureModel('dreamCompany');
+  const cost = newCostBucket('dreamCompany.analyze.stream');
+
+  const stream = anthropic.messages.stream({
+    model,
+    max_tokens: 4096,
+    system: 'You are a career intelligence engine. Return only valid JSON.',
+    messages: [{ role: 'user', content: buildProfileAnalysisPrompt(profile) }],
+  });
+  if (onDelta) stream.on('text', (delta) => onDelta(delta));
+  const final = await stream.finalMessage();
+  cost.llm('analyze', model, final.usage);
+  cost.flush();
+
+  return parseStepResponse<ProfileAnalysis>(final, 'profileAnalysis');
+}
+
+export async function streamTargetRoles(
+  profile: DreamCompanyInput,
+  analysis: ProfileAnalysis,
+  onDelta?: (text: string) => void,
+): Promise<TargetRole[]> {
+  assertLlmConfigured('dreamCompany');
+  const anthropic = dreamClient(DREAM_TIMEOUTS.roles());
+  const model = getFeatureModel('dreamCompany');
+  const cost = newCostBucket('dreamCompany.roles.stream');
+
+  const stream = anthropic.messages.stream({
+    model,
+    max_tokens: 4096,
+    system: 'You are a career intelligence engine. Return only valid JSON.',
+    messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
+  });
+  if (onDelta) stream.on('text', (delta) => onDelta(delta));
+  const final = await stream.finalMessage();
+  cost.llm('roles', model, final.usage);
+  cost.flush();
+
+  return parseStepResponse<TargetRole[]>(final, 'targetRoles');
+}
+
+export async function streamRoadmapWithJobs(
+  profile: DreamCompanyInput,
+  analysis: ProfileAnalysis,
+  selectedRoles: TargetRole[],
+  onDelta?: (text: string) => void,
+): Promise<RoadmapResponse> {
+  assertLlmConfigured('dreamCompany');
+  const anthropic = dreamClient(DREAM_TIMEOUTS.roadmap());
+  const model = getFeatureModel('dreamCompany');
+  const cost = newCostBucket('dreamCompany.roadmap.stream');
+
+  // Exa search runs first (same as the non-streaming path) so the prompt has real jobs.
+  const { jobs, error: jobsError } = await searchJobsForRoles(selectedRoles, profile, cost);
+
+  const stream = anthropic.messages.stream({
+    model,
+    max_tokens: 4096,
+    system: 'You are a career intelligence engine. Return only valid JSON.',
+    messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, jobs) }],
+  });
+  if (onDelta) stream.on('text', (delta) => onDelta(delta));
+  const final = await stream.finalMessage();
+  cost.llm('roadmap', model, final.usage);
+  cost.flush();
+
+  const roadmap = parseStepResponse<CareerRoadmap>(final, 'careerRoadmap');
   return { jobs, roadmap, jobsError };
 }
 
