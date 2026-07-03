@@ -28,6 +28,30 @@ const EXA_OPTIONS = {
   numResults: 20,
 } as const;
 
+/**
+ * Per-step SDK timeouts (ms), env-overridable. Defaults are aligned with the proxy budgets in
+ * shared/api/backend-client.ts (analyze 30s, roles 60s, roadmap 180s, parse-cv 120s) so the
+ * backend aborts in step with the client instead of hanging on the SDK's 10-minute default.
+ * A single global timeout would kill the slow roles/roadmap steps on the happy path.
+ */
+function stepTimeoutMs(envVar: string, fallbackMs: number): number {
+  const parsed = Number(process.env[envVar]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
+}
+
+const DREAM_TIMEOUTS = {
+  analyze: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_ANALYZE_MS', 30_000),
+  roles: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_ROLES_MS', 60_000),
+  roadmap: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_ROADMAP_MS', 120_000),
+  parseCv: () => stepTimeoutMs('LLM_TIMEOUT_DREAM_PARSECV_MS', 90_000),
+};
+
+// maxRetries: 0 because withRetry() already handles 429 backoff — layering the SDK's own
+// retries on top would multiply the effective timeout wall-time and defeat the bounded abort.
+function dreamClient(timeoutMs: number) {
+  return createAnthropicClient('dreamCompany', { timeoutMs, maxRetries: 0 });
+}
+
 function cleanJsonResponse(text: string): string {
   return text
     .replace(/^```(?:json)?\s*\n?/, '')
