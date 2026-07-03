@@ -23,6 +23,21 @@ function buildDefaultError(status: number, statusText: string): ApiErrorResponse
   }
 }
 
+// Backend routes send their friendly text under either `message` or `error` (e.g. dream-company
+// sends `{ error: "Only PDF and DOCX files are supported" }`). Preserve whichever carries the
+// text instead of falling back to the bare HTTP statusText ("Bad Request").
+function toErrorPayload(parsed: unknown, status: number, statusText: string): ApiErrorResponse {
+  if (parsed && typeof parsed === 'object') {
+    const p = parsed as Record<string, unknown>
+    const message =
+      typeof p.message === 'string' ? p.message : typeof p.error === 'string' ? p.error : undefined
+    if (message) {
+      return { code: typeof p.code === 'string' ? p.code : buildDefaultError(status, statusText).code, message }
+    }
+  }
+  return buildDefaultError(status, statusText)
+}
+
 export async function fetchJson<T>(input: RequestInfo | URL, options: FetchJsonOptions = {}) {
   const controller = new AbortController()
   const timeoutMs = options.timeoutMs ?? 15000
@@ -44,9 +59,7 @@ export async function fetchJson<T>(input: RequestInfo | URL, options: FetchJsonO
     if (!response.ok) {
       throw new HttpClientError(
         response.status,
-        parsed && typeof parsed === 'object' && 'message' in parsed
-          ? (parsed as ApiErrorResponse)
-          : buildDefaultError(response.status, response.statusText),
+        toErrorPayload(parsed, response.status, response.statusText),
       )
     }
 
@@ -106,9 +119,7 @@ export async function fetchFormDataJson<T>(
     if (!response.ok) {
       throw new HttpClientError(
         response.status,
-        parsed && typeof parsed === 'object' && 'message' in parsed
-          ? (parsed as ApiErrorResponse)
-          : buildDefaultError(response.status, response.statusText),
+        toErrorPayload(parsed, response.status, response.statusText),
       )
     }
 
