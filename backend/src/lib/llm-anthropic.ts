@@ -17,14 +17,30 @@ export function assertLlmConfigured(feature: LlmFeature): void {
   }
 }
 
-export function createAnthropicClient(feature: LlmFeature = 'default'): Anthropic {
+export interface AnthropicClientOptions {
+  /** Abort the SDK request after this many ms. Omit to keep the SDK default (10 min). */
+  timeoutMs?: number;
+  /** SDK-level retry count. Omit to keep the SDK default (2). */
+  maxRetries?: number;
+}
+
+export function createAnthropicClient(
+  feature: LlmFeature = 'default',
+  options: AnthropicClientOptions = {},
+): Anthropic {
   const apiKey = getLlmApiKey(feature).trim();
   if (!apiKey) {
     const err = new Error('LLM_API_KEY is not set.');
     Object.assign(err, { statusCode: 503 });
     throw err;
   }
-  return new Anthropic({ apiKey });
+  // Only override timeout/maxRetries when a caller opts in, so features that make large,
+  // slow calls (e.g. CV Optimizer at max_tokens 16384) keep the SDK's generous defaults.
+  return new Anthropic({
+    apiKey,
+    ...(options.timeoutMs !== undefined ? { timeout: options.timeoutMs } : {}),
+    ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
+  });
 }
 
 export function getFeatureModel(feature: LlmFeature): string {
