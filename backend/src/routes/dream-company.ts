@@ -7,8 +7,74 @@ import {
   generateRoadmapWithJobs,
   parseDreamCompanyCv,
   validateDreamCompanyProfile,
+  streamProfileAnalysis,
+  streamTargetRoles,
+  streamRoadmapWithJobs,
 } from '../services/dream-company.service.js';
 import type { DreamCompanyInput, ProfileAnalysis, TargetRole } from '../types/dream-company.js';
+
+type FastifyReplyLike = {
+  hijack: () => void;
+  raw: import('node:http').ServerResponse;
+};
+type FastifyRequestLike = { log: { error: (e: unknown) => void } };
+
+// Maps a service error to the SSE `error` event payload. Mirrors handleServiceError's HTTP
+// codes, but since SSE has already sent 200 headers the semantic status travels in the body.
+function toStreamError(error: unknown): { status: number; code: string; message: string } {
+  const statusCode =
+    error && typeof error === 'object' && 'statusCode' in error
+      ? Number((error as { statusCode?: number }).statusCode)
+      : undefined;
+  if (statusCode === 502) {
+    return { status: 502, code: 'LLM_TRUNCATED', message: error instanceof Error ? error.message : 'The AI response was cut off. Please try again.' };
+  }
+  if (error instanceof APIConnectionTimeoutError) {
+    return { status: 504, code: 'TIMEOUT', message: 'The AI service took too long to respond. Please try again.' };
+  }
+  if (statusCode === 503) {
+    return { status: 503, code: 'LLM_NOT_CONFIGURED', message: error instanceof Error ? error.message : 'LLM is not configured.' };
+  }
+  if (error && typeof error === 'object' && 'step' in error) {
+    return { status: 500, code: 'LLM_PARSE_FAILED', message: 'Failed to parse LLM response' };
+  }
+  return { status: 500, code: 'INTERNAL', message: 'Internal server error' };
+}
+
+// Runs an SSE response: emits `open`, streams `delta` text chunks, then `done` with the final
+// result (or `error`). Keeps the connection alive with heartbeat comments and stops writing if
+// the client disconnects.
+async function runSse<T>(
+  request: FastifyRequestLike,
+  reply: FastifyReplyLike,
+  produce: (onDelta: (text: string) => void) => Promise<T>,
+) {
+  reply.hijack();
+  const raw = reply.raw;
+  raw.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  let closed = false;
+  raw.on('close', () => { closed = true; });
+  const send = (event: string, data: unknown) => {
+    if (!closed) raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+  const heartbeat = setInterval(() => { if (!closed) raw.write(': keepalive\n\n'); }, 15000);
+  send('open', { ok: true });
+  try {
+    const result = await produce((text) => send('delta', { text }));
+    send('done', result);
+  } catch (err) {
+    request.log.error(err);
+    send('error', toStreamError(err));
+  } finally {
+    clearInterval(heartbeat);
+    if (!closed) raw.end();
+  }
+}
 
 function anthropicHttpStatus(error: unknown): number | undefined {
   if (error && typeof error === 'object' && 'status' in error) {
@@ -138,6 +204,56 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
       } catch (error) {
         return handleServiceError(error, request, reply);
       }
+    },
+  );
+
+  // ---- Streaming (SSE) variants (M2.1) — same inputs/validation as the JSON routes above,
+  // but stream text deltas and finish with a `done` event carrying the parsed result. ----
+  app.post<{ Body: { profile?: DreamCompanyInput } }>(
+    '/api/dream-company/analyze/stream',
+    RATE_1MIN(10),
+    async (request, reply) => {
+      const profile = request.body?.profile;
+      const missing = validateDreamCompanyProfile(profile);
+      if (missing.length > 0) {
+        return reply.code(400).send({ error: 'Missing required fields', missing });
+      }
+      await runSse(request, reply, (onDelta) => streamProfileAnalysis(profile!, onDelta));
+    },
+  );
+
+  app.post<{ Body: { profile?: DreamCompanyInput; analysis?: ProfileAnalysis } }>(
+    '/api/dream-company/roles/stream',
+    RATE_1MIN(10),
+    async (request, reply) => {
+      const { profile, analysis } = request.body ?? {};
+      const missing = validateDreamCompanyProfile(profile);
+      if (missing.length > 0) {
+        return reply.code(400).send({ error: 'Missing required fields', missing });
+      }
+      if (!analysis) {
+        return reply.code(400).send({ error: 'Missing analysis object' });
+      }
+      await runSse(request, reply, (onDelta) => streamTargetRoles(profile!, analysis, onDelta));
+    },
+  );
+
+  app.post<{ Body: { profile?: DreamCompanyInput; analysis?: ProfileAnalysis; selectedRoles?: TargetRole[] } }>(
+    '/api/dream-company/roadmap/stream',
+    RATE_1MIN(10),
+    async (request, reply) => {
+      const { profile, analysis, selectedRoles } = request.body ?? {};
+      const missing = validateDreamCompanyProfile(profile);
+      if (missing.length > 0) {
+        return reply.code(400).send({ error: 'Missing required fields', missing });
+      }
+      if (!analysis) {
+        return reply.code(400).send({ error: 'Missing analysis object' });
+      }
+      if (!selectedRoles || selectedRoles.length === 0) {
+        return reply.code(400).send({ error: 'Select at least one role' });
+      }
+      await runSse(request, reply, (onDelta) => streamRoadmapWithJobs(profile!, analysis, selectedRoles, onDelta));
     },
   );
 
