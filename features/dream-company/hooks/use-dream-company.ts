@@ -11,7 +11,8 @@ import type {
 import { analyzeProfileStream, generateRolesStream, generateRoadmapStream, parseCV } from '@/features/dream-company/api/frontend-client'
 
 // Rough per-step output sizes (chars of streamed JSON) used to turn the live token stream into
-// a progress %. Approximate on purpose — the bar caps at 96% and snaps to 100 only on completion.
+// a progress %. Approximate on purpose — the bar follows a saturating curve toward a per-run
+// ceiling (randomised each step, see `beginStep`) and only snaps away on completion.
 const EXPECTED_CHARS = { analyze: 2200, roles: 2600, roadmap: 3200 } as const
 
 export type DreamCompanyStep =
@@ -45,15 +46,21 @@ export function useDreamCompany() {
 
   const profileRef = useRef<DreamCompanyInput | null>(null)
   const charsRef = useRef(0)
+  const ceilingRef = useRef(96)
 
-  // Begin a streamed step: reset the progress bar and return an onDelta that advances it as
-  // tokens arrive (capped at 96% until the step's `done` result lands).
+  // Begin a streamed step: reset the bar and return an onDelta that advances it as tokens arrive.
+  // Instead of a hard 96% cap that freezes on the same number every run, the bar follows the real
+  // streamed volume through a saturating curve `ceiling * (1 - e^(-k·ratio))` toward a per-run
+  // ceiling randomised to 93–98%. It keeps inching (never flat-lines) and lands on a different
+  // final number each time, then the next step / completion clears it.
   const beginStep = useCallback((expected: number) => {
     charsRef.current = 0
+    ceilingRef.current = 93 + Math.floor(Math.random() * 6) // 93..98, varies each run
     setProgress(0)
     return (text: string) => {
       charsRef.current += text.length
-      setProgress(Math.min(96, Math.round((charsRef.current / expected) * 100)))
+      const ratio = charsRef.current / expected
+      setProgress(Math.round(ceilingRef.current * (1 - Math.exp(-1.8 * ratio))))
     }
   }, [])
 
