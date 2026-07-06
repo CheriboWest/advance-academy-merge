@@ -47,20 +47,30 @@ export function getFeatureModel(feature: LlmFeature): string {
   return getLlmConfig(feature).model;
 }
 
-function isRateLimit(err: unknown): boolean {
+// Transient statuses that are safe to retry with backoff: 429 (rate limit), 529 (overloaded),
+// 503 (service unavailable). Anthropic returns overload/capacity errors as 529 quite often under
+// load — before this they were NOT retried, so a momentary blip surfaced to the user as a hard
+// error. 500 is deliberately excluded (often a real request problem, not transient).
+export function isRetryableLlmError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const status = ('status' in err ? (err as { status?: number }).status : undefined)
     ?? ('statusCode' in err ? (err as { statusCode?: number }).statusCode : undefined);
-  return status === 429;
+  return status === 429 || status === 529 || status === 503;
 }
 
-// Retries fn up to maxRetries times on 429, with exponential backoff (1s, 2s, 4s).
+// Reports whether an error is an Anthropic overload/capacity blip (429/529/503) — used by routes
+// to map it to a friendly "briefly busy, try again" message instead of a bare 500.
+export function isOverloadedError(err: unknown): boolean {
+  return isRetryableLlmError(err);
+}
+
+// Retries fn up to maxRetries times on transient LLM errors, with exponential backoff (1s, 2s, 4s).
 export async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await fn();
     } catch (err) {
-      if (isRateLimit(err) && attempt < maxRetries - 1) {
+      if (isRetryableLlmError(err) && attempt < maxRetries - 1) {
         await new Promise(r => setTimeout(r, 1000 * 2 ** attempt));
         continue;
       }
@@ -68,4 +78,30 @@ export async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promis
     }
   }
   return fn();
+}
+
+// Streaming-safe retry. Anthropic overload/rate-limit errors surface at request START — before any
+// token is emitted — so on a transient failure with nothing streamed yet we can safely recreate
+// the stream. Once text has started we never retry (would double-emit deltas); the error is
+// propagated instead. Mirrors withRetry's backoff (1s, 2s, 4s).
+export async function streamFinalWithRetry<M>(
+  makeStream: () => { on(ev: 'text', cb: (t: string) => void): unknown; finalMessage(): Promise<M> },
+  onDelta?: (text: string) => void,
+  maxRetries = 3,
+): Promise<M> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    let emitted = false;
+    try {
+      const stream = makeStream();
+      if (onDelta) stream.on('text', (t) => { emitted = true; onDelta(t); });
+      return await stream.finalMessage();
+    } catch (err) {
+      if (isRetryableLlmError(err) && !emitted && attempt < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, 1000 * 2 ** attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('streamFinalWithRetry: exhausted retries');
 }

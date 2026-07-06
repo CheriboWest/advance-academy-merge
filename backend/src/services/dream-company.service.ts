@@ -18,7 +18,7 @@ import {
   buildProfileAnalysisPrompt,
   buildTargetRolesPrompt,
 } from '../lib/dream-company/prompts.js';
-import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry } from '../lib/llm-anthropic.js';
+import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry, streamFinalWithRetry } from '../lib/llm-anthropic.js';
 import { getExaClient, withExaRetry } from '../lib/exa-client.js';
 import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
 
@@ -188,14 +188,15 @@ export async function streamProfileAnalysis(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.analyze.stream');
 
-  const stream = anthropic.messages.stream({
-    model,
-    max_tokens: 4096,
-    system: 'You are a career intelligence engine. Return only valid JSON.',
-    messages: [{ role: 'user', content: buildProfileAnalysisPrompt(profile) }],
-  });
-  if (onDelta) stream.on('text', (delta) => onDelta(delta));
-  const final = await stream.finalMessage();
+  const final = await streamFinalWithRetry(
+    () => anthropic.messages.stream({
+      model,
+      max_tokens: 4096,
+      system: 'You are a career intelligence engine. Return only valid JSON.',
+      messages: [{ role: 'user', content: buildProfileAnalysisPrompt(profile) }],
+    }),
+    onDelta,
+  );
   cost.llm('analyze', model, final.usage);
   cost.flush();
 
@@ -212,14 +213,15 @@ export async function streamTargetRoles(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.roles.stream');
 
-  const stream = anthropic.messages.stream({
-    model,
-    max_tokens: 4096,
-    system: 'You are a career intelligence engine. Return only valid JSON.',
-    messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
-  });
-  if (onDelta) stream.on('text', (delta) => onDelta(delta));
-  const final = await stream.finalMessage();
+  const final = await streamFinalWithRetry(
+    () => anthropic.messages.stream({
+      model,
+      max_tokens: 4096,
+      system: 'You are a career intelligence engine. Return only valid JSON.',
+      messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
+    }),
+    onDelta,
+  );
   cost.llm('roles', model, final.usage);
   cost.flush();
 
@@ -240,14 +242,15 @@ export async function streamRoadmapWithJobs(
   // Exa search runs first (same as the non-streaming path) so the prompt has real jobs.
   const { jobs, error: jobsError } = await searchJobsForRoles(selectedRoles, profile, cost);
 
-  const stream = anthropic.messages.stream({
-    model,
-    max_tokens: 4096,
-    system: 'You are a career intelligence engine. Return only valid JSON.',
-    messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, jobs) }],
-  });
-  if (onDelta) stream.on('text', (delta) => onDelta(delta));
-  const final = await stream.finalMessage();
+  const final = await streamFinalWithRetry(
+    () => anthropic.messages.stream({
+      model,
+      max_tokens: 4096,
+      system: 'You are a career intelligence engine. Return only valid JSON.',
+      messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, jobs) }],
+    }),
+    onDelta,
+  );
   cost.llm('roadmap', model, final.usage);
   cost.flush();
 
