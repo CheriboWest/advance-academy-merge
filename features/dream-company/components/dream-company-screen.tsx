@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import {
   Upload,
   FileText,
@@ -32,6 +32,45 @@ const STEP_TIME_HINT: Record<string, string> = {
   'generating-roles': 'Matching you to the best-fit roles — usually 20–30 seconds.',
   'building-roadmap':
     'Searching live jobs and writing your personalised roadmap — this can take 1–2 minutes for the most accurate plan.',
+}
+
+// Rotating sub-status lines shown under the progress bar so a long stream reads as active work
+// instead of a frozen label. For `building-roadmap` the first/last lines mirror the real
+// Exa-search-then-write sequence; analyze/roles are single LLM calls, so their lines stay
+// deliberately vague/plausible rather than claiming sub-steps that don't happen.
+const STEP_PHASES: Record<string, string[]> = {
+  analyzing: [
+    'Analyzing your profile...',
+    'Assessing your experience...',
+    'Benchmarking against the market...',
+    'Identifying your strengths...',
+  ],
+  'generating-roles': [
+    'Finding matching roles...',
+    'Scanning role families...',
+    'Ranking roles by fit...',
+    'Shortlisting the best matches...',
+  ],
+  'building-roadmap': [
+    'Searching live job openings...',
+    'Analyzing market demand...',
+    'Mapping your milestones...',
+    'Writing your personalised roadmap...',
+  ],
+}
+
+// Cycle STEP_PHASES[step] every ~2.8s while a step is streaming; falls back to `fallback`
+// (the static STEP_LABELS text) for steps without a rotation set.
+function useRotatingPhase(step: string, active: boolean, fallback: string): string {
+  const [idx, setIdx] = useState(0)
+  useEffect(() => {
+    setIdx(0)
+    const phases = STEP_PHASES[step]
+    if (!active || !phases || phases.length < 2) return
+    const id = setInterval(() => setIdx((i) => (i + 1) % phases.length), 2800)
+    return () => clearInterval(id)
+  }, [step, active])
+  return STEP_PHASES[step]?.[idx] ?? fallback
 }
 import type {
   DreamCompanyInput,
@@ -100,6 +139,8 @@ export function DreamCompanyScreen() {
     uploadCV,
     reset,
   } = useDreamCompany()
+
+  const rotatingPhase = useRotatingPhase(currentStep, loading, STEP_LABELS[currentStep])
 
   const updateField = useCallback((field: keyof DreamCompanyInput, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -339,7 +380,7 @@ export function DreamCompanyScreen() {
           {/* Live streaming progress + time expectation (M2.1 / M2.3) */}
           {loading && STEP_TIME_HINT[currentStep] && (
             <div className="rounded-lg bg-blue-50/60 border border-blue-100 p-3">
-              <ProgressBar progress={progress} phase={STEP_LABELS[currentStep]} />
+              <ProgressBar progress={progress} phase={rotatingPhase} />
               <p className="mt-2 text-xs text-blue-900/60">{STEP_TIME_HINT[currentStep]}</p>
             </div>
           )}
