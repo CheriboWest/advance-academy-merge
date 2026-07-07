@@ -58,13 +58,14 @@ export interface AnthropicUsage {
 
 /** Shape of each item recorded inside a CostLogEntry */
 export interface CostLogItem {
-  type: 'llm' | 'exa';
+  type: 'llm' | 'exa' | 'adzuna' | 'reed';
   label: string;
   model?: string;
   inputTokens?: number;
   outputTokens?: number;
   cacheWriteTokens?: number;
   cacheReadTokens?: number;
+  /** Number of API calls/searches for provider items (exa/adzuna/reed). */
   searches?: number;
   cost: number;
 }
@@ -110,6 +111,10 @@ export interface CostBucket {
   llm(label: string, model: string, usage: AnthropicUsage | undefined | null): number;
   /** Track Exa searches and log them. Returns the cost in USD. */
   exa(label: string, numSearches: number): number;
+  /** Track Adzuna API calls (free tier — cost 0). Returns the cost in USD (0). */
+  adzuna(label: string, numCalls: number): number;
+  /** Track Reed API calls (free tier — cost 0). Returns the cost in USD (0). */
+  reed(label: string, numCalls: number): number;
   /** Print the accumulated total and persist to cost-log.jsonl. */
   flush(): number;
   /** Current accumulated total (without printing). */
@@ -119,6 +124,16 @@ export interface CostBucket {
 export function newCostBucket(requestLabel: string): CostBucket {
   let runningTotal = 0;
   const items: CostLogItem[] = [];
+
+  // Free-tier job sources (Adzuna/Reed): recorded for call-count observability, cost 0.
+  function trackFreeSource(type: 'adzuna' | 'reed', label: string, numCalls: number): number {
+    items.push({ type, label, searches: numCalls, cost: 0 });
+    // eslint-disable-next-line no-console
+    console.log(
+      `[cost] ${requestLabel} :: ${label.padEnd(22)} provider=${type} calls=${numCalls} cost=${fmtUsd(0)}`,
+    );
+    return 0;
+  }
 
   return {
     llm(label, model, usage) {
@@ -154,6 +169,14 @@ export function newCostBucket(requestLabel: string): CostBucket {
         `[cost] ${requestLabel} :: ${label.padEnd(22)} provider=exa searches=${numSearches} cost=${fmtUsd(cost)}`,
       );
       return cost;
+    },
+
+    adzuna(label, numCalls) {
+      return trackFreeSource('adzuna', label, numCalls);
+    },
+
+    reed(label, numCalls) {
+      return trackFreeSource('reed', label, numCalls);
     },
 
     flush() {

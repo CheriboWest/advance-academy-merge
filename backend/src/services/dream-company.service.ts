@@ -18,15 +18,9 @@ import {
   buildProfileAnalysisPrompt,
   buildTargetRolesPrompt,
 } from '../lib/dream-company/prompts.js';
-import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry } from '../lib/llm-anthropic.js';
-import { getExaClient, withExaRetry } from '../lib/exa-client.js';
+import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry, streamFinalWithRetry } from '../lib/llm-anthropic.js';
 import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
-
-const EXA_OPTIONS = {
-  useAutoprompt: true,
-  type: "fast",
-  numResults: 20,
-} as const;
+import { searchLiveJobs } from './job-search.service.js';
 
 /**
  * Per-step SDK timeouts (ms), env-overridable. Sized under the proxy budgets in
@@ -188,14 +182,15 @@ export async function streamProfileAnalysis(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.analyze.stream');
 
-  const stream = anthropic.messages.stream({
-    model,
-    max_tokens: 4096,
-    system: 'You are a career intelligence engine. Return only valid JSON.',
-    messages: [{ role: 'user', content: buildProfileAnalysisPrompt(profile) }],
-  });
-  if (onDelta) stream.on('text', (delta) => onDelta(delta));
-  const final = await stream.finalMessage();
+  const final = await streamFinalWithRetry(
+    () => anthropic.messages.stream({
+      model,
+      max_tokens: 4096,
+      system: 'You are a career intelligence engine. Return only valid JSON.',
+      messages: [{ role: 'user', content: buildProfileAnalysisPrompt(profile) }],
+    }),
+    onDelta,
+  );
   cost.llm('analyze', model, final.usage);
   cost.flush();
 
@@ -212,14 +207,15 @@ export async function streamTargetRoles(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.roles.stream');
 
-  const stream = anthropic.messages.stream({
-    model,
-    max_tokens: 4096,
-    system: 'You are a career intelligence engine. Return only valid JSON.',
-    messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
-  });
-  if (onDelta) stream.on('text', (delta) => onDelta(delta));
-  const final = await stream.finalMessage();
+  const final = await streamFinalWithRetry(
+    () => anthropic.messages.stream({
+      model,
+      max_tokens: 4096,
+      system: 'You are a career intelligence engine. Return only valid JSON.',
+      messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
+    }),
+    onDelta,
+  );
   cost.llm('roles', model, final.usage);
   cost.flush();
 
@@ -240,14 +236,15 @@ export async function streamRoadmapWithJobs(
   // Exa search runs first (same as the non-streaming path) so the prompt has real jobs.
   const { jobs, error: jobsError } = await searchJobsForRoles(selectedRoles, profile, cost);
 
-  const stream = anthropic.messages.stream({
-    model,
-    max_tokens: 4096,
-    system: 'You are a career intelligence engine. Return only valid JSON.',
-    messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, jobs) }],
-  });
-  if (onDelta) stream.on('text', (delta) => onDelta(delta));
-  const final = await stream.finalMessage();
+  const final = await streamFinalWithRetry(
+    () => anthropic.messages.stream({
+      model,
+      max_tokens: 4096,
+      system: 'You are a career intelligence engine. Return only valid JSON.',
+      messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, jobs) }],
+    }),
+    onDelta,
+  );
   cost.llm('roadmap', model, final.usage);
   cost.flush();
 
@@ -255,33 +252,22 @@ export async function streamRoadmapWithJobs(
   return { jobs, roadmap, jobsError };
 }
 
+/**
+ * Fetch live job listings for the selected roles. Delegates to the job-search
+ * orchestrator (lib routing over Adzuna/Reed with Exa fallback). Signature and the
+ * `{ jobs, error }` return shape are unchanged so both the streaming and non-streaming
+ * roadmap paths call it identically. With DREAM_JOB_SOURCE=exa the orchestrator's Exa
+ * path reproduces the previous behaviour exactly.
+ */
 async function searchJobsForRoles(
   selectedRoles: TargetRole[],
   profile: DreamCompanyInput,
   costBucket?: CostBucket,
 ): Promise<{ jobs: ExaJobListing[]; error: string | null }> {
-  try {
-    const exa = getExaClient();
-    const roleTitles = selectedRoles.map((r) => r.title).join(' OR ');
-    const query = `${roleTitles} hiring ${profile.location}`;
-    const searchResponse = await withExaRetry(() => exa.searchAndContents(query, EXA_OPTIONS));
-    costBucket?.exa('exa.search.jobs', 1);
-
-    const jobs = searchResponse.results.map((result: { title: string | null; url: string; text?: string; publishedDate?: string }) => ({
-      title: result.title ?? result.url,
-      url: result.url,
-      snippet: (result.text ?? '').slice(0, 200),
-      publishedDate: result.publishedDate ?? undefined,
-    }));
-    // A genuine zero-result search is NOT an error — error stays null (AAT-10).
-    return { jobs, error: null };
-  } catch (err) {
-    // Exa outage / bad key / timeout: log it and surface a distinct failure state
-    // instead of masquerading as "no jobs found".
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('[dream-company] Exa job search failed:', message);
-    return { jobs: [], error: 'Could not load live job listings — the job search service is unavailable. Your roadmap below is still valid.' };
-  }
+  return searchLiveJobs(
+    { roleTitles: selectedRoles.map((r) => r.title), location: profile.location },
+    costBucket,
+  );
 }
 
 export async function parseDreamCompanyCv(buffer: Buffer, fileNameLower: string): Promise<Record<string, unknown>> {

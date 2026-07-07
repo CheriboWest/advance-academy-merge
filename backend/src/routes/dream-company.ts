@@ -32,6 +32,12 @@ function toStreamError(error: unknown): { status: number; code: string; message:
   if (error instanceof APIConnectionTimeoutError) {
     return { status: 504, code: 'TIMEOUT', message: 'The AI service took too long to respond. Please try again.' };
   }
+  // Anthropic overload/capacity blip (429/529/503) that survived the retry backoff — friendly,
+  // retryable message rather than a bare "Internal server error".
+  const overloadStatus = anthropicHttpStatus(error);
+  if (overloadStatus === 529 || overloadStatus === 503 || overloadStatus === 429) {
+    return { status: 503, code: 'LLM_OVERLOADED', message: 'The AI service is briefly overloaded. Please try again in a moment.' };
+  }
   if (statusCode === 503) {
     return { status: 503, code: 'LLM_NOT_CONFIGURED', message: error instanceof Error ? error.message : 'LLM is not configured.' };
   }
@@ -132,6 +138,13 @@ function handleServiceError(error: unknown, request: { log: { error: (e: unknown
     return reply.code(502).send({
       error:
         'Anthropic returned 404 for the configured model. Set LLM_MODEL_DREAM_COMPANY to a model your account can use.',
+    });
+  }
+  // Overload/capacity blip (429/529/503) that survived the retry backoff — friendly, retryable.
+  if (http === 529 || http === 503 || http === 429) {
+    request.log.error(error);
+    return reply.code(503).send({
+      error: 'The AI service is briefly overloaded. Please try again in a moment.',
     });
   }
   request.log.error(error);
