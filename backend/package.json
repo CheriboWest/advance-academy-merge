@@ -9,6 +9,7 @@
     "start:prod": "node dist/main.js",
     "start:dev": "tsx watch src/main.ts",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "usage": "tsx scripts/usage-report.ts",
     "usage:week": "tsx scripts/usage-report.ts -- --days 7",
     "usage:month": "tsx scripts/usage-report.ts -- --days 30"
