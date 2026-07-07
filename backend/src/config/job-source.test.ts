@@ -4,6 +4,10 @@ import {
   getJobSourceMode,
   getJobSourceTimeoutMs,
   getJobCacheTtlMs,
+  getJobFreshnessMaxDays,
+  getJobFreshnessHardCapDays,
+  getJobMaxRoleQueries,
+  isJobLivenessEnabled,
 } from './job-source.js';
 
 /** Run `fn` with a temporary env value for `key`, restoring it afterwards. */
@@ -47,4 +51,26 @@ test('getJobSourceTimeoutMs: default 8000, override respected, invalid → defau
 test('getJobCacheTtlMs: default 20 min, override respected', () => {
   withEnv('JOB_CACHE_TTL_MS', undefined, () => assert.equal(getJobCacheTtlMs(), 1_200_000));
   withEnv('JOB_CACHE_TTL_MS', '60000', () => assert.equal(getJobCacheTtlMs(), 60_000));
+});
+
+test('getJobFreshnessMaxDays: default 7, override respected', () => {
+  withEnv('JOB_FRESHNESS_MAX_DAYS', undefined, () => assert.equal(getJobFreshnessMaxDays(), 7));
+  withEnv('JOB_FRESHNESS_MAX_DAYS', '2', () => assert.equal(getJobFreshnessMaxDays(), 2));
+});
+
+test('getJobFreshnessHardCapDays: default 30, override respected', () => {
+  withEnv('JOB_FRESHNESS_HARD_CAP_DAYS', undefined, () => assert.equal(getJobFreshnessHardCapDays(), 30));
+  withEnv('JOB_FRESHNESS_HARD_CAP_DAYS', '14', () => assert.equal(getJobFreshnessHardCapDays(), 14));
+});
+
+test('getJobMaxRoleQueries: default 3, override respected', () => {
+  withEnv('JOB_MAX_ROLE_QUERIES', undefined, () => assert.equal(getJobMaxRoleQueries(), 3));
+  withEnv('JOB_MAX_ROLE_QUERIES', '1', () => assert.equal(getJobMaxRoleQueries(), 1));
+});
+
+test('isJobLivenessEnabled: default true, disabled by false/0/no', () => {
+  withEnv('JOB_LIVENESS_ENABLED', undefined, () => assert.equal(isJobLivenessEnabled(), true));
+  withEnv('JOB_LIVENESS_ENABLED', 'false', () => assert.equal(isJobLivenessEnabled(), false));
+  withEnv('JOB_LIVENESS_ENABLED', '0', () => assert.equal(isJobLivenessEnabled(), false));
+  withEnv('JOB_LIVENESS_ENABLED', 'true', () => assert.equal(isJobLivenessEnabled(), true));
 });

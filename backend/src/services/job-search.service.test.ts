@@ -9,6 +9,8 @@ import {
   applyFreshness,
   finalizeJobs,
   dedupeJobs,
+  topRoles,
+  extractCity,
   searchLiveJobs,
   JOBS_UNAVAILABLE_ERROR,
 } from './job-search.service.js';
@@ -86,33 +88,69 @@ test('reedNotExpired: past expiry dropped, future/none kept', () => {
   assert.equal(reedNotExpired({}, now), true); // no expiry
 });
 
-// --- freshness -----------------------------------------------------------
+// --- D0: query construction helpers --------------------------------------
 
-test('applyFreshness: drops jobs older than maxDays', () => {
+test('topRoles: caps at max, trims, drops empties', () => {
+  const roles = topRoles(['  Data Analyst ', '', 'BI Developer', 'Analyst 3', 'Analyst 4']);
+  assert.deepEqual(roles, ['Data Analyst', 'BI Developer', 'Analyst 3']); // default cap 3
+});
+
+test('extractCity: takes city segment, keeps bare country', () => {
+  assert.equal(extractCity('London, United Kingdom'), 'London');
+  assert.equal(extractCity('Manchester'), 'Manchester');
+  assert.equal(extractCity('United Kingdom'), 'United Kingdom'); // bare country → nationwide
+  assert.equal(extractCity('Leeds, England, UK'), 'Leeds');
+});
+
+// --- D1/D2: freshness (never unfiltered, hard cap, drop undated) ----------
+
+test('applyFreshness: drops jobs older than the window', () => {
   const now = new Date('2026-07-07T00:00:00Z');
   const jobs: ExaJobListing[] = [
-    { title: 'fresh', url: 'a', snippet: '', publishedDate: '2026-07-01T00:00:00Z' }, // 6 days
+    { title: 'fresh', url: 'a', snippet: '', publishedDate: '2026-07-04T00:00:00Z' }, // 3 days
     { title: 'stale', url: 'b', snippet: '', publishedDate: '2026-01-01T00:00:00Z' }, // ~187 days
   ];
-  const out = applyFreshness(jobs, { now, minKeep: 1 });
-  assert.equal(out.length, 1);
-  assert.equal(out[0].title, 'fresh');
+  const out = applyFreshness(jobs, { now, maxDays: 7, minKeep: 1 });
+  assert.equal(out.jobs.length, 1);
+  assert.equal(out.jobs[0].title, 'fresh');
+  assert.equal(out.sparse, false);
 });
 
-test('applyFreshness: abandons filter when result would fall below minKeep', () => {
+test('D1 AC: 3 fresh + 20 old, minKeep=8 → only the 3 fresh, NEVER the old ones', () => {
+  const now = new Date('2026-07-07T00:00:00Z');
+  const fresh: ExaJobListing[] = [0, 1, 2].map((i) => ({
+    title: `fresh${i}`,
+    url: `https://x/${i}`,
+    snippet: '',
+    publishedDate: '2026-07-05T00:00:00Z', // 2 days
+  }));
+  const old: ExaJobListing[] = Array.from({ length: 20 }, (_, i) => ({
+    title: `old${i}`,
+    url: `https://y/${i}`,
+    snippet: '',
+    publishedDate: '2026-04-01T00:00:00Z', // ~97 days — beyond hard cap
+  }));
+  const out = applyFreshness([...fresh, ...old], { now, maxDays: 7, hardCapDays: 30, minKeep: 8 });
+  assert.equal(out.jobs.length, 3); // only the 3 fresh
+  assert.ok(out.jobs.every((j) => j.title.startsWith('fresh')));
+  assert.equal(out.sparse, true); // below minKeep → flagged
+});
+
+test('D1 AC: nothing older than the hard cap is ever returned', () => {
   const now = new Date('2026-07-07T00:00:00Z');
   const jobs: ExaJobListing[] = [
-    { title: 'fresh', url: 'a', snippet: '', publishedDate: '2026-07-01T00:00:00Z' },
-    { title: 'stale', url: 'b', snippet: '', publishedDate: '2026-01-01T00:00:00Z' },
+    { title: 'day40', url: 'a', snippet: '', publishedDate: '2026-05-28T00:00:00Z' }, // ~40 days
   ];
-  const out = applyFreshness(jobs, { now, minKeep: 2 });
-  assert.equal(out.length, 2); // filter abandoned → both kept
+  const out = applyFreshness(jobs, { now, maxDays: 7, hardCapDays: 30, minKeep: 8 });
+  assert.equal(out.jobs.length, 0); // 40 > 30 hard cap → excluded even though sparse
+  assert.equal(out.sparse, true);
 });
 
-test('applyFreshness: keeps jobs with missing/invalid publishedDate', () => {
+test('applyFreshness: undated jobs dropped by default, kept when dropUndated=false', () => {
   const now = new Date('2026-07-07T00:00:00Z');
   const jobs: ExaJobListing[] = [{ title: 'nodate', url: 'a', snippet: '' }];
-  assert.equal(applyFreshness(jobs, { now, minKeep: 1 }).length, 1);
+  assert.equal(applyFreshness(jobs, { now, minKeep: 1 }).jobs.length, 0); // dropped
+  assert.equal(applyFreshness(jobs, { now, minKeep: 1, dropUndated: false }).jobs.length, 1); // kept
 });
 
 // --- finalize ------------------------------------------------------------
@@ -177,23 +215,29 @@ function withNoKeys(mode: string, fn: () => Promise<void>): Promise<void> {
   });
 }
 
-test('searchLiveJobs: UK with all sources down → AAT-10, never throws', async () => {
+test('D3: UK with all sources down → AAT-10, source=uk (NEVER falls back to Exa)', async () => {
   await withNoKeys('hybrid', async () => {
     const res = await searchLiveJobs({ roleTitles: ['Data Analyst'], location: 'London, UK' });
-    assert.deepEqual(res, { jobs: [], error: JOBS_UNAVAILABLE_ERROR });
+    assert.deepEqual(res.jobs, []);
+    assert.equal(res.error, JOBS_UNAVAILABLE_ERROR);
+    assert.equal(res.meta?.source, 'uk'); // proves it did NOT route/fall back to exa
   });
 });
 
-test('searchLiveJobs: hybrid VN routes to Exa; Exa down → AAT-10', async () => {
+test('searchLiveJobs: hybrid VN routes to Exa; Exa down → AAT-10, source=exa', async () => {
   await withNoKeys('hybrid', async () => {
     const res = await searchLiveJobs({ roleTitles: ['Engineer'], location: 'Hanoi, Vietnam' });
-    assert.deepEqual(res, { jobs: [], error: JOBS_UNAVAILABLE_ERROR });
+    assert.deepEqual(res.jobs, []);
+    assert.equal(res.error, JOBS_UNAVAILABLE_ERROR);
+    assert.equal(res.meta?.source, 'exa');
   });
 });
 
 test('searchLiveJobs: adzuna_reed strict mode outside coverage → AAT-10, no Exa', async () => {
   await withNoKeys('adzuna_reed', async () => {
     const res = await searchLiveJobs({ roleTitles: ['Engineer'], location: 'Hanoi, Vietnam' });
-    assert.deepEqual(res, { jobs: [], error: JOBS_UNAVAILABLE_ERROR });
+    assert.deepEqual(res.jobs, []);
+    assert.equal(res.error, JOBS_UNAVAILABLE_ERROR);
+    assert.equal(res.meta?.source, 'none');
   });
 });
