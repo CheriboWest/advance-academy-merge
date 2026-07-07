@@ -25,6 +25,21 @@ import { Progress } from '@/components/ui/progress'
 import { ProgressBar } from '@/shared/hooks/progress-bar'
 import { useDreamCompany, STEP_LABELS } from '@/features/dream-company/hooks/use-dream-company'
 
+// Turn a job's ISO publishedDate into a short "Posted 3d ago" label. Live-vacancy
+// sources (Adzuna/Reed) always supply this; the Exa fallback usually does. Returns
+// null when the date is missing or unparseable so the card simply omits the line.
+function formatPostedDate(iso?: string): string | null {
+  if (!iso) return null
+  const t = Date.parse(iso)
+  if (Number.isNaN(t)) return null
+  const days = Math.floor((Date.now() - t) / 86_400_000)
+  if (days <= 0) return 'Posted today'
+  if (days === 1) return 'Posted 1 day ago'
+  if (days < 30) return `Posted ${days} days ago`
+  const months = Math.floor(days / 30)
+  return months === 1 ? 'Posted 1 month ago' : `Posted ${months} months ago`
+}
+
 // Honest time expectations shown while a step streams (M2.3). Kept truthful to the measured
 // ~1–2 min total so the wait reads as "worth it" rather than "stuck".
 const STEP_TIME_HINT: Record<string, string> = {
@@ -717,6 +732,9 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError }: { roadmap: CareerRoadma
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-blue-900 truncate">{job.title}</p>
                   {job.snippet && <p className="text-xs text-gray-600 mt-1 line-clamp-2">{job.snippet}</p>}
+                  {formatPostedDate(job.publishedDate) && (
+                    <p className="text-xs text-gray-400 mt-1">{formatPostedDate(job.publishedDate)}</p>
+                  )}
                 </div>
                 <ExternalLink className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
               </a>
