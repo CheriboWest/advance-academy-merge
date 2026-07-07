@@ -2,27 +2,38 @@
  * Live-vacancy job-search orchestrator (Dream Company).
  *
  * Replaces the single Exa call with a location-routed source strategy:
- *   - UK              → Adzuna (gb) + Reed, merged
+ *   - UK              → Adzuna (gb) + Reed, merged  (one query per top role)
  *   - Adzuna-covered  → Adzuna (that country)
- *   - elsewhere / flag=exa → legacy Exa search (byte-identical to the old path)
+ *   - uncovered loc   → Exa (date-window filtered)
+ *   - flag=exa        → legacy Exa search, byte-identical to the old path (rollback)
  *
- * On any primary-source failure it falls back to the remaining source, then to Exa,
- * then to a clean `{ jobs: [], error: AAT-10 }`. It NEVER throws — a broken job source
- * must not take down the roadmap (work order §6 DoD #5).
+ * Freshness (D1/D2): jobs are held to a 7-day window that only widens (→14→30) if too
+ * few pass, and NEVER beyond the 30-day hard cap — the old code returned the unfiltered
+ * list when few were fresh, which is what surfaced months-old jobs. Structured routes
+ * (UK / covered country) do NOT fall back to Exa (D3) — Exa is the source of the dead
+ * links and wrong dates this fix removes. Dead links are dropped via a liveness check
+ * (D5). It NEVER throws — a broken job source must not take down the roadmap.
  *
- * Output shape is the unchanged `ExaJobListing[]` so every downstream consumer
- * (prompt builder, RoadmapResponse, frontend) is untouched.
- *
- * NOTE: dedupe + in-memory cache land in JS-5; this file owns routing, normalize,
- * freshness filtering and the fallback chain (JS-3).
+ * Output `jobs` stays the unchanged `ExaJobListing[]`; an optional `meta` carries
+ * diagnostics (source, window used, sparse, links checked) without touching consumers.
  */
 import type { ExaJobListing } from '../types/dream-company.js';
 import type { CostBucket } from '../lib/cost-tracker.js';
 import { getExaClient, withExaRetry } from '../lib/exa-client.js';
 import { searchAdzuna, type AdzunaResult } from '../lib/adzuna-client.js';
 import { searchReed, type ReedResult } from '../lib/reed-client.js';
-import { getJobSourceMode, getJobCacheTtlMs, type JobSourceMode } from '../config/job-source.js';
+import {
+  getJobSourceMode,
+  getJobCacheTtlMs,
+  getJobFreshnessMaxDays,
+  getJobFreshnessHardCapDays,
+  getJobMaxRoleQueries,
+  isJobLivenessEnabled,
+  getJobLivenessTimeoutMs,
+  type JobSourceMode,
+} from '../config/job-source.js';
 import { buildJobCacheKey, withJobCache } from '../lib/job-cache.js';
+import { filterLiveJobs } from '../lib/job-liveness.js';
 
 // Kept identical to the previous inline Exa options so `flag=exa` reproduces the old
 // behaviour exactly (work order §6 DoD #6).
@@ -37,9 +48,9 @@ export const JOBS_UNAVAILABLE_ERROR =
   'Could not load live job listings — the job search service is unavailable. Your roadmap below is still valid.';
 
 const MAX_JOBS = 20;
-const FRESHNESS_MAX_DAYS = 45;
 const FRESHNESS_MIN_KEEP = 8;
 const PER_SOURCE_RESULTS = 15;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface JobSearchInput {
   /** Selected target-role titles, used to build the keyword query. */
@@ -48,9 +59,21 @@ export interface JobSearchInput {
   location: string;
 }
 
+/** Diagnostic metadata for UI honesty + QA assertions (D6). Never affects `jobs` shape. */
+export interface JobSearchMeta {
+  source: 'uk' | 'adzuna' | 'exa' | 'none';
+  /** The freshness window (days) actually used after any widening. */
+  windowDaysUsed: number | null;
+  /** True when the window had to widen / too few fresh jobs were found. */
+  sparse: boolean;
+  /** How many URLs were liveness-checked (0 if disabled). */
+  checkedLinks: number;
+}
+
 export interface JobSearchResult {
   jobs: ExaJobListing[];
   error: string | null;
+  meta?: JobSearchMeta;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,28 +201,60 @@ function startOfDay(d: Date): number {
 }
 
 // ---------------------------------------------------------------------------
-// Freshness filter (D2)
+// Freshness filter (D1 + D2)
 // ---------------------------------------------------------------------------
 
+export interface FreshnessResult {
+  jobs: ExaJobListing[];
+  /** Window (days) whose result was returned. */
+  windowDaysUsed: number;
+  /** True when even the widest window couldn't reach minKeep. */
+  sparse: boolean;
+}
+
 /**
- * Drop jobs older than `maxDays`. Jobs with no/invalid publishedDate are kept (we
- * can't judge them). If the filtered set would fall below `minKeep`, the filter is
- * abandoned and the original list is returned — a sparse UK role shouldn't show zero
- * vacancies (work order D2 / risk "UK role hiếm").
+ * Keep only jobs within a freshness window, widening the window step-by-step
+ * (maxDays → 14 → hardCap) ONLY until `minKeep` jobs pass. Key guarantees (D1/D2):
+ *   - We NEVER return the unfiltered list. The old code returned all jobs (incl.
+ *     months-old ones) when too few were fresh — that was the "months ago" bug.
+ *   - Nothing older than the hard cap is ever returned, full stop.
+ *   - Undated / unparseable-date jobs are dropped when `dropUndated` (default true),
+ *     so we never display a blank/guessed date (D4).
+ * Returns the chosen set plus which window was used and whether it's sparse.
  */
 export function applyFreshness(
   jobs: ExaJobListing[],
-  opts: { now: Date; maxDays?: number; minKeep?: number },
-): ExaJobListing[] {
-  const maxDays = opts.maxDays ?? FRESHNESS_MAX_DAYS;
+  opts: { now: Date; maxDays?: number; hardCapDays?: number; minKeep?: number; dropUndated?: boolean },
+): FreshnessResult {
+  const maxDays = opts.maxDays ?? getJobFreshnessMaxDays();
+  const hardCapDays = opts.hardCapDays ?? getJobFreshnessHardCapDays();
   const minKeep = opts.minKeep ?? FRESHNESS_MIN_KEEP;
-  const cutoff = opts.now.getTime() - maxDays * 24 * 60 * 60 * 1000;
-  const fresh = jobs.filter((j) => {
-    if (!j.publishedDate) return true;
-    const t = Date.parse(j.publishedDate);
-    return Number.isNaN(t) ? true : t >= cutoff;
+  const dropUndated = opts.dropUndated ?? true;
+
+  // Candidate pool: dated jobs always eligible; undated kept only when not dropping.
+  const pool = jobs.filter((j) => {
+    const t = j.publishedDate ? Date.parse(j.publishedDate) : NaN;
+    return Number.isNaN(t) ? !dropUndated : true;
   });
-  return fresh.length < minKeep ? jobs : fresh;
+
+  // Windows to try, ascending, unique, never beyond the hard cap.
+  const windows = [...new Set([maxDays, 14, hardCapDays].filter((d) => d <= hardCapDays))].sort(
+    (a, b) => a - b,
+  );
+
+  let last: { jobs: ExaJobListing[]; windowDaysUsed: number } = { jobs: [], windowDaysUsed: hardCapDays };
+  for (const w of windows) {
+    const cutoff = opts.now.getTime() - w * DAY_MS;
+    const fresh = pool.filter((j) => {
+      const t = j.publishedDate ? Date.parse(j.publishedDate) : NaN;
+      return Number.isNaN(t) ? true : t >= cutoff; // undated (if kept) always passes
+    });
+    if (fresh.length >= minKeep) return { jobs: fresh, windowDaysUsed: w, sparse: false };
+    last = { jobs: fresh, windowDaysUsed: w };
+  }
+  // Never hit minKeep even at the hard cap → return the hard-cap set (may be small/empty),
+  // flagged sparse. Crucially still bounded by hardCap — never the raw unfiltered list.
+  return { ...last, sparse: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -272,17 +327,63 @@ async function searchExa(input: JobSearchInput, costBucket?: CostBucket): Promis
 // Source fetchers (Adzuna / Reed / UK-combined)
 // ---------------------------------------------------------------------------
 
+/**
+ * The top N role titles to actually search (D0). The previous code joined ALL selected
+ * titles into ONE keyword string, which Adzuna/Reed treat as "must contain every word"
+ * → 0 results in production → silent Exa fallback. We instead run ONE query per top
+ * role and merge, so each role's real vacancies come back.
+ */
+export function topRoles(roleTitles: string[]): string[] {
+  return roleTitles
+    .map((r) => r.trim())
+    .filter((r) => r.length > 0)
+    .slice(0, getJobMaxRoleQueries());
+}
+
+/**
+ * Reduce a free-text location to a city/keyword the job APIs geocode well (D0). Adzuna's
+ * `where` and Reed's `locationName` handle "London" far better than "London, United
+ * Kingdom". Take the first comma-segment; if that's a bare country name, keep the whole
+ * string (nationwide search).
+ */
+export function extractCity(location: string): string {
+  const first = (location ?? '').split(',')[0].trim();
+  const bareCountry = /^(uk|u\.k\.|united kingdom|great britain|britain|england|scotland|wales|usa|united states|america)$/i;
+  if (!first || bareCountry.test(first)) return (location ?? '').trim();
+  return first;
+}
+
+/**
+ * Run one search per top role via `fn` and merge. If EVERY role query rejects (e.g. a
+ * missing/invalid key), rethrow so the caller can treat the source as down. If at least
+ * one resolves, return the merged results (an empty array is a valid "no vacancies").
+ */
+async function gatherRoles<T>(roles: string[], fn: (role: string) => Promise<T[]>): Promise<T[]> {
+  if (roles.length === 0) return [];
+  const settled = await Promise.allSettled(roles.map(fn));
+  if (settled.every((s) => s.status === 'rejected')) {
+    throw (settled[0] as PromiseRejectedResult).reason;
+  }
+  return settled.flatMap((s) => (s.status === 'fulfilled' ? s.value : []));
+}
+
 async function fetchAdzuna(country: string, input: JobSearchInput, costBucket?: CostBucket): Promise<ExaJobListing[]> {
-  const what = input.roleTitles.join(' ');
-  const results = await searchAdzuna({ country, what, where: input.location, resultsPerPage: PER_SOURCE_RESULTS });
-  logSourceCall(costBucket, 'adzuna', results.length);
+  const roles = topRoles(input.roleTitles);
+  const where = extractCity(input.location);
+  const results = await gatherRoles(roles, (what) =>
+    searchAdzuna({ country, what, where, resultsPerPage: PER_SOURCE_RESULTS }),
+  );
+  logSourceCall(costBucket, 'adzuna', roles.length, results.length);
   return results.map(normalizeAdzuna);
 }
 
 async function fetchReed(input: JobSearchInput, now: Date, costBucket?: CostBucket): Promise<ExaJobListing[]> {
-  const keywords = input.roleTitles.join(' ');
-  const results = await searchReed({ keywords, locationName: input.location, resultsToTake: PER_SOURCE_RESULTS });
-  logSourceCall(costBucket, 'reed', results.length);
+  const roles = topRoles(input.roleTitles);
+  const locationName = extractCity(input.location);
+  const results = await gatherRoles(roles, (keywords) =>
+    searchReed({ keywords, locationName, resultsToTake: PER_SOURCE_RESULTS }),
+  );
+  logSourceCall(costBucket, 'reed', roles.length, results.length);
   return results.filter((r) => reedNotExpired(r, now)).map(normalizeReed);
 }
 
@@ -329,52 +430,88 @@ export async function searchLiveJobs(input: JobSearchInput, costBucket?: CostBuc
   return value;
 }
 
-/** The uncached search: routing + fallback chain. */
+/** The uncached search: routing → structured sources (no Exa fallback) or Exa-for-uncovered. */
 async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?: CostBucket): Promise<JobSearchResult> {
   const now = new Date();
   const route = routeLocation(input.location, mode);
 
-  // Legacy Exa path (flag=exa, or a location outside Adzuna/Reed coverage in hybrid).
+  // --- Exa route: only for genuinely uncovered locations, or the explicit rollback flag.
   if (route.kind === 'exa') {
-    if (mode === 'adzuna_reed') {
-      // Strict mode: no Exa fallback and no covered source → clean empty state.
-      return { jobs: [], error: JOBS_UNAVAILABLE_ERROR };
-    }
-    return runExa(input, costBucket);
+    if (mode === 'exa') return runExaRaw(input, costBucket); // rollback: byte-identical to old behaviour
+    if (mode === 'adzuna_reed') return emptyResult('none'); // strict mode: no Exa at all
+    return runExaFiltered(input, now, costBucket); // hybrid, uncovered location (e.g. Vietnam)
   }
 
-  // Primary structured source (Adzuna/Reed).
+  // --- Structured route (UK = Adzuna+Reed, or a covered country = Adzuna).
+  // D3: structured routes NEVER fall back to Exa — Exa is the source of dead links and
+  // wrong dates that this whole fix exists to eliminate.
+  let primary: ExaJobListing[] | null;
   try {
-    const primary =
+    primary =
       route.kind === 'uk'
         ? await fetchUk(input, now, costBucket)
         : await fetchAdzuna(route.country ?? 'gb', input, costBucket);
-
-    if (primary && primary.length > 0) {
-      const jobs = finalizeJobs(applyFreshness(primary, { now }));
-      if (jobs.length > 0) {
-        console.log(`[job-search] source=${route.kind} country=${route.country ?? '-'} jobs=${jobs.length}`);
-        return { jobs, error: null };
-      }
-    }
-    // Primary returned nothing usable → fall through to Exa (unless strict).
-    console.warn(`[job-search] primary source=${route.kind} returned no usable jobs — falling back`);
   } catch (err) {
     logSourceError(route.kind, err);
+    primary = null;
   }
 
-  if (mode === 'adzuna_reed') {
-    return { jobs: [], error: JOBS_UNAVAILABLE_ERROR };
+  // Source genuinely down (e.g. missing keys) → AAT-10. Still no Exa.
+  if (primary === null) {
+    return { jobs: [], error: JOBS_UNAVAILABLE_ERROR, meta: { source: route.kind, windowDaysUsed: null, sparse: true, checkedLinks: 0 } };
   }
-  return runExa(input, costBucket);
+
+  const fresh = applyFreshness(primary, { now }); // dropUndated=true (structured always dated)
+  const capped = finalizeJobs(fresh.jobs); // dedupe → sort → cap 20
+  const live = await maybeLiveness(capped);
+  console.log(
+    `[job-search] source=${route.kind} window=${fresh.windowDaysUsed}d sparse=${fresh.sparse} checked=${live.checked} jobs=${live.jobs.length}`,
+  );
+  return {
+    jobs: live.jobs,
+    error: null, // a genuine empty result is not an error (AAT-10 rule)
+    meta: {
+      source: route.kind,
+      windowDaysUsed: fresh.windowDaysUsed,
+      sparse: fresh.sparse || live.jobs.length < FRESHNESS_MIN_KEEP,
+      checkedLinks: live.checked,
+    },
+  };
 }
 
-/** Exa call wrapped so an Exa outage becomes the AAT-10 state rather than a throw. */
-async function runExa(input: JobSearchInput, costBucket?: CostBucket): Promise<JobSearchResult> {
+/**
+ * Exa for an uncovered location in hybrid mode (D4). Exa's publishedDate is unreliable,
+ * so we window-filter by date but KEEP undated jobs (they display with no date) — this
+ * avoids regressing non-UK profiles to an empty list while still never showing a WRONG
+ * date. Dated Exa jobs are still held to the freshness window.
+ */
+async function runExaFiltered(input: JobSearchInput, now: Date, costBucket?: CostBucket): Promise<JobSearchResult> {
+  let raw: ExaJobListing[];
+  try {
+    raw = await searchExa(input, costBucket);
+  } catch (err) {
+    logSourceError('exa', err);
+    return { jobs: [], error: JOBS_UNAVAILABLE_ERROR, meta: { source: 'exa', windowDaysUsed: null, sparse: true, checkedLinks: 0 } };
+  }
+  const fresh = applyFreshness(raw, { now, dropUndated: false });
+  const capped = finalizeJobs(fresh.jobs);
+  const live = await maybeLiveness(capped);
+  console.log(`[job-search] source=exa(hybrid) window=${fresh.windowDaysUsed}d checked=${live.checked} jobs=${live.jobs.length}`);
+  return {
+    jobs: live.jobs,
+    error: null,
+    meta: { source: 'exa', windowDaysUsed: fresh.windowDaysUsed, sparse: fresh.sparse, checkedLinks: live.checked },
+  };
+}
+
+/**
+ * Exa in explicit rollback mode (DREAM_JOB_SOURCE=exa) — byte-identical to the original
+ * behaviour: no freshness filter, no liveness, no meta. Do NOT change this path.
+ */
+async function runExaRaw(input: JobSearchInput, costBucket?: CostBucket): Promise<JobSearchResult> {
   try {
     const jobs = await searchExa(input, costBucket);
-    console.log(`[job-search] source=exa jobs=${jobs.length}`);
-    // A genuine zero-result Exa search is NOT an error — error stays null (AAT-10 rule).
+    console.log(`[job-search] source=exa(raw) jobs=${jobs.length}`);
     return { jobs, error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -383,14 +520,26 @@ async function runExa(input: JobSearchInput, costBucket?: CostBucket): Promise<J
   }
 }
 
+function emptyResult(source: JobSearchMeta['source']): JobSearchResult {
+  return { jobs: [], error: JOBS_UNAVAILABLE_ERROR, meta: { source, windowDaysUsed: null, sparse: true, checkedLinks: 0 } };
+}
+
+/** Run the liveness check when enabled; otherwise pass jobs through untouched. */
+async function maybeLiveness(jobs: ExaJobListing[]): Promise<{ jobs: ExaJobListing[]; checked: number }> {
+  if (!isJobLivenessEnabled() || jobs.length === 0) return { jobs, checked: 0 };
+  const res = await filterLiveJobs(jobs, { timeoutMs: getJobLivenessTimeoutMs() });
+  if (res.dropped > 0) console.log(`[job-search] liveness dropped ${res.dropped}/${res.checked} dead link(s)`);
+  return { jobs: res.live, checked: res.checked };
+}
+
 // ---------------------------------------------------------------------------
 // Logging (cost hooks wired in JS-6)
 // ---------------------------------------------------------------------------
 
-function logSourceCall(costBucket: CostBucket | undefined, source: 'adzuna' | 'reed', count: number): void {
-  // One API call per fetch; count is the number of results returned (for observability).
-  if (source === 'adzuna') costBucket?.adzuna(`${source}.search (${count} results)`, 1);
-  else costBucket?.reed(`${source}.search (${count} results)`, 1);
+function logSourceCall(costBucket: CostBucket | undefined, source: 'adzuna' | 'reed', calls: number, count: number): void {
+  const label = `${source}.search (${count} results, ${calls} calls)`;
+  if (source === 'adzuna') costBucket?.adzuna(label, calls);
+  else costBucket?.reed(label, calls);
 }
 
 function logSourceError(source: string, err: unknown): void {

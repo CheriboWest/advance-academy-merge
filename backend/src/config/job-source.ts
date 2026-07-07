@@ -17,6 +17,10 @@ export type JobSourceMode = 'hybrid' | 'adzuna_reed' | 'exa';
 
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_CACHE_TTL_MS = 1_200_000; // 20 minutes
+const DEFAULT_FRESHNESS_MAX_DAYS = 7; // "current/active" window (was 45 — too loose)
+const DEFAULT_FRESHNESS_HARD_CAP_DAYS = 30; // absolute ceiling: never show anything older
+const DEFAULT_MAX_ROLE_QUERIES = 3; // how many top role titles to search per source
+const DEFAULT_LIVENESS_TIMEOUT_MS = 4000;
 
 /**
  * Resolve DREAM_JOB_SOURCE. Anything outside the three known modes falls back to
@@ -43,6 +47,41 @@ export function getJobSourceTimeoutMs(): number {
 /** In-memory job-cache TTL in ms (JOB_CACHE_TTL_MS), default 20 min. */
 export function getJobCacheTtlMs(): number {
   return positiveIntEnv('JOB_CACHE_TTL_MS', DEFAULT_CACHE_TTL_MS);
+}
+
+/**
+ * Preferred freshness window in days (JOB_FRESHNESS_MAX_DAYS), default 7. Jobs newer
+ * than this are shown first; the orchestrator only widens the window (up to the hard
+ * cap) if too few jobs pass. Violet's target is "current/active" — set to 2 for a
+ * stricter 48h window if the role pool is large enough to still return jobs.
+ */
+export function getJobFreshnessMaxDays(): number {
+  return positiveIntEnv('JOB_FRESHNESS_MAX_DAYS', DEFAULT_FRESHNESS_MAX_DAYS);
+}
+
+/**
+ * Absolute freshness ceiling in days (JOB_FRESHNESS_HARD_CAP_DAYS), default 30. No job
+ * older than this is ever returned — this is the guarantee that replaces the old
+ * "return the unfiltered list" fallback.
+ */
+export function getJobFreshnessHardCapDays(): number {
+  return positiveIntEnv('JOB_FRESHNESS_HARD_CAP_DAYS', DEFAULT_FRESHNESS_HARD_CAP_DAYS);
+}
+
+/** Number of top role titles to query per source (JOB_MAX_ROLE_QUERIES), default 3. */
+export function getJobMaxRoleQueries(): number {
+  return positiveIntEnv('JOB_MAX_ROLE_QUERIES', DEFAULT_MAX_ROLE_QUERIES);
+}
+
+/** Whether to HTTP-check job URLs and drop dead links (JOB_LIVENESS_ENABLED), default true. */
+export function isJobLivenessEnabled(): boolean {
+  const raw = process.env.JOB_LIVENESS_ENABLED?.trim().toLowerCase();
+  return raw !== 'false' && raw !== '0' && raw !== 'no';
+}
+
+/** Per-URL liveness-check timeout in ms (JOB_LIVENESS_TIMEOUT_MS), default 4000. */
+export function getJobLivenessTimeoutMs(): number {
+  return positiveIntEnv('JOB_LIVENESS_TIMEOUT_MS', DEFAULT_LIVENESS_TIMEOUT_MS);
 }
 
 function positiveIntEnv(name: string, fallback: number): number {
