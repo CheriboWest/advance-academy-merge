@@ -653,8 +653,7 @@ function RolesTab({
         <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-200">
           <Briefcase className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
           <p className="text-sm text-blue-800">
-            Choose up to {maxRoles} target roles — a focused set gives you a sharper roadmap and fresher live jobs.
-            Then click &quot;Build My Roadmap&quot;. ({selectedRoles.length}/{maxRoles} selected)
+            {`Choose up to ${maxRoles} target roles - a focused set gives you a sharper roadmap and fresher live jobs. Then click "Build My Roadmap". (${selectedRoles.length}/${maxRoles} selected)`}
           </p>
         </div>
       )}
