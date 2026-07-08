@@ -144,6 +144,8 @@ export function DreamCompanyScreen() {
     jobs,
     jobsError,
     jobsNotice,
+    jobsTruncated,
+    maxRoles,
     roadmap,
     loading,
     error,
@@ -152,6 +154,7 @@ export function DreamCompanyScreen() {
     generateFromProfile,
     toggleRole,
     buildRoadmap,
+    editRoles,
     uploadCV,
     reset,
   } = useDreamCompany()
@@ -365,9 +368,14 @@ export function DreamCompanyScreen() {
 
           {/* Submit / Picking / Loading / Reset */}
           {currentStep === 'done' ? (
-            <Button onClick={handleReset} variant="outline" className="w-full">
-              Start New Search
-            </Button>
+            <div className="space-y-2">
+              <Button onClick={editRoles} className="w-full bg-yellow-500 hover:bg-yellow-400 text-blue-900 font-semibold">
+                Adjust roles &amp; regenerate
+              </Button>
+              <Button onClick={handleReset} variant="outline" className="w-full">
+                Start New Search
+              </Button>
+            </div>
           ) : currentStep === 'picking' ? (
             <Button
               onClick={buildRoadmap}
@@ -420,6 +428,8 @@ export function DreamCompanyScreen() {
             jobs={jobs}
             jobsError={jobsError}
             jobsNotice={jobsNotice}
+            jobsTruncated={jobsTruncated}
+            maxRoles={maxRoles}
             roadmap={roadmap}
             currentStep={currentStep}
             onToggleRole={toggleRole}
@@ -478,6 +488,8 @@ function ResultsPanel({
   jobs,
   jobsError,
   jobsNotice,
+  jobsTruncated,
+  maxRoles,
   roadmap,
   currentStep,
   onToggleRole,
@@ -488,6 +500,8 @@ function ResultsPanel({
   jobs: ExaJobListing[] | null
   jobsError: string | null
   jobsNotice: string | null
+  jobsTruncated: boolean
+  maxRoles: number
   roadmap: CareerRoadmap | null
   currentStep: string
   onToggleRole: (role: TargetRole) => void
@@ -512,12 +526,13 @@ function ResultsPanel({
             selectedRoles={selectedRoles}
             currentStep={currentStep}
             onToggleRole={onToggleRole}
+            maxRoles={maxRoles}
           />
         </TabsContent>
       )}
       {hasRoadmap && (
         <TabsContent value="roadmap">
-          <RoadmapAndJobsTab roadmap={roadmap} jobs={jobs} jobsError={jobsError} jobsNotice={jobsNotice} />
+          <RoadmapAndJobsTab roadmap={roadmap} jobs={jobs} jobsError={jobsError} jobsNotice={jobsNotice} jobsTruncated={jobsTruncated} />
         </TabsContent>
       )}
     </Tabs>
@@ -621,13 +636,16 @@ function RolesTab({
   selectedRoles,
   currentStep,
   onToggleRole,
+  maxRoles,
 }: {
   roles: TargetRole[]
   selectedRoles: TargetRole[]
   currentStep: string
   onToggleRole: (role: TargetRole) => void
+  maxRoles: number
 }) {
   const isPicking = currentStep === 'picking'
+  const atCap = selectedRoles.length >= maxRoles
 
   return (
     <div className="space-y-6 mt-4">
@@ -635,7 +653,8 @@ function RolesTab({
         <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-200">
           <Briefcase className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
           <p className="text-sm text-blue-800">
-            Select the roles you want to pursue, then click &quot;Build My Roadmap&quot; to search for real jobs and generate your personalized career plan.
+            Choose up to {maxRoles} target roles — a focused set gives you a sharper roadmap and fresher live jobs.
+            Then click &quot;Build My Roadmap&quot;. ({selectedRoles.length}/{maxRoles} selected)
           </p>
         </div>
       )}
@@ -643,14 +662,16 @@ function RolesTab({
       <div className="grid gap-4 md:grid-cols-2">
         {roles.map((role, i) => {
           const isSelected = selectedRoles.some((r) => r.title === role.title && r.level === role.level)
+          const disabled = isPicking && !isSelected && atCap // cap reached — can't add more
 
           return (
             <Card
               key={i}
+              aria-disabled={disabled}
               className={`transition-all ${
-                isPicking ? 'cursor-pointer' : ''
-              } ${isSelected ? 'ring-2 ring-yellow-500 bg-yellow-50/50' : isPicking ? 'hover:border-gray-300' : ''}`}
-              onClick={() => isPicking && onToggleRole(role)}
+                isPicking && !disabled ? 'cursor-pointer' : ''
+              } ${isSelected ? 'ring-2 ring-yellow-500 bg-yellow-50/50' : isPicking && !disabled ? 'hover:border-gray-300' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={() => isPicking && !disabled && onToggleRole(role)}
             >
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between gap-2">
@@ -689,7 +710,7 @@ function RolesTab({
 
 // ─── Roadmap & Jobs Tab ─────────────────────────────────────
 
-function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice }: { roadmap: CareerRoadmap; jobs: ExaJobListing[] | null; jobsError: string | null; jobsNotice: string | null }) {
+function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated }: { roadmap: CareerRoadmap; jobs: ExaJobListing[] | null; jobsError: string | null; jobsNotice: string | null; jobsTruncated: boolean }) {
   return (
     <div className="space-y-8 mt-4">
       {/* Future You Card */}
@@ -722,6 +743,16 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice }: { roadmap: 
         <div className="flex items-start gap-2 p-4 rounded-lg border border-blue-200 bg-blue-50">
           <Briefcase className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
           <p className="text-sm text-blue-800">{jobsNotice}</p>
+        </div>
+      )}
+
+      {/* Job search covered only the first N selected roles (client bypassed the FE cap) */}
+      {jobsTruncated && (
+        <div className="flex items-start gap-2 p-4 rounded-lg border border-blue-200 bg-blue-50">
+          <Briefcase className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-blue-800">
+            Job search covered your top roles. Want to explore other roles? Adjust your picks and regenerate your roadmap.
+          </p>
         </div>
       )}
 

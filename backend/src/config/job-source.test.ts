@@ -63,8 +63,8 @@ test('getJobFreshnessHardCapDays: default 30, override respected', () => {
   withEnv('JOB_FRESHNESS_HARD_CAP_DAYS', '14', () => assert.equal(getJobFreshnessHardCapDays(), 14));
 });
 
-test('getJobMaxRoleQueries: default 3, override respected', () => {
-  withEnv('JOB_MAX_ROLE_QUERIES', undefined, () => assert.equal(getJobMaxRoleQueries(), 3));
+test('getJobMaxRoleQueries: default 6, override respected', () => {
+  withEnv('JOB_MAX_ROLE_QUERIES', undefined, () => assert.equal(getJobMaxRoleQueries(), 6));
   withEnv('JOB_MAX_ROLE_QUERIES', '1', () => assert.equal(getJobMaxRoleQueries(), 1));
 });
 

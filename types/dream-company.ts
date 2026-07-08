@@ -47,6 +47,8 @@ export interface RoadmapResponse {
    * Rendered gently, separate from `jobsError`.
    */
   jobsNotice: string | null
+  /** True when more roles were selected than the backend searches (client bypassed the cap). */
+  jobsTruncated: boolean
 }
 
 export interface FutureYou {

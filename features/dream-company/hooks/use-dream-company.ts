@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import type {
   DreamCompanyInput,
   ProfileAnalysis,
@@ -8,7 +8,10 @@ import type {
   ExaJobListing,
   CareerRoadmap,
 } from '@/types/dream-company'
-import { analyzeProfileStream, generateRolesStream, generateRoadmapStream, parseCV } from '@/features/dream-company/api/frontend-client'
+import { analyzeProfileStream, generateRolesStream, generateRoadmapStream, parseCV, getDreamCompanyConfig } from '@/features/dream-company/api/frontend-client'
+
+// Fallback used only until the backend config loads; the backend value is authoritative.
+const DEFAULT_MAX_ROLES = 6
 
 // Rough per-step output sizes (chars of streamed JSON) used to turn the live token stream into
 // a progress %. Approximate on purpose — the bar follows a saturating curve toward a per-run
@@ -39,6 +42,8 @@ export function useDreamCompany() {
   const [jobs, setJobs] = useState<ExaJobListing[] | null>(null)
   const [jobsError, setJobsError] = useState<string | null>(null)
   const [jobsNotice, setJobsNotice] = useState<string | null>(null)
+  const [jobsTruncated, setJobsTruncated] = useState(false)
+  const [maxRoles, setMaxRoles] = useState<number>(DEFAULT_MAX_ROLES)
   const [roadmap, setRoadmap] = useState<CareerRoadmap | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +53,20 @@ export function useDreamCompany() {
   const profileRef = useRef<DreamCompanyInput | null>(null)
   const charsRef = useRef(0)
   const ceilingRef = useRef(96)
+
+  // Load the role-selection cap from the backend (single source of truth). If it fails we
+  // keep the sensible default — never block the flow on this.
+  useEffect(() => {
+    let cancelled = false
+    getDreamCompanyConfig()
+      .then((cfg) => {
+        if (!cancelled && typeof cfg?.maxRoles === 'number' && cfg.maxRoles > 0) setMaxRoles(cfg.maxRoles)
+      })
+      .catch(() => { /* keep DEFAULT_MAX_ROLES */ })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Begin a streamed step: reset the bar and return an onDelta that advances it as tokens arrive.
   // Instead of a hard 96% cap that freezes on the same number every run, the bar follows the real
@@ -101,11 +120,11 @@ export function useDreamCompany() {
   const toggleRole = useCallback((role: TargetRole) => {
     setSelectedRoles((prev) => {
       const exists = prev.some((r) => r.title === role.title && r.level === role.level)
-      return exists
-        ? prev.filter((r) => !(r.title === role.title && r.level === role.level))
-        : [...prev, role]
+      if (exists) return prev.filter((r) => !(r.title === role.title && r.level === role.level))
+      if (prev.length >= maxRoles) return prev // cap reached — ignore adds (AC1 guard)
+      return [...prev, role]
     })
-  }, [])
+  }, [maxRoles])
 
   const buildRoadmap = useCallback(
     async (): Promise<void> => {
@@ -116,6 +135,7 @@ export function useDreamCompany() {
       setError(null)
       setJobsError(null)
       setJobsNotice(null)
+      setJobsTruncated(false)
       setCurrentStep('building-roadmap')
 
       try {
@@ -124,6 +144,7 @@ export function useDreamCompany() {
         setJobs(result.jobs)
         setJobsError(result.jobsError)
         setJobsNotice(result.jobsNotice)
+        setJobsTruncated(result.jobsTruncated)
         setRoadmap(result.roadmap)
         setCurrentStep('done')
       } catch (err) {
@@ -156,6 +177,12 @@ export function useDreamCompany() {
     }
   }, [])
 
+  // Regenerate flow (AC5): go back to role selection keeping analysis/roles/picks, so the
+  // user can adjust their picks and Build again. Same picks+location → cache hit (no API).
+  const editRoles = useCallback(() => {
+    setCurrentStep('picking')
+  }, [])
+
   const reset = useCallback(() => {
     profileRef.current = null
     setAnalysis(null)
@@ -164,6 +191,7 @@ export function useDreamCompany() {
     setJobs(null)
     setJobsError(null)
     setJobsNotice(null)
+    setJobsTruncated(false)
     setRoadmap(null)
     setLoading(false)
     setError(null)
@@ -178,6 +206,8 @@ export function useDreamCompany() {
     jobs,
     jobsError,
     jobsNotice,
+    jobsTruncated,
+    maxRoles,
     roadmap,
     loading,
     error,
@@ -186,6 +216,7 @@ export function useDreamCompany() {
     generateFromProfile,
     toggleRole,
     buildRoadmap,
+    editRoles,
     uploadCV,
     reset,
   }

@@ -12,6 +12,7 @@ import {
   streamRoadmapWithJobs,
 } from '../services/dream-company.service.js';
 import type { DreamCompanyInput, ProfileAnalysis, TargetRole } from '../types/dream-company.js';
+import { getJobMaxRoleQueries } from '../config/job-source.js';
 
 type FastifyReplyLike = {
   hijack: () => void;
@@ -195,7 +196,13 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
     },
   );
 
-  // Step 3: Exa Job Search + Roadmap (from selected roles)
+  // Config for the FE — single source of truth for the role-selection cap. The FE reads
+  // this so changing JOB_MAX_ROLE_QUERIES on Railway updates the UI limit without a FE deploy.
+  app.get('/api/dream-company/config', async () => {
+    return { maxRoles: getJobMaxRoleQueries() };
+  });
+
+  // Step 3: Live Job Search + Roadmap (from selected roles)
   app.post<{ Body: { profile?: DreamCompanyInput; analysis?: ProfileAnalysis; selectedRoles?: TargetRole[] } }>(
     '/api/dream-company/roadmap',
     RATE_1MIN(10),

@@ -42,6 +42,16 @@ export function getCvAnalysisJobFromBackend(jobId: string, authToken?: string) {
   })
 }
 
+export function getDreamCompanyConfigFromBackend(authToken?: string) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchJson<{ maxRoles: number }>(`${backendUrl}/api/dream-company/config`, {
+    method: 'GET',
+    headers: authHeaders(authToken),
+    timeoutMs: 10000,
+  })
+}
+
 export function analyzeProfileWithBackend(payload: { profile: DreamCompanyInput }, authToken?: string) {
   const { backendUrl } = getServerEnv()
 
