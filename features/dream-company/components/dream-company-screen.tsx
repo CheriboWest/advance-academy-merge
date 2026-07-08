@@ -820,11 +820,27 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Skills to Build</p>
-                    <div className="flex flex-wrap gap-2">
-                      {phase.skills.map((skill, j) => (
-                        <Badge key={j} variant="secondary">{skill}</Badge>
-                      ))}
-                    </div>
+                    {/* These "skills" are long descriptive phrases ("Category (detail, detail…)"),
+                        not short tags — a nowrap Badge overflowed the card. Render each as a
+                        wrapping row: bold category + muted parenthetical detail. */}
+                    <ul className="space-y-2">
+                      {phase.skills.map((skill, j) => {
+                        const m = skill.match(/^([^(]+?)\s*\((.+)\)\s*$/)
+                        const title = m ? m[1] : skill
+                        const detail = m ? m[2] : null
+                        return (
+                          <li
+                            key={j}
+                            className="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 min-w-0"
+                          >
+                            <p className="text-sm font-medium text-yellow-900 break-words">{title}</p>
+                            {detail && (
+                              <p className="text-xs text-yellow-800/80 mt-0.5 break-words">{detail}</p>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
                   </div>
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-green-50 border border-green-200">
                     <Target className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
