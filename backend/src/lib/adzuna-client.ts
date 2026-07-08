@@ -39,6 +39,12 @@ export interface SearchAdzunaParams {
   page?: number;
   resultsPerPage?: number;
   sortBy?: 'date' | 'relevance' | 'salary';
+  /**
+   * When true, `what` is sent as Adzuna's `title_only` parameter so the keywords must
+   * appear in the job TITLE (not just anywhere in the ad). Verified empirically to strip
+   * off-topic matches at the source (e.g. "Head of Trading" for a "Data Analyst" query).
+   */
+  titleOnly?: boolean;
 }
 
 /** Returns `{ appId, appKey }` or throws a 503 when either credential is missing. */
@@ -69,16 +75,20 @@ export async function searchAdzuna(params: SearchAdzunaParams): Promise<AdzunaRe
     page = 1,
     resultsPerPage = 15,
     sortBy = 'date',
+    titleOnly = false,
   } = params;
 
   const query = new URLSearchParams({
     app_id: appId,
     app_key: appKey,
     results_per_page: String(resultsPerPage),
-    what,
     sort_by: sortBy,
     'content-type': 'application/json',
   });
+  // `title_only` restricts the keyword match to the job title; otherwise `what` matches
+  // anywhere in the ad. They are mutually exclusive — send exactly one.
+  if (titleOnly) query.set('title_only', what);
+  else query.set('what', what);
   if (where) query.set('where', where);
 
   const url = `${ADZUNA_BASE}/${encodeURIComponent(country)}/search/${page}?${query.toString()}`;

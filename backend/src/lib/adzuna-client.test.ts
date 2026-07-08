@@ -72,6 +72,32 @@ test('searchAdzuna: builds URL with country, what, where, sort_by=date and auth'
   });
 });
 
+test('searchAdzuna: titleOnly sends title_only param and omits what', async () => {
+  await withCreds(async () => {
+    let seenUrl = '';
+    globalThis.fetch = (async (url: string | URL) => {
+      seenUrl = String(url);
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+    await searchAdzuna({ country: 'gb', what: 'Data Analyst', titleOnly: true });
+    assert.match(seenUrl, /title_only=Data\+Analyst/);
+    assert.doesNotMatch(seenUrl, /[?&]what=/);
+  });
+});
+
+test('searchAdzuna: default (no titleOnly) sends what and not title_only', async () => {
+  await withCreds(async () => {
+    let seenUrl = '';
+    globalThis.fetch = (async (url: string | URL) => {
+      seenUrl = String(url);
+      return new Response(JSON.stringify({ results: [] }), { status: 200 });
+    }) as typeof fetch;
+    await searchAdzuna({ country: 'gb', what: 'Data Analyst' });
+    assert.match(seenUrl, /[?&]what=Data\+Analyst/);
+    assert.doesNotMatch(seenUrl, /title_only=/);
+  });
+});
+
 test('searchAdzuna: missing results field yields empty array', async () => {
   await withCreds(async () => {
     globalThis.fetch = (async () => new Response(JSON.stringify({ count: 0 }), { status: 200 })) as typeof fetch;
