@@ -143,6 +143,7 @@ export function DreamCompanyScreen() {
     selectedRoles,
     jobs,
     jobsError,
+    jobsNotice,
     roadmap,
     loading,
     error,
@@ -418,6 +419,7 @@ export function DreamCompanyScreen() {
             selectedRoles={selectedRoles}
             jobs={jobs}
             jobsError={jobsError}
+            jobsNotice={jobsNotice}
             roadmap={roadmap}
             currentStep={currentStep}
             onToggleRole={toggleRole}
@@ -475,6 +477,7 @@ function ResultsPanel({
   selectedRoles,
   jobs,
   jobsError,
+  jobsNotice,
   roadmap,
   currentStep,
   onToggleRole,
@@ -484,6 +487,7 @@ function ResultsPanel({
   selectedRoles: TargetRole[]
   jobs: ExaJobListing[] | null
   jobsError: string | null
+  jobsNotice: string | null
   roadmap: CareerRoadmap | null
   currentStep: string
   onToggleRole: (role: TargetRole) => void
@@ -513,7 +517,7 @@ function ResultsPanel({
       )}
       {hasRoadmap && (
         <TabsContent value="roadmap">
-          <RoadmapAndJobsTab roadmap={roadmap} jobs={jobs} jobsError={jobsError} />
+          <RoadmapAndJobsTab roadmap={roadmap} jobs={jobs} jobsError={jobsError} jobsNotice={jobsNotice} />
         </TabsContent>
       )}
     </Tabs>
@@ -685,7 +689,7 @@ function RolesTab({
 
 // ─── Roadmap & Jobs Tab ─────────────────────────────────────
 
-function RoadmapAndJobsTab({ roadmap, jobs, jobsError }: { roadmap: CareerRoadmap; jobs: ExaJobListing[] | null; jobsError: string | null }) {
+function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice }: { roadmap: CareerRoadmap; jobs: ExaJobListing[] | null; jobsError: string | null; jobsNotice: string | null }) {
   return (
     <div className="space-y-8 mt-4">
       {/* Future You Card */}
@@ -710,6 +714,14 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError }: { roadmap: CareerRoadma
         <div className="flex items-start gap-2 p-4 rounded-lg border border-amber-300 bg-amber-50">
           <Briefcase className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <p className="text-sm text-amber-800">{jobsError}</p>
+        </div>
+      )}
+
+      {/* Benign notice (e.g. region outside live coverage) — softer than an error */}
+      {jobsNotice && !jobsError && (
+        <div className="flex items-start gap-2 p-4 rounded-lg border border-blue-200 bg-blue-50">
+          <Briefcase className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-blue-800">{jobsNotice}</p>
         </div>
       )}
 

@@ -151,7 +151,7 @@ export async function generateRoadmapWithJobs(
   // Fetch the Exa job listings FIRST so the roadmap prompt can reference real, current
   // openings. Running the search and the LLM call in parallel meant the prompt was always
   // built with an empty job list (AAT-9). Still exactly one Exa search — no extra calls.
-  const { jobs, error: jobsError } = await searchJobsForRoles(selectedRoles, profile, cost);
+  const { jobs, error: jobsError, notice: jobsNotice } = await searchJobsForRoles(selectedRoles, profile, cost);
 
   const roadmapResponse = await withRetry(() => anthropic.messages.create({
     model,
@@ -164,7 +164,7 @@ export async function generateRoadmapWithJobs(
 
   const roadmap = parseStepResponse<CareerRoadmap>(roadmapResponse, 'careerRoadmap');
 
-  return { jobs, roadmap, jobsError };
+  return { jobs, roadmap, jobsError, jobsNotice: jobsNotice ?? null };
 }
 
 // ---- Streaming variants (M2.1) --------------------------------------------------------
@@ -233,8 +233,8 @@ export async function streamRoadmapWithJobs(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.roadmap.stream');
 
-  // Exa search runs first (same as the non-streaming path) so the prompt has real jobs.
-  const { jobs, error: jobsError } = await searchJobsForRoles(selectedRoles, profile, cost);
+  // Job search runs first (same as the non-streaming path) so the prompt has real jobs.
+  const { jobs, error: jobsError, notice: jobsNotice } = await searchJobsForRoles(selectedRoles, profile, cost);
 
   const final = await streamFinalWithRetry(
     () => anthropic.messages.stream({
@@ -249,21 +249,20 @@ export async function streamRoadmapWithJobs(
   cost.flush();
 
   const roadmap = parseStepResponse<CareerRoadmap>(final, 'careerRoadmap');
-  return { jobs, roadmap, jobsError };
+  return { jobs, roadmap, jobsError, jobsNotice: jobsNotice ?? null };
 }
 
 /**
  * Fetch live job listings for the selected roles. Delegates to the job-search
- * orchestrator (lib routing over Adzuna/Reed with Exa fallback). Signature and the
- * `{ jobs, error }` return shape are unchanged so both the streaming and non-streaming
- * roadmap paths call it identically. With DREAM_JOB_SOURCE=exa the orchestrator's Exa
- * path reproduces the previous behaviour exactly.
+ * orchestrator (routing over Adzuna/Reed). Returns `{ jobs, error, notice }`: `error` is
+ * a genuine outage, `notice` is a benign message (e.g. region outside live coverage).
+ * Both streaming and non-streaming roadmap paths call it identically.
  */
 async function searchJobsForRoles(
   selectedRoles: TargetRole[],
   profile: DreamCompanyInput,
   costBucket?: CostBucket,
-): Promise<{ jobs: ExaJobListing[]; error: string | null }> {
+): Promise<{ jobs: ExaJobListing[]; error: string | null; notice?: string | null }> {
   return searchLiveJobs(
     { roleTitles: selectedRoles.map((r) => r.title), location: profile.location },
     costBucket,

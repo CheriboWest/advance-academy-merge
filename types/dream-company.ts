@@ -42,6 +42,11 @@ export interface RoadmapResponse {
    * a genuine empty result, where `jobs` is `[]` and `jobsError` is `null` (AAT-10).
    */
   jobsError: string | null
+  /**
+   * Benign notice (NOT an error) — e.g. the location is outside our live-vacancy coverage.
+   * Rendered gently, separate from `jobsError`.
+   */
+  jobsNotice: string | null
 }
 
 export interface FutureYou {

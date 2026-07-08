@@ -47,9 +47,22 @@ const EXA_OPTIONS = {
 export const JOBS_UNAVAILABLE_ERROR =
   'Could not load live job listings — the job search service is unavailable. Your roadmap below is still valid.';
 
+/** Notice (NOT an error) for a location we have no live-vacancy coverage for. */
+export const REGION_UNSUPPORTED_TEMPLATE =
+  "We don't yet have direct live vacancies for {region}. Your roadmap below is still valid.";
+
+export function regionUnsupportedNotice(region: string): string {
+  const r = (region ?? '').trim() || 'your region';
+  return REGION_UNSUPPORTED_TEMPLATE.replace('{region}', r);
+}
+
 const MAX_JOBS = 20;
 const FRESHNESS_MIN_KEEP = 8;
 const PER_SOURCE_RESULTS = 15;
+// Upper bound on how many candidate URLs we liveness-check (Issue 2). We over-fetch
+// (many roles × 2 sources), then check the freshest ~30 so that dropping a few dead
+// links still leaves a full page of 20.
+const LIVENESS_MAX_CANDIDATES = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface JobSearchInput {
@@ -61,7 +74,7 @@ export interface JobSearchInput {
 
 /** Diagnostic metadata for UI honesty + QA assertions (D6). Never affects `jobs` shape. */
 export interface JobSearchMeta {
-  source: 'uk' | 'adzuna' | 'exa' | 'none';
+  source: 'uk' | 'adzuna' | 'exa' | 'unsupported' | 'none';
   /** The freshness window (days) actually used after any widening. */
   windowDaysUsed: number | null;
   /** True when the window had to widen / too few fresh jobs were found. */
@@ -72,7 +85,14 @@ export interface JobSearchMeta {
 
 export interface JobSearchResult {
   jobs: ExaJobListing[];
+  /** Set on a genuine outage (job source unavailable). The roadmap is still valid. */
   error: string | null;
+  /**
+   * Informational message — distinct from `error`. Set when the request succeeded but
+   * there is nothing to show for a benign reason (e.g. region outside live coverage).
+   * The FE renders this gently, not as an error.
+   */
+  notice?: string | null;
   meta?: JobSearchMeta;
 }
 
@@ -81,7 +101,7 @@ export interface JobSearchResult {
 // ---------------------------------------------------------------------------
 
 export interface JobRoute {
-  kind: 'uk' | 'adzuna' | 'exa';
+  kind: 'uk' | 'adzuna' | 'exa' | 'unsupported';
   /** Adzuna country code for 'uk' ('gb') and 'adzuna' routes. */
   country?: string;
 }
@@ -114,8 +134,12 @@ const ADZUNA_COUNTRY_MAP: Array<{ re: RegExp; code: string }> = [
 ];
 
 /**
- * Decide which source to use for a location. `mode='exa'` forces the legacy path;
- * otherwise UK → uk, a covered country → adzuna, anything else → exa (D3 fallback).
+ * Decide which source to use for a location. `mode='exa'` forces the legacy Exa path
+ * (debug/rollback only); otherwise UK → uk, a covered country → adzuna, and anything
+ * else → `unsupported` (Issue 1). We deliberately no longer fall back to Exa for
+ * uncovered regions — Exa is the source of wrong-location / dead / LinkedIn results, so
+ * an honest "no coverage" notice beats a full list of wrong jobs. This supersedes the
+ * earlier D3 "uncovered → Exa fallback" decision.
  */
 export function routeLocation(location: string, mode: JobSourceMode): JobRoute {
   if (mode === 'exa') return { kind: 'exa' };
@@ -124,7 +148,7 @@ export function routeLocation(location: string, mode: JobSourceMode): JobRoute {
   for (const { re, code } of ADZUNA_COUNTRY_MAP) {
     if (re.test(loc)) return { kind: 'adzuna', country: code };
   }
-  return { kind: 'exa' };
+  return { kind: 'unsupported' };
 }
 
 // ---------------------------------------------------------------------------
@@ -310,11 +334,15 @@ export function applyFreshness(
 // Merge / finalize
 // ---------------------------------------------------------------------------
 
-/** Dedupe (by URL host+path), sort newest-first (undated last), and cap. */
-export function finalizeJobs(jobs: ExaJobListing[], cap: number = MAX_JOBS): ExaJobListing[] {
+/** Dedupe (by URL host+path) and sort newest-first (undated last). No cap. */
+export function dedupeAndSort(jobs: ExaJobListing[]): ExaJobListing[] {
   const deduped = dedupeJobs(jobs.filter((j) => j.url));
-  const sorted = [...deduped].sort((a, b) => publishedMs(b) - publishedMs(a));
-  return sorted.slice(0, cap);
+  return [...deduped].sort((a, b) => publishedMs(b) - publishedMs(a));
+}
+
+/** Dedupe + sort + cap. (Cap AFTER liveness in the live pipeline; this stays for reuse.) */
+export function finalizeJobs(jobs: ExaJobListing[], cap: number = MAX_JOBS): ExaJobListing[] {
+  return dedupeAndSort(jobs).slice(0, cap);
 }
 
 /**
@@ -484,11 +512,22 @@ async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?
   const now = new Date();
   const route = routeLocation(input.location, mode);
 
-  // --- Exa route: only for genuinely uncovered locations, or the explicit rollback flag.
+  // --- Exa route: ONLY via DREAM_JOB_SOURCE=exa (legacy/debug). Byte-identical old path.
   if (route.kind === 'exa') {
-    if (mode === 'exa') return runExaRaw(input, costBucket); // rollback: byte-identical to old behaviour
-    if (mode === 'adzuna_reed') return emptyResult('none'); // strict mode: no Exa at all
-    return runExaFiltered(input, now, costBucket); // hybrid, uncovered location (e.g. Vietnam)
+    return runExaRaw(input, costBucket);
+  }
+
+  // --- Unsupported region (Issue 1): no live-vacancy coverage → honest empty + notice.
+  // NOT an Exa fallback (that produced wrong-location/dead jobs) and NOT an error
+  // (the roadmap is still generated normally).
+  if (route.kind === 'unsupported') {
+    console.log(`[job-search] route=unsupported region="${input.location}"`);
+    return {
+      jobs: [],
+      error: null,
+      notice: regionUnsupportedNotice(input.location),
+      meta: { source: 'unsupported', windowDaysUsed: null, sparse: false, checkedLinks: 0 },
+    };
   }
 
   // --- Structured route (UK = Adzuna+Reed, or a covered country = Adzuna).
@@ -516,45 +555,24 @@ async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?
   const relevanceDropped = primary.length - relevant.length;
 
   const fresh = applyFreshness(relevant, { now }); // dropUndated=true (structured always dated)
-  const capped = finalizeJobs(fresh.jobs); // dedupe → sort → cap 20
-  const live = await maybeLiveness(capped);
+  // Issue 2 order: dedupe+sort → liveness-check the freshest ~30 → cap 20 AFTER, so
+  // dropping dead links doesn't leave a short page.
+  const ordered = dedupeAndSort(fresh.jobs);
+  const candidates = ordered.slice(0, LIVENESS_MAX_CANDIDATES);
+  const live = await maybeLiveness(candidates);
+  const jobs = live.jobs.slice(0, MAX_JOBS);
   console.log(
-    `[job-search] source=${route.kind} relevance_dropped=${relevanceDropped} window=${fresh.windowDaysUsed}d sparse=${fresh.sparse} checked=${live.checked} jobs=${live.jobs.length}`,
+    `[job-search] source=${route.kind} relevance_dropped=${relevanceDropped} window=${fresh.windowDaysUsed}d sparse=${fresh.sparse} checked=${live.checked} dead_dropped=${candidates.length - live.jobs.length} jobs=${jobs.length}`,
   );
   return {
-    jobs: live.jobs,
+    jobs,
     error: null, // a genuine empty result is not an error (AAT-10 rule)
     meta: {
       source: route.kind,
       windowDaysUsed: fresh.windowDaysUsed,
-      sparse: fresh.sparse || live.jobs.length < FRESHNESS_MIN_KEEP,
+      sparse: fresh.sparse || jobs.length < FRESHNESS_MIN_KEEP,
       checkedLinks: live.checked,
     },
-  };
-}
-
-/**
- * Exa for an uncovered location in hybrid mode (D4). Exa's publishedDate is unreliable,
- * so we window-filter by date but KEEP undated jobs (they display with no date) — this
- * avoids regressing non-UK profiles to an empty list while still never showing a WRONG
- * date. Dated Exa jobs are still held to the freshness window.
- */
-async function runExaFiltered(input: JobSearchInput, now: Date, costBucket?: CostBucket): Promise<JobSearchResult> {
-  let raw: ExaJobListing[];
-  try {
-    raw = await searchExa(input, costBucket);
-  } catch (err) {
-    logSourceError('exa', err);
-    return { jobs: [], error: JOBS_UNAVAILABLE_ERROR, meta: { source: 'exa', windowDaysUsed: null, sparse: true, checkedLinks: 0 } };
-  }
-  const fresh = applyFreshness(raw, { now, dropUndated: false });
-  const capped = finalizeJobs(fresh.jobs);
-  const live = await maybeLiveness(capped);
-  console.log(`[job-search] source=exa(hybrid) window=${fresh.windowDaysUsed}d checked=${live.checked} jobs=${live.jobs.length}`);
-  return {
-    jobs: live.jobs,
-    error: null,
-    meta: { source: 'exa', windowDaysUsed: fresh.windowDaysUsed, sparse: fresh.sparse, checkedLinks: live.checked },
   };
 }
 
@@ -574,14 +592,15 @@ async function runExaRaw(input: JobSearchInput, costBucket?: CostBucket): Promis
   }
 }
 
-function emptyResult(source: JobSearchMeta['source']): JobSearchResult {
-  return { jobs: [], error: JOBS_UNAVAILABLE_ERROR, meta: { source, windowDaysUsed: null, sparse: true, checkedLinks: 0 } };
-}
-
-/** Run the liveness check when enabled; otherwise pass jobs through untouched. */
+/**
+ * Run the liveness check when enabled; otherwise pass jobs through untouched. All checks
+ * run in ONE parallel wave (concurrency = candidate count, bounded to ≤30) so the added
+ * latency is at most one timeout (~1.5s) no matter how many links or how slow the board —
+ * this is the AC8 guarantee. Adzuna URLs are skipped inside filterLiveJobs.
+ */
 async function maybeLiveness(jobs: ExaJobListing[]): Promise<{ jobs: ExaJobListing[]; checked: number }> {
   if (!isJobLivenessEnabled() || jobs.length === 0) return { jobs, checked: 0 };
-  const res = await filterLiveJobs(jobs, { timeoutMs: getJobLivenessTimeoutMs() });
+  const res = await filterLiveJobs(jobs, { timeoutMs: getJobLivenessTimeoutMs(), concurrency: jobs.length });
   if (res.dropped > 0) console.log(`[job-search] liveness dropped ${res.dropped}/${res.checked} dead link(s)`);
   return { jobs: res.live, checked: res.checked };
 }

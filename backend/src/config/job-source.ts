@@ -20,7 +20,11 @@ const DEFAULT_CACHE_TTL_MS = 1_200_000; // 20 minutes
 const DEFAULT_FRESHNESS_MAX_DAYS = 7; // "current/active" window (was 45 — too loose)
 const DEFAULT_FRESHNESS_HARD_CAP_DAYS = 30; // absolute ceiling: never show anything older
 const DEFAULT_MAX_ROLE_QUERIES = 3; // how many top role titles to search per source
-const DEFAULT_LIVENESS_TIMEOUT_MS = 4000;
+// Tight timeout: dead links (404/410/5xx) answer in well under this; slow-but-alive
+// servers just hit the timeout and are KEPT (fail-open). Combined with a single parallel
+// wave (see maybeLiveness), the liveness step adds at most ~this much latency — which is
+// what keeps AC8 (< ~2s) true regardless of how slow a board is to answer HEAD.
+const DEFAULT_LIVENESS_TIMEOUT_MS = 1500;
 
 /**
  * Resolve DREAM_JOB_SOURCE. Anything outside the three known modes falls back to

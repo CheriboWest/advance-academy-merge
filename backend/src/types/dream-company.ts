@@ -38,10 +38,16 @@ export interface RoadmapResponse {
   jobs: ExaJobListing[];
   roadmap: CareerRoadmap;
   /**
-   * Set when the live job search failed (Exa outage, bad key, timeout). Distinct from
+   * Set when the live job search failed (outage, bad key, timeout). Distinct from
    * a genuine empty result, where `jobs` is `[]` and `jobsError` is `null` (AAT-10).
    */
   jobsError: string | null;
+  /**
+   * Benign informational message — NOT an error. Set when the request succeeded but there
+   * is nothing to show for a benign reason (e.g. the location is outside our live-vacancy
+   * coverage). The FE renders this gently, separate from `jobsError`.
+   */
+  jobsNotice: string | null;
 }
 
 export interface FutureYou {
