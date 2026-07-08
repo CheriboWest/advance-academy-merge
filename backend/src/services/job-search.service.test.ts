@@ -16,6 +16,7 @@ import {
   normalizeTitleTokens,
   searchLiveJobs,
   JOBS_UNAVAILABLE_ERROR,
+  noMatchesNotice,
 } from './job-search.service.js';
 import type { ExaJobListing } from '../types/dream-company.js';
 
@@ -314,6 +315,17 @@ test('Issue 1: adzuna_reed strict mode outside coverage → notice too (no Exa)'
     assert.equal(res.error, null);
     assert.equal(res.meta?.source, 'unsupported');
   });
+});
+
+test('Issue 1: noMatchesNotice interpolates the region, non-error copy', () => {
+  const msg = noMatchesNotice('London, UK');
+  assert.match(msg, /London, UK/);
+  assert.match(msg, /roadmap below is still valid/i);
+});
+
+test('Issue 1: noMatchesNotice falls back gracefully when region is blank', () => {
+  assert.match(noMatchesNotice(''), /your area/);
+  assert.match(noMatchesNotice('   '), /your area/);
 });
 
 test('AC4: DREAM_JOB_SOURCE=exa still routes to Exa for any location (legacy/debug)', () => {

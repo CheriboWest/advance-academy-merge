@@ -56,6 +56,19 @@ export function regionUnsupportedNotice(region: string): string {
   return REGION_UNSUPPORTED_TEMPLATE.replace('{region}', r);
 }
 
+/**
+ * Notice (NOT an error) for a COVERED region that simply returned no matching vacancies
+ * after filtering. Without this, an empty-but-covered result rendered nothing at all —
+ * no jobs, no error, no notice — so the user couldn't tell if the search ran (Issue 1).
+ */
+export const NO_MATCHES_TEMPLATE =
+  "We couldn't find live vacancies matching your selected roles in {region} right now. Your roadmap below is still valid.";
+
+export function noMatchesNotice(region: string): string {
+  const r = (region ?? '').trim() || 'your area';
+  return NO_MATCHES_TEMPLATE.replace('{region}', r);
+}
+
 const MAX_JOBS = 20;
 const FRESHNESS_MIN_KEEP = 8;
 const PER_SOURCE_RESULTS = 15;
@@ -567,6 +580,8 @@ async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?
   return {
     jobs,
     error: null, // a genuine empty result is not an error (AAT-10 rule)
+    // Covered region but nothing matched → gentle notice so the UI never goes silent (Issue 1).
+    notice: jobs.length === 0 ? noMatchesNotice(input.location) : null,
     meta: {
       source: route.kind,
       windowDaysUsed: fresh.windowDaysUsed,
