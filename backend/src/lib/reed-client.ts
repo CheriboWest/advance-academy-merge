@@ -35,6 +35,12 @@ export interface SearchReedParams {
   keywords: string;
   locationName?: string;
   resultsToTake?: number;
+  /**
+   * Search radius in MILES around `locationName` (Reed's `distanceFromLocation`). Only
+   * sent when > 0 AND a `locationName` is present. Callers hold radius in km, so convert
+   * before passing (see job-search.service).
+   */
+  distanceFromLocationMiles?: number;
 }
 
 /** Returns the Reed API key or throws a 503 when it is missing. */
@@ -61,13 +67,17 @@ function reedAuthHeader(key: string): string {
  */
 export async function searchReed(params: SearchReedParams): Promise<ReedResult[]> {
   const key = getReedKey();
-  const { keywords, locationName, resultsToTake = 15 } = params;
+  const { keywords, locationName, resultsToTake = 15, distanceFromLocationMiles = 0 } = params;
 
   const query = new URLSearchParams({
     keywords,
     resultsToTake: String(resultsToTake),
   });
   if (locationName) query.set('locationName', locationName);
+  // Radius only makes sense with an anchor location.
+  if (locationName && distanceFromLocationMiles > 0) {
+    query.set('distanceFromLocation', String(distanceFromLocationMiles));
+  }
 
   const url = `${REED_BASE}?${query.toString()}`;
   const data = await fetchJobJson<ReedResponse>(url, {

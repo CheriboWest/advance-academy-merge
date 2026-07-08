@@ -30,10 +30,17 @@ import {
   getJobMaxRoleQueries,
   isJobLivenessEnabled,
   getJobLivenessTimeoutMs,
+  getJobSearchRadiusKm,
   type JobSourceMode,
 } from '../config/job-source.js';
 import { buildJobCacheKey, withJobCache } from '../lib/job-cache.js';
 import { filterLiveJobs } from '../lib/job-liveness.js';
+import { resolveLocationWithLlm } from './location-resolver.js';
+
+/** Convert a km radius to whole miles for Reed's distance param (1 km ≈ 0.621371 mi). */
+function kmToMiles(km: number): number {
+  return Math.round(km * 0.621371);
+}
 
 // Kept identical to the previous inline Exa options so `flag=exa` reproduces the old
 // behaviour exactly (work order §6 DoD #6).
@@ -117,10 +124,55 @@ export interface JobRoute {
   kind: 'uk' | 'adzuna' | 'exa' | 'unsupported';
   /** Adzuna country code for 'uk' ('gb') and 'adzuna' routes. */
   country?: string;
+  /**
+   * Canonical city/area to search, when resolved by the gazetteer or the LLM fallback.
+   * When unset, fetchers derive the `where` from the raw location via extractCity().
+   */
+  where?: string;
 }
 
 const UK_REGEX =
   /\b(uk|u\.k\.|united kingdom|great britain|britain|england|scotland|wales|northern ireland|london|manchester|birmingham|leeds|glasgow|edinburgh|bristol|liverpool|cardiff|belfast|sheffield|nottingham)\b/i;
+
+// Major-city gazetteer (Issue 2, static fast-path). Maps well-known cities to their
+// country code so common locations route WITHOUT an LLM call — e.g. "San Francisco, CA"
+// or "Berlin" that carry no country name. Not exhaustive by design: anything not here
+// falls through to the LLM resolver. UK cities use 'gb' and route to the combined UK
+// source; every other code routes to Adzuna for that country.
+const CITY_GAZETTEER: Record<string, string[]> = {
+  gb: ['oxford', 'cambridge', 'newcastle', 'reading', 'brighton', 'coventry', 'leicester', 'southampton', 'aberdeen', 'dundee'],
+  us: ['new york', 'san francisco', 'los angeles', 'chicago', 'boston', 'seattle', 'austin', 'dallas', 'houston', 'atlanta', 'denver', 'miami', 'washington', 'san jose', 'san diego', 'philadelphia', 'portland', 'phoenix', 'nashville'],
+  ca: ['toronto', 'vancouver', 'montreal', 'calgary', 'ottawa', 'edmonton', 'winnipeg'],
+  au: ['sydney', 'melbourne', 'brisbane', 'perth', 'adelaide', 'canberra'],
+  de: ['berlin', 'munich', 'münchen', 'hamburg', 'frankfurt', 'cologne', 'köln', 'stuttgart', 'düsseldorf', 'dusseldorf'],
+  fr: ['paris', 'lyon', 'marseille', 'toulouse', 'lille', 'bordeaux', 'nice', 'nantes'],
+  in: ['bangalore', 'bengaluru', 'mumbai', 'delhi', 'hyderabad', 'chennai', 'pune', 'kolkata', 'gurgaon', 'gurugram', 'noida'],
+  nl: ['amsterdam', 'rotterdam', 'the hague', 'den haag', 'utrecht', 'eindhoven'],
+  nz: ['auckland', 'wellington', 'christchurch'],
+  es: ['madrid', 'barcelona', 'valencia', 'seville', 'sevilla', 'malaga', 'málaga'],
+  it: ['rome', 'roma', 'milan', 'milano', 'turin', 'torino', 'naples', 'napoli', 'bologna'],
+  pl: ['warsaw', 'warszawa', 'krakow', 'kraków', 'wroclaw', 'wrocław', 'gdansk', 'gdańsk', 'poznan', 'poznań'],
+  br: ['sao paulo', 'são paulo', 'rio de janeiro', 'brasilia', 'brasília', 'belo horizonte'],
+  za: ['johannesburg', 'cape town', 'durban', 'pretoria'],
+  ch: ['zurich', 'zürich', 'geneva', 'genève', 'basel', 'bern', 'lausanne'],
+  at: ['vienna', 'wien', 'graz', 'salzburg', 'linz'],
+  be: ['brussels', 'bruxelles', 'antwerp', 'antwerpen', 'ghent', 'gent'],
+  mx: ['mexico city', 'ciudad de méxico', 'guadalajara', 'monterrey'],
+};
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Precompiled once at module load: [{ re, code }] for every gazetteer city.
+const GAZETTEER_ENTRIES: Array<{ re: RegExp; code: string }> = Object.entries(CITY_GAZETTEER).flatMap(
+  ([code, cities]) => cities.map((city) => ({ re: new RegExp(`\\b${escapeRegex(city)}\\b`, 'i'), code })),
+);
+
+/** Map an Adzuna country code to a route ('gb' → combined UK source; else Adzuna). */
+function codeToRoute(code: string): JobRoute {
+  return code === 'gb' ? { kind: 'uk', country: 'gb' } : { kind: 'adzuna', country: code };
+}
 
 // Location keyword → Adzuna country code (the countries Adzuna's API covers).
 const ADZUNA_COUNTRY_MAP: Array<{ re: RegExp; code: string }> = [
@@ -159,9 +211,36 @@ export function routeLocation(location: string, mode: JobSourceMode): JobRoute {
   const loc = location ?? '';
   if (UK_REGEX.test(loc)) return { kind: 'uk', country: 'gb' };
   for (const { re, code } of ADZUNA_COUNTRY_MAP) {
-    if (re.test(loc)) return { kind: 'adzuna', country: code };
+    if (re.test(loc)) return codeToRoute(code);
+  }
+  // Gazetteer fast-path: a well-known city with no country name (e.g. "Berlin",
+  // "San Francisco, CA") still routes to a real source without an LLM call.
+  for (const { re, code } of GAZETTEER_ENTRIES) {
+    if (re.test(loc)) return codeToRoute(code);
   }
   return { kind: 'unsupported' };
+}
+
+/**
+ * Resolve a location to a route, hybrid (Issue 2): the static routeLocation first, and
+ * ONLY when it returns 'unsupported' do we spend one cheap LLM call to place misspelled /
+ * unlisted / free-text locations. The LLM can only widen coverage to a supported country
+ * — an uncovered country (or any failure) stays 'unsupported', so the honest "no coverage"
+ * notice is preserved and we still never fall back to Exa. `mode='exa'` short-circuits.
+ */
+export async function resolveRoute(
+  location: string,
+  mode: JobSourceMode,
+  costBucket?: CostBucket,
+): Promise<JobRoute> {
+  const staticRoute = routeLocation(location, mode);
+  if (staticRoute.kind !== 'unsupported') return staticRoute;
+
+  const resolved = await resolveLocationWithLlm(location, costBucket);
+  if (!resolved.countryCode) return staticRoute; // uncovered / unresolved → stays unsupported
+  const route = codeToRoute(resolved.countryCode);
+  console.log(`[job-search] llm-resolved location="${location}" → ${resolved.countryCode} city="${resolved.city ?? ''}"`);
+  return { ...route, where: resolved.city ?? undefined };
 }
 
 // ---------------------------------------------------------------------------
@@ -457,21 +536,23 @@ async function gatherRoles<T>(roles: string[], fn: (role: string) => Promise<T[]
   return settled.flatMap((s) => (s.status === 'fulfilled' ? s.value : []));
 }
 
-async function fetchAdzuna(country: string, input: JobSearchInput, costBucket?: CostBucket): Promise<ExaJobListing[]> {
+async function fetchAdzuna(country: string, input: JobSearchInput, costBucket?: CostBucket, whereOverride?: string): Promise<ExaJobListing[]> {
   const roles = topRoles(input.roleTitles);
-  const where = extractCity(input.location);
+  const where = whereOverride ?? extractCity(input.location);
+  const distanceKm = getJobSearchRadiusKm();
   const results = await gatherRoles(roles, (what) =>
-    searchAdzuna({ country, what, where, resultsPerPage: PER_SOURCE_RESULTS, titleOnly: true }),
+    searchAdzuna({ country, what, where, resultsPerPage: PER_SOURCE_RESULTS, titleOnly: true, distanceKm }),
   );
   logSourceCall(costBucket, 'adzuna', roles.length, results.length);
   return results.map(normalizeAdzuna);
 }
 
-async function fetchReed(input: JobSearchInput, now: Date, costBucket?: CostBucket): Promise<ExaJobListing[]> {
+async function fetchReed(input: JobSearchInput, now: Date, costBucket?: CostBucket, whereOverride?: string): Promise<ExaJobListing[]> {
   const roles = topRoles(input.roleTitles);
-  const locationName = extractCity(input.location);
+  const locationName = whereOverride ?? extractCity(input.location);
+  const distanceFromLocationMiles = kmToMiles(getJobSearchRadiusKm());
   const results = await gatherRoles(roles, (keywords) =>
-    searchReed({ keywords, locationName, resultsToTake: PER_SOURCE_RESULTS }),
+    searchReed({ keywords, locationName, resultsToTake: PER_SOURCE_RESULTS, distanceFromLocationMiles }),
   );
   logSourceCall(costBucket, 'reed', roles.length, results.length);
   return results.filter((r) => reedNotExpired(r, now)).map(normalizeReed);
@@ -482,10 +563,10 @@ async function fetchReed(input: JobSearchInput, now: Date, costBucket?: CostBuck
  * tolerant — one failing still returns the other's jobs. Only when BOTH fail do we
  * signal failure (by returning null) so the caller can fall through to Exa.
  */
-async function fetchUk(input: JobSearchInput, now: Date, costBucket?: CostBucket): Promise<ExaJobListing[] | null> {
+async function fetchUk(input: JobSearchInput, now: Date, costBucket?: CostBucket, whereOverride?: string): Promise<ExaJobListing[] | null> {
   const [adz, reed] = await Promise.allSettled([
-    fetchAdzuna('gb', input, costBucket),
-    fetchReed(input, now, costBucket),
+    fetchAdzuna('gb', input, costBucket, whereOverride),
+    fetchReed(input, now, costBucket, whereOverride),
   ]);
   if (adz.status === 'rejected') logSourceError('adzuna', adz.reason);
   if (reed.status === 'rejected') logSourceError('reed', reed.reason);
@@ -523,7 +604,7 @@ export async function searchLiveJobs(input: JobSearchInput, costBucket?: CostBuc
 /** The uncached search: routing → structured sources (no Exa fallback) or Exa-for-uncovered. */
 async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?: CostBucket): Promise<JobSearchResult> {
   const now = new Date();
-  const route = routeLocation(input.location, mode);
+  const route = await resolveRoute(input.location, mode, costBucket);
 
   // --- Exa route: ONLY via DREAM_JOB_SOURCE=exa (legacy/debug). Byte-identical old path.
   if (route.kind === 'exa') {
@@ -550,8 +631,8 @@ async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?
   try {
     primary =
       route.kind === 'uk'
-        ? await fetchUk(input, now, costBucket)
-        : await fetchAdzuna(route.country ?? 'gb', input, costBucket);
+        ? await fetchUk(input, now, costBucket, route.where)
+        : await fetchAdzuna(route.country ?? 'gb', input, costBucket, route.where);
   } catch (err) {
     logSourceError(route.kind, err);
     primary = null;
