@@ -48,6 +48,12 @@ export interface RoadmapResponse {
    * coverage). The FE renders this gently, separate from `jobsError`.
    */
   jobsNotice: string | null;
+  /**
+   * True when the client sent more selected roles than the backend searches
+   * (JOB_MAX_ROLE_QUERIES). Job search covered the first N; the FE should say so rather
+   * than let the extra roles silently return nothing. Normally false (the FE caps first).
+   */
+  jobsTruncated: boolean;
 }
 
 export interface FutureYou {

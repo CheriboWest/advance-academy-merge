@@ -19,7 +19,7 @@ const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_CACHE_TTL_MS = 1_200_000; // 20 minutes
 const DEFAULT_FRESHNESS_MAX_DAYS = 7; // "current/active" window (was 45 — too loose)
 const DEFAULT_FRESHNESS_HARD_CAP_DAYS = 30; // absolute ceiling: never show anything older
-const DEFAULT_MAX_ROLE_QUERIES = 3; // how many top role titles to search per source
+const DEFAULT_MAX_ROLE_QUERIES = 6; // max roles to search (also the FE selection cap)
 // Tight timeout: dead links (404/410/5xx) answer in well under this; slow-but-alive
 // servers just hit the timeout and are KEPT (fail-open). Combined with a single parallel
 // wave (see maybeLiveness), the liveness step adds at most ~this much latency — which is
@@ -72,7 +72,13 @@ export function getJobFreshnessHardCapDays(): number {
   return positiveIntEnv('JOB_FRESHNESS_HARD_CAP_DAYS', DEFAULT_FRESHNESS_HARD_CAP_DAYS);
 }
 
-/** Number of top role titles to query per source (JOB_MAX_ROLE_QUERIES), default 3. */
+/**
+ * Max number of roles a search covers (JOB_MAX_ROLE_QUERIES), default 6. This is the
+ * single source of truth for BOTH the backend cap AND the FE selection limit (the FE
+ * reads it from GET /api/dream-company/config), so changing the env on Railway updates
+ * both without a frontend deploy. Each role = 2 API calls (Adzuna + Reed), so this also
+ * bounds the per-request call count at 2×N.
+ */
 export function getJobMaxRoleQueries(): number {
   return positiveIntEnv('JOB_MAX_ROLE_QUERIES', DEFAULT_MAX_ROLE_QUERIES);
 }

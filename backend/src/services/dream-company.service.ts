@@ -21,6 +21,7 @@ import {
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry, streamFinalWithRetry } from '../lib/llm-anthropic.js';
 import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
 import { searchLiveJobs } from './job-search.service.js';
+import { getJobMaxRoleQueries } from '../config/job-source.js';
 
 /**
  * Per-step SDK timeouts (ms), env-overridable. Sized under the proxy budgets in
@@ -164,7 +165,10 @@ export async function generateRoadmapWithJobs(
 
   const roadmap = parseStepResponse<CareerRoadmap>(roadmapResponse, 'careerRoadmap');
 
-  return { jobs, roadmap, jobsError, jobsNotice: jobsNotice ?? null };
+  // Defense-in-depth (AC3): if a client sent more roles than we search, say so — never
+  // truncate silently. Job search itself covers min(selected, MAX) via topRoles().
+  const jobsTruncated = selectedRoles.length > getJobMaxRoleQueries();
+  return { jobs, roadmap, jobsError, jobsNotice: jobsNotice ?? null, jobsTruncated };
 }
 
 // ---- Streaming variants (M2.1) --------------------------------------------------------
@@ -249,7 +253,8 @@ export async function streamRoadmapWithJobs(
   cost.flush();
 
   const roadmap = parseStepResponse<CareerRoadmap>(final, 'careerRoadmap');
-  return { jobs, roadmap, jobsError, jobsNotice: jobsNotice ?? null };
+  const jobsTruncated = selectedRoles.length > getJobMaxRoleQueries();
+  return { jobs, roadmap, jobsError, jobsNotice: jobsNotice ?? null, jobsTruncated };
 }
 
 /**

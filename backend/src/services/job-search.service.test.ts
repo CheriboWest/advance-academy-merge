@@ -94,9 +94,12 @@ test('reedNotExpired: past expiry dropped, future/none kept', () => {
 
 // --- D0: query construction helpers --------------------------------------
 
-test('topRoles: caps at max, trims, drops empties', () => {
-  const roles = topRoles(['  Data Analyst ', '', 'BI Developer', 'Analyst 3', 'Analyst 4']);
-  assert.deepEqual(roles, ['Data Analyst', 'BI Developer', 'Analyst 3']); // default cap 3
+test('topRoles: caps at max (default 6), trims, drops empties', () => {
+  // 8 roles in, cap 6 out — proves min(selected, MAX): the extra 2 are not searched.
+  const roles = topRoles(['  R1 ', '', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8']);
+  assert.deepEqual(roles, ['R1', 'R2', 'R3', 'R4', 'R5', 'R6']);
+  // Fewer than the cap → all kept (search = exactly the selected count).
+  assert.deepEqual(topRoles(['A', 'B']), ['A', 'B']);
 });
 
 test('extractCity: takes city segment, keeps bare country', () => {

@@ -4,6 +4,14 @@ import type { DreamCompanyInput, ProfileAnalysis, TargetRole, RoadmapResponse } 
 import { fetchFormDataJson, fetchJson } from '@/shared/api/http-client'
 import { getAuthHeaders } from '@/shared/auth/get-auth-headers'
 
+export async function getDreamCompanyConfig(): Promise<{ maxRoles: number }> {
+  return fetchJson<{ maxRoles: number }>('/api/dream-company/config', {
+    method: 'GET',
+    headers: await getAuthHeaders(),
+    timeoutMs: 10000,
+  })
+}
+
 export async function analyzeProfile(profile: DreamCompanyInput): Promise<ProfileAnalysis> {
   return fetchJson<ProfileAnalysis>('/api/dream-company/analyze', {
     method: 'POST',
