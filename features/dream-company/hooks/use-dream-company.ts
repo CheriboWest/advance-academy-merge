@@ -38,6 +38,7 @@ export function useDreamCompany() {
   const [selectedRoles, setSelectedRoles] = useState<TargetRole[]>([])
   const [jobs, setJobs] = useState<ExaJobListing[] | null>(null)
   const [jobsError, setJobsError] = useState<string | null>(null)
+  const [jobsNotice, setJobsNotice] = useState<string | null>(null)
   const [roadmap, setRoadmap] = useState<CareerRoadmap | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -114,13 +115,15 @@ export function useDreamCompany() {
       setLoading(true)
       setError(null)
       setJobsError(null)
+      setJobsNotice(null)
       setCurrentStep('building-roadmap')
 
       try {
-        // Step 3: Exa job search + Roadmap (streamed)
+        // Step 3: live job search + Roadmap (streamed)
         const result = await generateRoadmapStream(profile, analysis, selectedRoles, beginStep(EXPECTED_CHARS.roadmap))
         setJobs(result.jobs)
         setJobsError(result.jobsError)
+        setJobsNotice(result.jobsNotice)
         setRoadmap(result.roadmap)
         setCurrentStep('done')
       } catch (err) {
@@ -160,6 +163,7 @@ export function useDreamCompany() {
     setSelectedRoles([])
     setJobs(null)
     setJobsError(null)
+    setJobsNotice(null)
     setRoadmap(null)
     setLoading(false)
     setError(null)
@@ -173,6 +177,7 @@ export function useDreamCompany() {
     selectedRoles,
     jobs,
     jobsError,
+    jobsNotice,
     roadmap,
     loading,
     error,

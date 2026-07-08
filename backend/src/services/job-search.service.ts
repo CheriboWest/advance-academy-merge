@@ -47,6 +47,15 @@ const EXA_OPTIONS = {
 export const JOBS_UNAVAILABLE_ERROR =
   'Could not load live job listings — the job search service is unavailable. Your roadmap below is still valid.';
 
+/** Notice (NOT an error) for a location we have no live-vacancy coverage for. */
+export const REGION_UNSUPPORTED_TEMPLATE =
+  "We don't yet have direct live vacancies for {region}. Your roadmap below is still valid.";
+
+export function regionUnsupportedNotice(region: string): string {
+  const r = (region ?? '').trim() || 'your region';
+  return REGION_UNSUPPORTED_TEMPLATE.replace('{region}', r);
+}
+
 const MAX_JOBS = 20;
 const FRESHNESS_MIN_KEEP = 8;
 const PER_SOURCE_RESULTS = 15;
@@ -61,7 +70,7 @@ export interface JobSearchInput {
 
 /** Diagnostic metadata for UI honesty + QA assertions (D6). Never affects `jobs` shape. */
 export interface JobSearchMeta {
-  source: 'uk' | 'adzuna' | 'exa' | 'none';
+  source: 'uk' | 'adzuna' | 'exa' | 'unsupported' | 'none';
   /** The freshness window (days) actually used after any widening. */
   windowDaysUsed: number | null;
   /** True when the window had to widen / too few fresh jobs were found. */
@@ -72,7 +81,14 @@ export interface JobSearchMeta {
 
 export interface JobSearchResult {
   jobs: ExaJobListing[];
+  /** Set on a genuine outage (job source unavailable). The roadmap is still valid. */
   error: string | null;
+  /**
+   * Informational message — distinct from `error`. Set when the request succeeded but
+   * there is nothing to show for a benign reason (e.g. region outside live coverage).
+   * The FE renders this gently, not as an error.
+   */
+  notice?: string | null;
   meta?: JobSearchMeta;
 }
 
@@ -81,7 +97,7 @@ export interface JobSearchResult {
 // ---------------------------------------------------------------------------
 
 export interface JobRoute {
-  kind: 'uk' | 'adzuna' | 'exa';
+  kind: 'uk' | 'adzuna' | 'exa' | 'unsupported';
   /** Adzuna country code for 'uk' ('gb') and 'adzuna' routes. */
   country?: string;
 }
@@ -114,8 +130,12 @@ const ADZUNA_COUNTRY_MAP: Array<{ re: RegExp; code: string }> = [
 ];
 
 /**
- * Decide which source to use for a location. `mode='exa'` forces the legacy path;
- * otherwise UK → uk, a covered country → adzuna, anything else → exa (D3 fallback).
+ * Decide which source to use for a location. `mode='exa'` forces the legacy Exa path
+ * (debug/rollback only); otherwise UK → uk, a covered country → adzuna, and anything
+ * else → `unsupported` (Issue 1). We deliberately no longer fall back to Exa for
+ * uncovered regions — Exa is the source of wrong-location / dead / LinkedIn results, so
+ * an honest "no coverage" notice beats a full list of wrong jobs. This supersedes the
+ * earlier D3 "uncovered → Exa fallback" decision.
  */
 export function routeLocation(location: string, mode: JobSourceMode): JobRoute {
   if (mode === 'exa') return { kind: 'exa' };
@@ -124,7 +144,7 @@ export function routeLocation(location: string, mode: JobSourceMode): JobRoute {
   for (const { re, code } of ADZUNA_COUNTRY_MAP) {
     if (re.test(loc)) return { kind: 'adzuna', country: code };
   }
-  return { kind: 'exa' };
+  return { kind: 'unsupported' };
 }
 
 // ---------------------------------------------------------------------------
@@ -484,11 +504,22 @@ async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?
   const now = new Date();
   const route = routeLocation(input.location, mode);
 
-  // --- Exa route: only for genuinely uncovered locations, or the explicit rollback flag.
+  // --- Exa route: ONLY via DREAM_JOB_SOURCE=exa (legacy/debug). Byte-identical old path.
   if (route.kind === 'exa') {
-    if (mode === 'exa') return runExaRaw(input, costBucket); // rollback: byte-identical to old behaviour
-    if (mode === 'adzuna_reed') return emptyResult('none'); // strict mode: no Exa at all
-    return runExaFiltered(input, now, costBucket); // hybrid, uncovered location (e.g. Vietnam)
+    return runExaRaw(input, costBucket);
+  }
+
+  // --- Unsupported region (Issue 1): no live-vacancy coverage → honest empty + notice.
+  // NOT an Exa fallback (that produced wrong-location/dead jobs) and NOT an error
+  // (the roadmap is still generated normally).
+  if (route.kind === 'unsupported') {
+    console.log(`[job-search] route=unsupported region="${input.location}"`);
+    return {
+      jobs: [],
+      error: null,
+      notice: regionUnsupportedNotice(input.location),
+      meta: { source: 'unsupported', windowDaysUsed: null, sparse: false, checkedLinks: 0 },
+    };
   }
 
   // --- Structured route (UK = Adzuna+Reed, or a covered country = Adzuna).
@@ -534,31 +565,6 @@ async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?
 }
 
 /**
- * Exa for an uncovered location in hybrid mode (D4). Exa's publishedDate is unreliable,
- * so we window-filter by date but KEEP undated jobs (they display with no date) — this
- * avoids regressing non-UK profiles to an empty list while still never showing a WRONG
- * date. Dated Exa jobs are still held to the freshness window.
- */
-async function runExaFiltered(input: JobSearchInput, now: Date, costBucket?: CostBucket): Promise<JobSearchResult> {
-  let raw: ExaJobListing[];
-  try {
-    raw = await searchExa(input, costBucket);
-  } catch (err) {
-    logSourceError('exa', err);
-    return { jobs: [], error: JOBS_UNAVAILABLE_ERROR, meta: { source: 'exa', windowDaysUsed: null, sparse: true, checkedLinks: 0 } };
-  }
-  const fresh = applyFreshness(raw, { now, dropUndated: false });
-  const capped = finalizeJobs(fresh.jobs);
-  const live = await maybeLiveness(capped);
-  console.log(`[job-search] source=exa(hybrid) window=${fresh.windowDaysUsed}d checked=${live.checked} jobs=${live.jobs.length}`);
-  return {
-    jobs: live.jobs,
-    error: null,
-    meta: { source: 'exa', windowDaysUsed: fresh.windowDaysUsed, sparse: fresh.sparse, checkedLinks: live.checked },
-  };
-}
-
-/**
  * Exa in explicit rollback mode (DREAM_JOB_SOURCE=exa) — byte-identical to the original
  * behaviour: no freshness filter, no liveness, no meta. Do NOT change this path.
  */
@@ -572,10 +578,6 @@ async function runExaRaw(input: JobSearchInput, costBucket?: CostBucket): Promis
     console.error('[job-search] Exa job search failed:', message);
     return { jobs: [], error: JOBS_UNAVAILABLE_ERROR };
   }
-}
-
-function emptyResult(source: JobSearchMeta['source']): JobSearchResult {
-  return { jobs: [], error: JOBS_UNAVAILABLE_ERROR, meta: { source, windowDaysUsed: null, sparse: true, checkedLinks: 0 } };
 }
 
 /** Run the liveness check when enabled; otherwise pass jobs through untouched. */

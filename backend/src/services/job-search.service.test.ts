@@ -32,9 +32,10 @@ test('routeLocation: covered countries → adzuna/<code>', () => {
   assert.deepEqual(routeLocation('Berlin, Germany', 'hybrid'), { kind: 'adzuna', country: 'de' });
 });
 
-test('routeLocation: outside coverage → exa (D3 fallback)', () => {
-  assert.deepEqual(routeLocation('Hanoi, Vietnam', 'hybrid'), { kind: 'exa' });
-  assert.deepEqual(routeLocation('Ho Chi Minh City', 'hybrid'), { kind: 'exa' });
+test('routeLocation: outside coverage → unsupported (Issue 1: no Exa fallback)', () => {
+  assert.deepEqual(routeLocation('Hanoi, Vietnam', 'hybrid'), { kind: 'unsupported' });
+  assert.deepEqual(routeLocation('Hong Kong', 'hybrid'), { kind: 'unsupported' });
+  assert.deepEqual(routeLocation('Ho Chi Minh City', 'hybrid'), { kind: 'unsupported' });
 });
 
 test('routeLocation: mode=exa forces exa even for UK', () => {
@@ -269,20 +270,36 @@ test('D3: UK with all sources down → AAT-10, source=uk (NEVER falls back to Ex
   });
 });
 
-test('searchLiveJobs: hybrid VN routes to Exa; Exa down → AAT-10, source=exa', async () => {
+test('Issue 1: hybrid uncovered region (VN) → empty + notice, NOT error, NOT Exa', async () => {
   await withNoKeys('hybrid', async () => {
     const res = await searchLiveJobs({ roleTitles: ['Engineer'], location: 'Hanoi, Vietnam' });
     assert.deepEqual(res.jobs, []);
-    assert.equal(res.error, JOBS_UNAVAILABLE_ERROR);
-    assert.equal(res.meta?.source, 'exa');
+    assert.equal(res.error, null); // benign, roadmap still valid
+    assert.match(res.notice ?? '', /Hanoi, Vietnam/); // region interpolated
+    assert.equal(res.meta?.source, 'unsupported'); // proves NO Exa fallback
   });
 });
 
-test('searchLiveJobs: adzuna_reed strict mode outside coverage → AAT-10, no Exa', async () => {
+test('Issue 1: Hong Kong → empty + region notice (the reported bug)', async () => {
+  await withNoKeys('hybrid', async () => {
+    const res = await searchLiveJobs({ roleTitles: ['Data Analyst'], location: 'Hong Kong' });
+    assert.deepEqual(res.jobs, []);
+    assert.equal(res.error, null);
+    assert.match(res.notice ?? '', /Hong Kong/);
+    assert.equal(res.meta?.source, 'unsupported');
+  });
+});
+
+test('Issue 1: adzuna_reed strict mode outside coverage → notice too (no Exa)', async () => {
   await withNoKeys('adzuna_reed', async () => {
     const res = await searchLiveJobs({ roleTitles: ['Engineer'], location: 'Hanoi, Vietnam' });
     assert.deepEqual(res.jobs, []);
-    assert.equal(res.error, JOBS_UNAVAILABLE_ERROR);
-    assert.equal(res.meta?.source, 'none');
+    assert.equal(res.error, null);
+    assert.equal(res.meta?.source, 'unsupported');
   });
+});
+
+test('AC4: DREAM_JOB_SOURCE=exa still routes to Exa for any location (legacy/debug)', () => {
+  assert.deepEqual(routeLocation('Hong Kong', 'exa'), { kind: 'exa' });
+  assert.deepEqual(routeLocation('Hanoi, Vietnam', 'exa'), { kind: 'exa' });
 });
