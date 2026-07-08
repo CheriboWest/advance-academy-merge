@@ -11,6 +11,8 @@ import {
   dedupeJobs,
   topRoles,
   extractCity,
+  filterByRoleRelevance,
+  normalizeTitleTokens,
   searchLiveJobs,
   JOBS_UNAVAILABLE_ERROR,
 } from './job-search.service.js';
@@ -100,6 +102,49 @@ test('extractCity: takes city segment, keeps bare country', () => {
   assert.equal(extractCity('Manchester'), 'Manchester');
   assert.equal(extractCity('United Kingdom'), 'United Kingdom'); // bare country → nationwide
   assert.equal(extractCity('Leeds, England, UK'), 'Leeds');
+});
+
+// --- Relevance filter (Cách A) — AC2 table --------------------------------
+
+test('filterByRoleRelevance: AC2 acceptance table', () => {
+  const kept = (role: string, title: string) =>
+    filterByRoleRelevance([{ title, url: 'https://x/1', snippet: '' }], [role]).length === 1;
+
+  assert.equal(kept('Data Analyst', 'Senior Data Analyst'), true); // ✅ keep
+  assert.equal(kept('Data Analyst', 'Data Administrator'), false); // ❌ no "analyst"
+  assert.equal(kept('Data Analyst', 'Legal Technologist'), false); // ❌
+  assert.equal(kept('Data Analyst', 'Head of Trading'), false); // ❌
+  assert.equal(kept('Data Analyst', 'Data Analyst - Fintech'), true); // ✅ keep
+  assert.equal(kept('BI Developer', 'Business Intelligence Developer'), false); // ⚠️ accepted drop
+  assert.equal(kept('BI Developer', 'BI Developer (Power BI)'), true); // ✅ keep
+});
+
+test('filterByRoleRelevance: keeps a job matching ANY selected role', () => {
+  const jobs: ExaJobListing[] = [
+    { title: 'Head of Trading', url: 'https://x/1', snippet: '' }, // matches neither
+    { title: 'Senior BI Developer', url: 'https://x/2', snippet: '' }, // matches "BI Developer"
+  ];
+  const out = filterByRoleRelevance(jobs, ['Data Analyst', 'BI Developer']);
+  assert.deepEqual(out.map((j) => j.title), ['Senior BI Developer']);
+});
+
+test('filterByRoleRelevance: single-word role needs only the head token', () => {
+  const jobs: ExaJobListing[] = [
+    { title: 'Senior Accountant', url: 'https://x/1', snippet: '' },
+    { title: 'Marketing Manager', url: 'https://x/2', snippet: '' },
+  ];
+  assert.deepEqual(filterByRoleRelevance(jobs, ['Accountant']).map((j) => j.title), ['Senior Accountant']);
+});
+
+test('filterByRoleRelevance: empty/whitespace role list is a no-op (keeps all)', () => {
+  const jobs: ExaJobListing[] = [{ title: 'Anything', url: 'https://x/1', snippet: '' }];
+  assert.equal(filterByRoleRelevance(jobs, []).length, 1);
+  assert.equal(filterByRoleRelevance(jobs, ['   ']).length, 1);
+});
+
+test('normalizeTitleTokens: lowercases, strips punctuation and seniority/noise', () => {
+  assert.deepEqual(normalizeTitleTokens('Senior Data Analyst (Fintech) II'), ['data', 'analyst', 'fintech']);
+  assert.deepEqual(normalizeTitleTokens('Head of Trading'), ['trading']);
 });
 
 // --- D1/D2: freshness (never unfiltered, hard cap, drop undated) ----------

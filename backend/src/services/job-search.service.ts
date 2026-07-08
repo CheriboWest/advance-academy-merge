@@ -201,6 +201,55 @@ function startOfDay(d: Date): number {
 }
 
 // ---------------------------------------------------------------------------
+// Relevance filter (Cách A) — deterministic, no LLM, no extra latency
+// ---------------------------------------------------------------------------
+
+// Seniority / structural tokens stripped before matching so "Senior Data Analyst"
+// still matches the role "Data Analyst".
+const RELEVANCE_NOISE = new Set([
+  'senior', 'junior', 'lead', 'principal', 'head', 'of', 'graduate', 'trainee',
+  'staff', 'mid', 'sr', 'jr', 'i', 'ii', 'iii',
+]);
+
+/** Lowercase, strip punctuation, drop seniority/noise tokens. */
+export function normalizeTitleTokens(title: string): string[] {
+  return (title ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .filter((t) => t.length > 0 && !RELEVANCE_NOISE.has(t));
+}
+
+/**
+ * A job matches a role when the role's HEAD token (its final meaningful word, e.g.
+ * "analyst" in "Data Analyst") is in the job title AND — for multi-word roles — at
+ * least one other role token is too. Single-word roles need only the head token.
+ */
+function jobMatchesRole(jobTokens: Set<string>, roleTokens: string[]): boolean {
+  if (roleTokens.length === 0) return false;
+  const head = roleTokens[roleTokens.length - 1];
+  if (!jobTokens.has(head)) return false;
+  if (roleTokens.length === 1) return true;
+  return roleTokens.slice(0, -1).some((t) => jobTokens.has(t));
+}
+
+/**
+ * Keep only jobs whose title genuinely matches one of the selected roles (Cách A).
+ * Deterministic backstop to Adzuna's `title_only` (and Reed's only relevance guard).
+ * Strict by design — precision over recall — so adjacent roles (e.g. "Data Engineer"
+ * for a "Data Analyst" search) are also dropped; the sparse flag covers thin results
+ * rather than back-filling off-topic jobs. Empty/whitespace role list → no-op.
+ */
+export function filterByRoleRelevance(jobs: ExaJobListing[], roleTitles: string[]): ExaJobListing[] {
+  const roleTokenSets = roleTitles.map(normalizeTitleTokens).filter((t) => t.length > 0);
+  if (roleTokenSets.length === 0) return jobs;
+  return jobs.filter((job) => {
+    const jt = new Set(normalizeTitleTokens(job.title));
+    return roleTokenSets.some((role) => jobMatchesRole(jt, role));
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Freshness filter (D1 + D2)
 // ---------------------------------------------------------------------------
 
@@ -371,7 +420,7 @@ async function fetchAdzuna(country: string, input: JobSearchInput, costBucket?: 
   const roles = topRoles(input.roleTitles);
   const where = extractCity(input.location);
   const results = await gatherRoles(roles, (what) =>
-    searchAdzuna({ country, what, where, resultsPerPage: PER_SOURCE_RESULTS }),
+    searchAdzuna({ country, what, where, resultsPerPage: PER_SOURCE_RESULTS, titleOnly: true }),
   );
   logSourceCall(costBucket, 'adzuna', roles.length, results.length);
   return results.map(normalizeAdzuna);
@@ -461,11 +510,16 @@ async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?
     return { jobs: [], error: JOBS_UNAVAILABLE_ERROR, meta: { source: route.kind, windowDaysUsed: null, sparse: true, checkedLinks: 0 } };
   }
 
-  const fresh = applyFreshness(primary, { now }); // dropUndated=true (structured always dated)
+  // Relevance filter (Cách A) — runs right after normalize, before freshness. Cheap,
+  // deterministic, no LLM. Drops off-topic titles Adzuna/Reed returned despite title_only.
+  const relevant = filterByRoleRelevance(primary, input.roleTitles);
+  const relevanceDropped = primary.length - relevant.length;
+
+  const fresh = applyFreshness(relevant, { now }); // dropUndated=true (structured always dated)
   const capped = finalizeJobs(fresh.jobs); // dedupe → sort → cap 20
   const live = await maybeLiveness(capped);
   console.log(
-    `[job-search] source=${route.kind} window=${fresh.windowDaysUsed}d sparse=${fresh.sparse} checked=${live.checked} jobs=${live.jobs.length}`,
+    `[job-search] source=${route.kind} relevance_dropped=${relevanceDropped} window=${fresh.windowDaysUsed}d sparse=${fresh.sparse} checked=${live.checked} jobs=${live.jobs.length}`,
   );
   return {
     jobs: live.jobs,
