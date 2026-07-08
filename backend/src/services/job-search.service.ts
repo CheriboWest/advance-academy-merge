@@ -59,6 +59,10 @@ export function regionUnsupportedNotice(region: string): string {
 const MAX_JOBS = 20;
 const FRESHNESS_MIN_KEEP = 8;
 const PER_SOURCE_RESULTS = 15;
+// Upper bound on how many candidate URLs we liveness-check (Issue 2). We over-fetch
+// (many roles × 2 sources), then check the freshest ~30 so that dropping a few dead
+// links still leaves a full page of 20.
+const LIVENESS_MAX_CANDIDATES = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface JobSearchInput {
@@ -330,11 +334,15 @@ export function applyFreshness(
 // Merge / finalize
 // ---------------------------------------------------------------------------
 
-/** Dedupe (by URL host+path), sort newest-first (undated last), and cap. */
-export function finalizeJobs(jobs: ExaJobListing[], cap: number = MAX_JOBS): ExaJobListing[] {
+/** Dedupe (by URL host+path) and sort newest-first (undated last). No cap. */
+export function dedupeAndSort(jobs: ExaJobListing[]): ExaJobListing[] {
   const deduped = dedupeJobs(jobs.filter((j) => j.url));
-  const sorted = [...deduped].sort((a, b) => publishedMs(b) - publishedMs(a));
-  return sorted.slice(0, cap);
+  return [...deduped].sort((a, b) => publishedMs(b) - publishedMs(a));
+}
+
+/** Dedupe + sort + cap. (Cap AFTER liveness in the live pipeline; this stays for reuse.) */
+export function finalizeJobs(jobs: ExaJobListing[], cap: number = MAX_JOBS): ExaJobListing[] {
+  return dedupeAndSort(jobs).slice(0, cap);
 }
 
 /**
@@ -547,18 +555,22 @@ async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?
   const relevanceDropped = primary.length - relevant.length;
 
   const fresh = applyFreshness(relevant, { now }); // dropUndated=true (structured always dated)
-  const capped = finalizeJobs(fresh.jobs); // dedupe → sort → cap 20
-  const live = await maybeLiveness(capped);
+  // Issue 2 order: dedupe+sort → liveness-check the freshest ~30 → cap 20 AFTER, so
+  // dropping dead links doesn't leave a short page.
+  const ordered = dedupeAndSort(fresh.jobs);
+  const candidates = ordered.slice(0, LIVENESS_MAX_CANDIDATES);
+  const live = await maybeLiveness(candidates);
+  const jobs = live.jobs.slice(0, MAX_JOBS);
   console.log(
-    `[job-search] source=${route.kind} relevance_dropped=${relevanceDropped} window=${fresh.windowDaysUsed}d sparse=${fresh.sparse} checked=${live.checked} jobs=${live.jobs.length}`,
+    `[job-search] source=${route.kind} relevance_dropped=${relevanceDropped} window=${fresh.windowDaysUsed}d sparse=${fresh.sparse} checked=${live.checked} dead_dropped=${candidates.length - live.jobs.length} jobs=${jobs.length}`,
   );
   return {
-    jobs: live.jobs,
+    jobs,
     error: null, // a genuine empty result is not an error (AAT-10 rule)
     meta: {
       source: route.kind,
       windowDaysUsed: fresh.windowDaysUsed,
-      sparse: fresh.sparse || live.jobs.length < FRESHNESS_MIN_KEEP,
+      sparse: fresh.sparse || jobs.length < FRESHNESS_MIN_KEEP,
       checkedLinks: live.checked,
     },
   };
@@ -580,10 +592,15 @@ async function runExaRaw(input: JobSearchInput, costBucket?: CostBucket): Promis
   }
 }
 
-/** Run the liveness check when enabled; otherwise pass jobs through untouched. */
+/**
+ * Run the liveness check when enabled; otherwise pass jobs through untouched. All checks
+ * run in ONE parallel wave (concurrency = candidate count, bounded to ≤30) so the added
+ * latency is at most one timeout (~1.5s) no matter how many links or how slow the board —
+ * this is the AC8 guarantee. Adzuna URLs are skipped inside filterLiveJobs.
+ */
 async function maybeLiveness(jobs: ExaJobListing[]): Promise<{ jobs: ExaJobListing[]; checked: number }> {
   if (!isJobLivenessEnabled() || jobs.length === 0) return { jobs, checked: 0 };
-  const res = await filterLiveJobs(jobs, { timeoutMs: getJobLivenessTimeoutMs() });
+  const res = await filterLiveJobs(jobs, { timeoutMs: getJobLivenessTimeoutMs(), concurrency: jobs.length });
   if (res.dropped > 0) console.log(`[job-search] liveness dropped ${res.dropped}/${res.checked} dead link(s)`);
   return { jobs: res.live, checked: res.checked };
 }

@@ -1,15 +1,21 @@
 /**
- * Liveness check for job URLs (D5) — drop links that clearly point at a closed/gone
- * vacancy before we show them.
+ * Liveness check for job URLs (Issue 2) — STATUS-ONLY, no body scraping.
  *
- * Strategy: HTTP HEAD each URL (following redirects) with a short timeout, in parallel
- * with a small concurrency cap. We only DROP a job on an unambiguous "gone" status
- * (404 / 410). Everything else — 200, 3xx, 405 (HEAD not allowed), 429, or any network
- * error/timeout — is FAIL-OPEN (job kept), because a false drop hides a real vacancy.
+ * Layered defence (per PM decision): freshness (≤7d) is the PRIMARY shield against
+ * "no longer available"; Reed's expirationDate is a second structural signal; this check
+ * is the third, cheap, status-only layer. We deliberately do NOT download/parse page
+ * bodies (slow, fragile, per-site markers, Adzuna bot-blocks) — that content-scan is
+ * DEFERRED (see AC9) until measured necessary.
  *
- * Caveat (documented): Adzuna `redirect_url`s go through Adzuna's own redirector, which
- * often returns 200 even when the underlying posting is closed. So this check is most
- * effective on direct employer/Exa URLs and only partially effective on Adzuna links.
+ * Rules:
+ *   - DROP on an unambiguous "gone" status: 404, 410, or any 5xx.
+ *   - DROP if, after following redirects, the final URL path clearly signals an expired
+ *     posting (e.g. ".../expired", ".../job-not-found"). Conservative token list only.
+ *   - SKIP Adzuna redirect URLs entirely — they return 200 from Adzuna's redirector even
+ *     for closed jobs AND block bots (403); checking them yields false signals. Rely on
+ *     freshness for Adzuna instead. They are KEPT, never dropped, never fetched.
+ *   - FAIL-OPEN on timeout / network error / any other status (keep the job + it counts
+ *     as unchecked): a false drop hides a real vacancy.
  */
 import type { ExaJobListing } from '../types/dream-company.js';
 
@@ -20,19 +26,40 @@ export interface LivenessOptions {
 
 export interface LivenessResult {
   live: ExaJobListing[];
+  /** How many URLs were actually HTTP-checked (excludes skipped Adzuna links). */
   checked: number;
   dropped: number;
 }
 
-/** True if the URL should be DROPPED (definitively gone). Never throws. */
-async function isDead(url: string, timeoutMs: number): Promise<boolean> {
+/** Adzuna redirector URLs — skip (bot-blocked + always-200); rely on freshness. */
+function isSkippableHost(url: string): boolean {
+  try {
+    return /(^|\.)adzuna\./i.test(new URL(url).host);
+  } catch {
+    return false;
+  }
+}
+
+// Tokens in a FINAL (post-redirect) URL path that signal a dead posting. Conservative.
+const EXPIRED_PATH_RE = /(expired|no-longer-available|job-not-found|not-found|jobnotfound|removed)/i;
+
+type CheckOutcome = 'dead' | 'alive' | 'skipped';
+
+/** Status-only liveness for one URL. Never throws. */
+async function checkUrl(url: string, timeoutMs: number): Promise<CheckOutcome> {
+  if (!url) return 'skipped';
+  if (isSkippableHost(url)) return 'skipped';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
-    return res.status === 404 || res.status === 410;
+    const status = (res as { status?: number }).status ?? 0;
+    if (status === 404 || status === 410 || (status >= 500 && status <= 599)) return 'dead';
+    const finalUrl = (res as { url?: string }).url ?? '';
+    if (finalUrl && EXPIRED_PATH_RE.test(finalUrl)) return 'dead';
+    return 'alive';
   } catch {
-    return false; // network error / timeout → fail-open (keep)
+    return 'alive'; // timeout / network error → fail-open (keep)
   } finally {
     clearTimeout(timer);
   }
@@ -53,15 +80,15 @@ async function mapLimit<T, R>(items: T[], concurrency: number, worker: (item: T)
   return results;
 }
 
-/**
- * Return only the jobs whose URL is not definitively dead. Fail-open on any uncertainty.
- */
+/** Drop only jobs whose URL is definitively dead. Fail-open on any uncertainty. */
 export async function filterLiveJobs(jobs: ExaJobListing[], opts: LivenessOptions): Promise<LivenessResult> {
   if (jobs.length === 0) return { live: [], checked: 0, dropped: 0 };
   const concurrency = opts.concurrency ?? 8;
-  const deadFlags = await mapLimit(jobs, concurrency, (job) =>
-    job.url ? isDead(job.url, opts.timeoutMs) : Promise.resolve(false),
-  );
-  const live = jobs.filter((_, i) => !deadFlags[i]);
-  return { live, checked: jobs.length, dropped: jobs.length - live.length };
+  const outcomes = await mapLimit(jobs, concurrency, (job) => checkUrl(job.url, opts.timeoutMs));
+  const live = jobs.filter((_, i) => outcomes[i] !== 'dead');
+  return {
+    live,
+    checked: outcomes.filter((o) => o !== 'skipped').length,
+    dropped: jobs.length - live.length,
+  };
 }

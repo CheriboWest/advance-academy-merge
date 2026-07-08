@@ -8,6 +8,7 @@ import {
   reedNotExpired,
   applyFreshness,
   finalizeJobs,
+  dedupeAndSort,
   dedupeJobs,
   topRoles,
   extractCity,
@@ -200,6 +201,19 @@ test('applyFreshness: undated jobs dropped by default, kept when dropUndated=fal
 });
 
 // --- finalize ------------------------------------------------------------
+
+test('dedupeAndSort: dedupes + sorts newest-first WITHOUT capping (Issue 2 over-fetch)', () => {
+  const jobs: ExaJobListing[] = Array.from({ length: 25 }, (_, i) => ({
+    title: `j${i}`,
+    url: `https://x/${i}`,
+    snippet: '',
+    publishedDate: `2026-07-${String((i % 28) + 1).padStart(2, '0')}T00:00:00Z`,
+  }));
+  const out = dedupeAndSort(jobs);
+  assert.equal(out.length, 25); // no cap — all kept for the liveness pool
+  // newest first
+  assert.ok(Date.parse(out[0].publishedDate!) >= Date.parse(out[out.length - 1].publishedDate!));
+});
 
 test('finalizeJobs: sorts newest-first, drops url-less, caps', () => {
   const jobs: ExaJobListing[] = [
