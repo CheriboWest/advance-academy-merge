@@ -25,6 +25,10 @@ const DEFAULT_MAX_ROLE_QUERIES = 6; // max roles to search (also the FE selectio
 // wave (see maybeLiveness), the liveness step adds at most ~this much latency — which is
 // what keeps AC8 (< ~2s) true regardless of how slow a board is to answer HEAD.
 const DEFAULT_LIVENESS_TIMEOUT_MS = 1500;
+// Search radius (km) around the resolved city, passed to Adzuna `distance` and (converted
+// to miles) Reed `distanceFromLocation`. Widens the net to nearby towns so a user in a
+// smaller place still sees jobs. 0 disables the radius (exact-location search).
+const DEFAULT_SEARCH_RADIUS_KM = 25;
 
 /**
  * Resolve DREAM_JOB_SOURCE. Anything outside the three known modes falls back to
@@ -92,6 +96,23 @@ export function isJobLivenessEnabled(): boolean {
 /** Per-URL liveness-check timeout in ms (JOB_LIVENESS_TIMEOUT_MS), default 4000. */
 export function getJobLivenessTimeoutMs(): number {
   return positiveIntEnv('JOB_LIVENESS_TIMEOUT_MS', DEFAULT_LIVENESS_TIMEOUT_MS);
+}
+
+/**
+ * Search radius in km (JOB_SEARCH_RADIUS_KM), default 25. Applied around the resolved
+ * city on both Adzuna (km) and Reed (converted to miles). Set to 0 to disable and search
+ * the exact location only. Allows 0, so we don't reuse positiveIntEnv here.
+ */
+export function getJobSearchRadiusKm(): number {
+  const raw = process.env.JOB_SEARCH_RADIUS_KM?.trim();
+  if (!raw) return DEFAULT_SEARCH_RADIUS_KM;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    // eslint-disable-next-line no-console
+    console.warn(`[job-source] Invalid JOB_SEARCH_RADIUS_KM="${raw}" — using default ${DEFAULT_SEARCH_RADIUS_KM}.`);
+    return DEFAULT_SEARCH_RADIUS_KM;
+  }
+  return Math.floor(n);
 }
 
 function positiveIntEnv(name: string, fallback: number): number {

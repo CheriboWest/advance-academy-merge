@@ -45,6 +45,11 @@ export interface SearchAdzunaParams {
    * off-topic matches at the source (e.g. "Head of Trading" for a "Data Analyst" query).
    */
   titleOnly?: boolean;
+  /**
+   * Search radius in km around `where` (Adzuna's `distance`). Only sent when > 0 AND a
+   * `where` is present — a radius with no anchor location is meaningless.
+   */
+  distanceKm?: number;
 }
 
 /** Returns `{ appId, appKey }` or throws a 503 when either credential is missing. */
@@ -76,6 +81,7 @@ export async function searchAdzuna(params: SearchAdzunaParams): Promise<AdzunaRe
     resultsPerPage = 15,
     sortBy = 'date',
     titleOnly = false,
+    distanceKm = 0,
   } = params;
 
   const query = new URLSearchParams({
@@ -90,6 +96,8 @@ export async function searchAdzuna(params: SearchAdzunaParams): Promise<AdzunaRe
   if (titleOnly) query.set('title_only', what);
   else query.set('what', what);
   if (where) query.set('where', where);
+  // Radius only makes sense with an anchor location.
+  if (where && distanceKm > 0) query.set('distance', String(distanceKm));
 
   const url = `${ADZUNA_BASE}/${encodeURIComponent(country)}/search/${page}?${query.toString()}`;
   const data = await fetchJobJson<AdzunaResponse>(url, { source: 'adzuna' });

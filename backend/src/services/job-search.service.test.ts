@@ -16,6 +16,7 @@ import {
   normalizeTitleTokens,
   searchLiveJobs,
   JOBS_UNAVAILABLE_ERROR,
+  noMatchesNotice,
 } from './job-search.service.js';
 import type { ExaJobListing } from '../types/dream-company.js';
 
@@ -41,6 +42,21 @@ test('routeLocation: outside coverage → unsupported (Issue 1: no Exa fallback)
 
 test('routeLocation: mode=exa forces exa even for UK', () => {
   assert.deepEqual(routeLocation('London', 'exa'), { kind: 'exa' });
+});
+
+test('routeLocation: gazetteer city without a country name → real source (Issue 2)', () => {
+  // These used to fall to "unsupported" because no country name was present.
+  assert.deepEqual(routeLocation('San Francisco, CA', 'hybrid'), { kind: 'adzuna', country: 'us' });
+  assert.deepEqual(routeLocation('Berlin', 'hybrid'), { kind: 'adzuna', country: 'de' });
+  assert.deepEqual(routeLocation('Sydney', 'hybrid'), { kind: 'adzuna', country: 'au' });
+  assert.deepEqual(routeLocation('Toronto', 'hybrid'), { kind: 'adzuna', country: 'ca' });
+  // A UK gazetteer city routes to the combined UK source, not Adzuna-only.
+  assert.deepEqual(routeLocation('Oxford', 'hybrid'), { kind: 'uk', country: 'gb' });
+});
+
+test('routeLocation: genuinely uncovered place still → unsupported (no gazetteer hit)', () => {
+  assert.deepEqual(routeLocation('Hanoi, Vietnam', 'hybrid'), { kind: 'unsupported' });
+  assert.deepEqual(routeLocation('Reykjavik', 'hybrid'), { kind: 'unsupported' });
 });
 
 // --- normalize -----------------------------------------------------------
@@ -263,12 +279,18 @@ function withNoKeys(mode: string, fn: () => Promise<void>): Promise<void> {
     ADZUNA_APP_KEY: process.env.ADZUNA_APP_KEY,
     REED_API_KEY: process.env.REED_API_KEY,
     EXA_API_KEY: process.env.EXA_API_KEY,
+    // Unset LLM keys too: the hybrid router's LLM location fallback (Issue 2) must fail
+    // -open to 'unsupported' here, deterministically and without a real network call.
+    LLM_API_KEY: process.env.LLM_API_KEY,
+    LLM_API_KEY_OUTREACH: process.env.LLM_API_KEY_OUTREACH,
     DREAM_JOB_SOURCE: process.env.DREAM_JOB_SOURCE,
   };
   delete process.env.ADZUNA_APP_ID;
   delete process.env.ADZUNA_APP_KEY;
   delete process.env.REED_API_KEY;
   delete process.env.EXA_API_KEY;
+  delete process.env.LLM_API_KEY;
+  delete process.env.LLM_API_KEY_OUTREACH;
   process.env.DREAM_JOB_SOURCE = mode;
   return fn().finally(() => {
     for (const [k, v] of Object.entries(saved)) {
@@ -314,6 +336,17 @@ test('Issue 1: adzuna_reed strict mode outside coverage → notice too (no Exa)'
     assert.equal(res.error, null);
     assert.equal(res.meta?.source, 'unsupported');
   });
+});
+
+test('Issue 1: noMatchesNotice interpolates the region, non-error copy', () => {
+  const msg = noMatchesNotice('London, UK');
+  assert.match(msg, /London, UK/);
+  assert.match(msg, /roadmap below is still valid/i);
+});
+
+test('Issue 1: noMatchesNotice falls back gracefully when region is blank', () => {
+  assert.match(noMatchesNotice(''), /your area/);
+  assert.match(noMatchesNotice('   '), /your area/);
 });
 
 test('AC4: DREAM_JOB_SOURCE=exa still routes to Exa for any location (legacy/debug)', () => {
