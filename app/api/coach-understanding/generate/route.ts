@@ -5,8 +5,9 @@ import { HttpClientError } from '@/shared/api/http-client'
 
 export async function POST(request: Request) {
   const authToken = getProxyAuthToken(request)
+  const body = (await request.json().catch(() => ({}))) as { cvVersionId?: string }
   try {
-    return NextResponse.json(await generateCoachUnderstandingWithBackend(authToken))
+    return NextResponse.json(await generateCoachUnderstandingWithBackend(body?.cvVersionId, authToken))
   } catch (error) {
     if (error instanceof HttpClientError) {
       return NextResponse.json(error.payload, { status: error.status || 500 })

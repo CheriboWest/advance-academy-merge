@@ -21,7 +21,8 @@ export async function registerCoachUnderstandingRoutes(app: FastifyInstance) {
     },
   }, async (request, reply) => {
     try {
-      return await generateCoachUnderstanding(request.userId);
+      const body = request.body as { cvVersionId?: string } | undefined;
+      return await generateCoachUnderstanding(request.userId, body?.cvVersionId);
     } catch (error) {
       const code =
         error && typeof error === 'object' && 'statusCode' in error
