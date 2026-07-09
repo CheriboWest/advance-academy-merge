@@ -398,11 +398,11 @@ export function transcribeInterviewAudioWithBackend(formData: FormData, authToke
 
 // ── Coach Understanding Reports ──────────────────────────────────────────────
 
-export function generateCoachUnderstandingWithBackend(authToken?: string) {
+export function generateCoachUnderstandingWithBackend(cvVersionId?: string, authToken?: string) {
   const { backendUrl } = getServerEnv()
   return fetchJson<{ reportId: string; reportMd: string }>(`${backendUrl}/api/coach-understanding/generate`, {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify(cvVersionId ? { cvVersionId } : {}),
     headers: authHeaders(authToken),
     timeoutMs: 120000,
   })

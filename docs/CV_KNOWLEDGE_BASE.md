@@ -41,7 +41,7 @@ A bullet is now a **shared node** in the user's experience graph. Multiple CV ve
    2. The coach endpoint pulls bullets from the user's **entire pool** (`WHERE user_id = X`, not `WHERE cv_version_id = X`), picks the 1–3 most relevant for the interview question, fetches their `bullet_artifacts.summary_json` blobs, and asks Claude to rewrite the answer using ONLY that evidence pool. Anything missing becomes a `[CANDIDATE TO FILL: bulletId|question]` placeholder.
    3. The UI renders placeholders as yellow chips with inline forms. When the user types an answer, it's POSTed to the JIT-clarification endpoint, written back to `bullet_artifacts` with `source_type='jit_clarification'`, and the coach is re-run so the placeholder disappears. The knowledge base grows with every session.
 5. **AI Coach Understanding report** (CV Library page, purple card):
-   - A **"Get AI Coach's Understanding About My Background"** button generates a markdown report using the user's entire bullet pool + all gaps + all artifacts.
+   - A **"Get AI Coach's Understanding of {CV name}"** button generates a markdown report scoped to **one selected CV version** (bullets linked via `cv_version_bullets`) + those bullets' gaps + artifacts. When the account has more than one CV, a dropdown picks which one (defaults to the active CV). This differs from the coach-answer rewriter, which intentionally still draws on the whole shared bullet pool. `POST /generate` accepts an optional `cvVersionId`; omitting it falls back to the whole-pool report (back-compat).
    - The prompt asks Claude to summarize the profile, flag strongest evidence areas, list unanswered gaps and infer what the user "doesn't know", **detect suspected duplicate bullets** the user hasn't merged yet, and give prioritized recommendations.
    - Reports are persisted in `coach_understanding_reports` and viewable from a collapsible history list.
 
@@ -180,7 +180,7 @@ Three exports:
 
 | Function | What it does |
 |---|---|
-| `generateCoachUnderstanding()` | Fetches all bullets for the user (`user_id`-scoped) + every gap + every artifact. Builds a structured user-prompt listing each bullet with its gaps tagged `[ANSWERED]` / `[SKIPPED]` / `[UNANSWERED]` and inlined evidence. Sends to Claude with a system prompt that enforces a 5-section markdown report: **Profile Summary**, **Strongest Evidence Areas**, **Knowledge Gaps & Blind Spots** (citing each unanswered gap and inferring what the silence implies), **Potential Duplicate Bullet Points** (proactive merge suggestions), **Recommendations**. Persists to `coach_understanding_reports`. |
+| `generateCoachUnderstanding(userId, cvVersionId?)` | When `cvVersionId` is given, scopes to that version's bullets via `cv_version_bullets` (404s if the version isn't owned); otherwise fetches all bullets for the user (`user_id`-scoped). Plus every gap + every artifact for the selected bullets. Builds a structured user-prompt listing each bullet with its gaps tagged `[ANSWERED]` / `[SKIPPED]` / `[UNANSWERED]` and inlined evidence. Sends to Claude with a system prompt that enforces a 5-section markdown report: **Profile Summary**, **Strongest Evidence Areas**, **Knowledge Gaps & Blind Spots** (citing each unanswered gap and inferring what the silence implies), **Potential Duplicate Bullet Points** (proactive merge suggestions), **Recommendations**. Persists to `coach_understanding_reports`. |
 | `listCoachReports()` | Returns the user's past reports (`id`, `createdAt`, short preview) for the history dropdown. |
 | `getCoachReport(id)` | Returns one full report by id for the viewer. |
 
@@ -214,7 +214,7 @@ Coach Understanding — registered in `coach-understanding.ts` ⭐:
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/coach-understanding/generate` | Generate a new report from the user's entire pool. Returns `{ reportId, reportMd }`. Takes 20–60s. |
+| `POST` | `/api/coach-understanding/generate` | Generate a new report. Optional body `{ cvVersionId }` scopes it to one CV; omit for the whole pool. Returns `{ reportId, reportMd }`. Takes 20–60s. |
 | `GET`  | `/api/coach-understanding/reports` | List the user's past reports (id + preview). |
 | `GET`  | `/api/coach-understanding/reports/:id` | Full markdown of one report. |
 

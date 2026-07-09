@@ -4,10 +4,18 @@
  */
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 import { getSupabase } from '../lib/supabase.js';
+import { getCvVersion } from './cv-knowledge.service.js';
 
-const SYSTEM_PROMPT = `You are an expert career coach reviewing a candidate's self-reported background data.
+function buildSystemPrompt(scoped: boolean): string {
+  const poolDesc = scoped
+    ? 'the bullet points from a single CV the user selected'
+    : "the user's entire experience pool across all CV versions";
+  const dupDesc = scoped
+    ? 'the SAME project, role, or achievement using different wording'
+    : 'the SAME project, role, or achievement using different wording (e.g. from different CV versions)';
+  return `You are an expert career coach reviewing a candidate's self-reported background data.
 You will receive:
-1. A list of CV bullet points (the user's entire experience pool across all CV versions).
+1. A list of CV bullet points (${poolDesc}).
 2. For each bullet, a list of "gap questions" an interviewer would ask, and whether the user has answered each gap.
 3. For answered gaps, the evidence/artifact the user provided.
 
@@ -29,7 +37,7 @@ For each UNANSWERED gap (status = "open"), infer what this silence might mean:
 List each unanswered gap with its parent bullet, and provide a brief assessment of what the coach CANNOT help with until this gap is filled. Be direct but constructive.
 
 ### 4. Potential Duplicate Bullet Points
-Look for bullet points that describe the SAME project, role, or achievement using different wording (e.g. from different CV versions). List each suspected duplicate pair with:
+Look for bullet points that describe ${dupDesc}. List each suspected duplicate pair with:
 - The two bullet texts side by side
 - Why you think they're duplicates
 - A recommendation: "Consider merging these in the CV Library so your evidence is consolidated in one place."
@@ -45,6 +53,7 @@ FORMATTING RULES:
 - Use markdown headings, bullet lists, and bold for emphasis.
 - Be specific — cite actual bullet text and gap questions, not vague summaries.
 - Do NOT invent facts. If the user didn't provide data, say "not provided" rather than guessing.`;
+}
 
 interface BulletData {
   id: string;
@@ -80,15 +89,38 @@ ${gapLines || '    (no gaps generated)'}`;
   return `Here is the user's complete bullet pool with all gaps and evidence:\n\n${sections}`;
 }
 
-export async function generateCoachUnderstanding(userId: string): Promise<{ reportId: string; reportMd: string }> {
+export async function generateCoachUnderstanding(
+  userId: string,
+  cvVersionId?: string,
+): Promise<{ reportId: string; reportMd: string }> {
   const supabase = getSupabase();
 
-  // Fetch all bullets for the user
-  const { data: rawBullets } = await supabase
+  // Scope bullets to a single CV version when requested, else the whole pool.
+  let bulletQuery = supabase
     .from('cv_bullets')
     .select('id, bullet_text, section_path')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true });
+    .eq('user_id', userId);
+
+  let rawBullets: Array<{ id: string; bullet_text: string; section_path: string | null }> | null = null;
+  if (cvVersionId) {
+    const version = await getCvVersion(cvVersionId, userId);
+    if (!version) {
+      throw Object.assign(new Error('CV version not found'), { statusCode: 404 });
+    }
+    const { data: junctions } = await supabase
+      .from('cv_version_bullets')
+      .select('bullet_id')
+      .eq('cv_version_id', cvVersionId);
+    const bulletIds = (junctions ?? []).map((j) => j.bullet_id);
+    // No bullets linked to this version → skip the query (empty .in() would cast-error on uuid).
+    if (bulletIds.length === 0) {
+      rawBullets = [];
+    } else {
+      ({ data: rawBullets } = await bulletQuery.in('id', bulletIds).order('created_at', { ascending: true }));
+    }
+  } else {
+    ({ data: rawBullets } = await bulletQuery.order('created_at', { ascending: true }));
+  }
 
   const bullets: BulletData[] = [];
   for (const b of rawBullets ?? []) {
@@ -129,7 +161,7 @@ export async function generateCoachUnderstanding(userId: string): Promise<{ repo
   const response = await anthropic.messages.create({
     model,
     max_tokens: 4096,
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(Boolean(cvVersionId)),
     messages: [{ role: 'user', content: buildUserPrompt(bullets) }],
   });
 
@@ -142,7 +174,7 @@ export async function generateCoachUnderstanding(userId: string): Promise<{ repo
   // Persist
   const { data: inserted, error } = await supabase
     .from('coach_understanding_reports')
-    .insert({ user_id: userId, report_md: reportMd })
+    .insert({ user_id: userId, report_md: reportMd, cv_version_id: cvVersionId ?? null })
     .select('id')
     .single();
   if (error || !inserted) {
@@ -153,12 +185,12 @@ export async function generateCoachUnderstanding(userId: string): Promise<{ repo
 }
 
 export async function listCoachReports(userId: string): Promise<
-  Array<{ id: string; createdAt: string; preview: string }>
+  Array<{ id: string; createdAt: string; preview: string; cvVersionId: string | null }>
 > {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from('coach_understanding_reports')
-    .select('id, report_md, created_at')
+    .select('id, report_md, created_at, cv_version_id')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(50);
@@ -167,17 +199,18 @@ export async function listCoachReports(userId: string): Promise<
     id: r.id,
     createdAt: r.created_at,
     preview: r.report_md.slice(0, 150) + (r.report_md.length > 150 ? '…' : ''),
+    cvVersionId: r.cv_version_id ?? null,
   }));
 }
 
-export async function getCoachReport(id: string, userId: string): Promise<{ id: string; reportMd: string; createdAt: string } | null> {
+export async function getCoachReport(id: string, userId: string): Promise<{ id: string; reportMd: string; createdAt: string; cvVersionId: string | null } | null> {
   const supabase = getSupabase();
   const { data } = await supabase
     .from('coach_understanding_reports')
-    .select('id, report_md, created_at')
+    .select('id, report_md, created_at, cv_version_id')
     .eq('id', id)
     .eq('user_id', userId)
     .maybeSingle();
   if (!data) return null;
-  return { id: data.id, reportMd: data.report_md, createdAt: data.created_at };
+  return { id: data.id, reportMd: data.report_md, createdAt: data.created_at, cvVersionId: data.cv_version_id ?? null };
 }

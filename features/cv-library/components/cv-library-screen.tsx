@@ -152,7 +152,7 @@ export function CvLibraryScreen() {
 
       <UploadCard onParsed={setPhase1} />
 
-      <CoachUnderstandingSection onViewReport={setViewingReportId} />
+      <CoachUnderstandingSection versions={versions} onViewReport={setViewingReportId} />
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
@@ -979,18 +979,32 @@ function coachReportPhaseLabel(elapsedMs: number): string {
 }
 
 function CoachUnderstandingSection({
+  versions,
   onViewReport,
 }: {
+  versions: CvVersionSummary[]
   onViewReport: (id: string) => void
 }) {
   const [err, setErr] = useState<string | null>(null)
-  const [reports, setReports] = useState<Array<{ id: string; createdAt: string; preview: string }>>([])
+  const [reports, setReports] = useState<
+    Array<{ id: string; createdAt: string; preview: string; cvVersionId: string | null }>
+  >([])
   const [showReports, setShowReports] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [selectedVersionId, setSelectedVersionId] = useState<string>('')
   const { progress, phase, busy: generating, start, finish, reset } = useFakeProgress({
     tauMs: 15_000,
     phaseLabel: coachReportPhaseLabel,
   })
+
+  // Default the report to the active CV (fallback: first uploaded).
+  useEffect(() => {
+    if (selectedVersionId && versions.some((v) => v.id === selectedVersionId)) return
+    const fallback = versions.find((v) => v.isActive) ?? versions[0]
+    if (fallback) setSelectedVersionId(fallback.id)
+  }, [versions, selectedVersionId])
+
+  const selectedName = versions.find((v) => v.id === selectedVersionId)?.name
 
   const loadReports = async () => {
     try {
@@ -1010,7 +1024,11 @@ function CoachUnderstandingSection({
     setErr(null)
     start()
     try {
-      const res = await authedFetch('/api/coach-understanding/generate', { method: 'POST' })
+      const res = await authedFetch('/api/coach-understanding/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(selectedVersionId ? { cvVersionId: selectedVersionId } : {}),
+      })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         throw new Error(data?.message || data?.error || 'Failed to generate report')
@@ -1043,12 +1061,30 @@ function CoachUnderstandingSection({
         )}
       </div>
       <p className="text-xs text-gray-600 mb-3">
-        Generate a report showing what the AI coach currently knows about your background,
+        Generate a report showing what the AI coach currently knows about the selected CV,
         what&apos;s missing, and which bullet points might be duplicates worth merging.
       </p>
+      {versions.length > 1 && (
+        <div className="mb-3">
+          <label className="block text-xs font-medium text-purple-900 mb-1">Report for CV</label>
+          <select
+            value={selectedVersionId}
+            onChange={(e) => setSelectedVersionId(e.target.value)}
+            disabled={generating}
+            className="w-full sm:w-auto text-sm border border-purple-200 rounded-lg px-3 py-2 bg-white text-gray-800 disabled:opacity-40"
+          >
+            {versions.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name}
+                {v.isActive ? ' (Active)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <button
         onClick={generate}
-        disabled={generating}
+        disabled={generating || !selectedVersionId}
         className="flex items-center gap-2 px-4 py-2.5 bg-purple-700 text-white rounded-xl text-sm font-semibold hover:bg-purple-600 disabled:opacity-40"
       >
         {generating ? (
@@ -1057,7 +1093,10 @@ function CoachUnderstandingSection({
           </>
         ) : (
           <>
-            <Brain className="w-4 h-4" /> Get AI Coach&apos;s Understanding About My Background
+            <Brain className="w-4 h-4" />{' '}
+            {selectedName
+              ? `Get AI Coach's Understanding of ${selectedName}`
+              : "Get AI Coach's Understanding About My Background"}
           </>
         )}
       </button>
@@ -1088,6 +1127,11 @@ function CoachUnderstandingSection({
                 <FileText className="w-3.5 h-3.5 text-purple-500" />
                 <span className="text-xs text-gray-500">
                   {new Date(r.createdAt).toLocaleDateString()} {new Date(r.createdAt).toLocaleTimeString()}
+                </span>
+                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] rounded-full">
+                  {r.cvVersionId
+                    ? versions.find((v) => v.id === r.cvVersionId)?.name ?? 'Deleted CV'
+                    : 'All CVs'}
                 </span>
               </div>
               <p className="text-xs text-gray-700 line-clamp-2">{r.preview}</p>
