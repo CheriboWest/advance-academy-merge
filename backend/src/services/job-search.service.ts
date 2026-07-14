@@ -83,6 +83,8 @@ const PER_SOURCE_RESULTS = 15;
 // (many roles × 2 sources), then check the freshest ~30 so that dropping a few dead
 // links still leaves a full page of 20.
 const LIVENESS_MAX_CANDIDATES = 30;
+// Cap on distinct live titles fed back to the roles-suggestion prompt (Item 3 anchoring).
+const MARKET_TITLES_MAX = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface JobSearchInput {
@@ -426,9 +428,27 @@ export function applyFreshness(
 // Merge / finalize
 // ---------------------------------------------------------------------------
 
+/**
+ * Personal-profile / social URLs that are never a real vacancy — e.g. a
+ * linkedin.com/in/... profile Exa sometimes returns as a "job". Dropped from every
+ * path so a networking profile can't masquerade as a live listing. Mirrors
+ * outreach-extractor's BLOCKED_DOMAINS. (A dedicated "suggest LinkedIn contacts"
+ * feature would be separate surface, not a job listing.)
+ */
+const BLOCKED_JOB_DOMAINS = ['linkedin.com', 'facebook.com'];
+
+export function isBlockedJobUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return BLOCKED_JOB_DOMAINS.some((d) => host === d || host.endsWith(`.${d}`));
+  } catch {
+    return false;
+  }
+}
+
 /** Dedupe (by URL host+path) and sort newest-first (undated last). No cap. */
 export function dedupeAndSort(jobs: ExaJobListing[]): ExaJobListing[] {
-  const deduped = dedupeJobs(jobs.filter((j) => j.url));
+  const deduped = dedupeJobs(jobs.filter((j) => j.url && !isBlockedJobUrl(j.url)));
   return [...deduped].sort((a, b) => publishedMs(b) - publishedMs(a));
 }
 
@@ -601,6 +621,49 @@ export async function searchLiveJobs(input: JobSearchInput, costBucket?: CostBuc
   return value;
 }
 
+/**
+ * Broad market search returning DISTINCT live job titles for a set of keyword queries
+ * (skills/field — NOT role titles). Anchors the "suggested roles" step to real demand
+ * (Item 3): the roles step has no titles yet, so we search Adzuna/Reed on the user's
+ * skills and feed back the titles actually being advertised near them.
+ *
+ * Deliberately SKIPS filterByRoleRelevance — the keywords aren't role titles, so its
+ * strict head-token match would drop everything. Results are freshness- and blocked-domain
+ * filtered (via dedupeAndSort) and deduped by title. Never throws: any failure → []. The
+ * legacy `exa` mode returns [] (anchoring is a hybrid/adzuna_reed feature only).
+ */
+export async function searchMarketTitles(
+  keywords: string[],
+  location: string,
+  costBucket?: CostBucket,
+): Promise<string[]> {
+  const kw = keywords.map((k) => k.trim()).filter((k) => k.length > 0).slice(0, getJobMaxRoleQueries());
+  if (kw.length === 0) return [];
+  const mode = getJobSourceMode();
+  if (mode === 'exa') return [];
+  const now = new Date();
+  try {
+    const route = await resolveRoute(location, mode, costBucket);
+    if (route.kind === 'unsupported' || route.kind === 'exa') return [];
+    const input: JobSearchInput = { roleTitles: kw, location };
+    const raw =
+      route.kind === 'uk'
+        ? await fetchUk(input, now, costBucket, route.where)
+        : await fetchAdzuna(route.country ?? 'gb', input, costBucket, route.where);
+    if (!raw) return [];
+    const fresh = applyFreshness(raw, { now });
+    // dedupeAndSort drops blocked-domain URLs and same-URL dupes; the Set collapses the
+    // many employers posting an identically-titled role down to one title.
+    const titles = dedupeAndSort(fresh.jobs).map((j) => j.title.trim()).filter((t) => t.length > 0);
+    const distinct = [...new Set(titles)].slice(0, MARKET_TITLES_MAX);
+    console.log(`[job-search] market-titles keywords=${kw.length} route=${route.kind} titles=${distinct.length}`);
+    return distinct;
+  } catch (err) {
+    logSourceError('market-titles', err);
+    return [];
+  }
+}
+
 /** The uncached search: routing → structured sources (no Exa fallback) or Exa-for-uncovered. */
 async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?: CostBucket): Promise<JobSearchResult> {
   const now = new Date();
@@ -678,7 +741,9 @@ async function runSearch(input: JobSearchInput, mode: JobSourceMode, costBucket?
  */
 async function runExaRaw(input: JobSearchInput, costBucket?: CostBucket): Promise<JobSearchResult> {
   try {
-    const jobs = await searchExa(input, costBucket);
+    // Drop linkedin/facebook profile URLs even in legacy Exa mode — this raw path is
+    // exactly where a personal profile leaked in as a "job listing" before.
+    const jobs = (await searchExa(input, costBucket)).filter((j) => !isBlockedJobUrl(j.url));
     console.log(`[job-search] source=exa(raw) jobs=${jobs.length}`);
     return { jobs, error: null };
   } catch (err) {

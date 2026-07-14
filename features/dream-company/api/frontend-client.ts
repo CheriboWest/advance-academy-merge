@@ -51,81 +51,124 @@ export async function generateRoadmap(
 // `onDelta` fires with each text chunk (drive a progress bar), and the promise resolves with
 // the final parsed result from the `done` event. See test/dream-company/M2.1-streaming-contract.md.
 
+export interface SSEOptions {
+  /** Aborts the in-flight stream when a newer run supersedes this one (see the hook). */
+  signal?: AbortSignal
+  /**
+   * Inactivity watchdog (ms). The backend sends a `: keepalive` heartbeat every 15s, so a
+   * healthy stream never trips this; only a genuinely dead connection (no bytes at all for
+   * this long) aborts. Bounds "UI stuck on loading forever" without capping a legitimately
+   * long roadmap by total duration.
+   */
+  inactivityMs?: number
+}
+
 async function postSSE<T>(
   path: string,
   body: unknown,
   onDelta: (text: string) => void,
+  opts?: SSEOptions,
 ): Promise<T> {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
-    body: JSON.stringify(body),
-  })
-
-  // Bad input / auth errors come back as normal JSON (not an event stream) — surface them.
-  if (!res.headers.get('content-type')?.includes('text/event-stream') || !res.body) {
-    let message = `Request failed (${res.status})`
-    try {
-      const j = (await res.json()) as { message?: string; error?: string }
-      message = j.message || j.error || message
-    } catch {
-      /* keep default */
-    }
-    throw new Error(message)
+  const inactivityMs = opts?.inactivityMs ?? 60000
+  const ac = new AbortController()
+  const onExternalAbort = () => ac.abort()
+  if (opts?.signal) {
+    if (opts.signal.aborted) ac.abort()
+    else opts.signal.addEventListener('abort', onExternalAbort, { once: true })
+  }
+  let watchdog: ReturnType<typeof setTimeout> | undefined
+  const armWatchdog = () => {
+    if (watchdog) clearTimeout(watchdog)
+    watchdog = setTimeout(() => ac.abort(), inactivityMs)
   }
 
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let result: T | undefined
-  let streamError: string | undefined
+  try {
+    armWatchdog()
+    const res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+      body: JSON.stringify(body),
+      signal: ac.signal,
+    })
 
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const frames = buffer.split('\n\n')
-    buffer = frames.pop() ?? ''
-    for (const frame of frames) {
-      const event = frame.match(/^event: (.*)$/m)?.[1]
-      const data = frame.match(/^data: (.*)$/m)?.[1]
-      if (!event || data == null) continue // skips ": keepalive" comment lines
-      if (event === 'delta') {
-        try {
-          onDelta((JSON.parse(data) as { text?: string }).text ?? '')
-        } catch {
-          /* ignore malformed delta */
-        }
-      } else if (event === 'done') {
-        result = JSON.parse(data) as T
-      } else if (event === 'error') {
-        try {
-          streamError = (JSON.parse(data) as { message?: string }).message
-        } catch {
-          streamError = 'The analysis service failed. Please try again.'
+    // Bad input / auth errors come back as normal JSON (not an event stream) — surface them.
+    if (!res.headers.get('content-type')?.includes('text/event-stream') || !res.body) {
+      let message = `Request failed (${res.status})`
+      try {
+        const j = (await res.json()) as { message?: string; error?: string }
+        message = j.message || j.error || message
+      } catch {
+        /* keep default */
+      }
+      throw new Error(message)
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let result: T | undefined
+    let streamError: string | undefined
+
+    for (;;) {
+      const { value, done } = await reader.read()
+      armWatchdog()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const frames = buffer.split('\n\n')
+      buffer = frames.pop() ?? ''
+      for (const frame of frames) {
+        const event = frame.match(/^event: (.*)$/m)?.[1]
+        const data = frame.match(/^data: (.*)$/m)?.[1]
+        if (!event || data == null) continue // skips ": keepalive" comment lines
+        if (event === 'delta') {
+          try {
+            onDelta((JSON.parse(data) as { text?: string }).text ?? '')
+          } catch {
+            /* ignore malformed delta */
+          }
+        } else if (event === 'done') {
+          result = JSON.parse(data) as T
+        } else if (event === 'error') {
+          try {
+            streamError = (JSON.parse(data) as { message?: string }).message
+          } catch {
+            streamError = 'The analysis service failed. Please try again.'
+          }
         }
       }
     }
-  }
 
-  if (streamError) throw new Error(streamError)
-  if (result === undefined) throw new Error('The connection ended before the result arrived. Please try again.')
-  return result
+    if (streamError) throw new Error(streamError)
+    if (result === undefined) throw new Error('The connection ended before the result arrived. Please try again.')
+    return result
+  } catch (err) {
+    // AbortError = superseded by a newer run (caller ignores it via run-id) or the watchdog
+    // tripped on a dead stream. Give the latter a readable message.
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('The request timed out or was cancelled. Please try again.')
+    }
+    throw err
+  } finally {
+    if (watchdog) clearTimeout(watchdog)
+    opts?.signal?.removeEventListener('abort', onExternalAbort)
+  }
 }
 
 export function analyzeProfileStream(
   profile: DreamCompanyInput,
   onDelta: (text: string) => void,
+  opts?: SSEOptions,
 ): Promise<ProfileAnalysis> {
-  return postSSE<ProfileAnalysis>('/api/dream-company/analyze/stream', { profile }, onDelta)
+  return postSSE<ProfileAnalysis>('/api/dream-company/analyze/stream', { profile }, onDelta, opts)
 }
 
 export function generateRolesStream(
   profile: DreamCompanyInput,
   analysis: ProfileAnalysis,
   onDelta: (text: string) => void,
+  opts?: SSEOptions,
 ): Promise<TargetRole[]> {
-  return postSSE<TargetRole[]>('/api/dream-company/roles/stream', { profile, analysis }, onDelta)
+  return postSSE<TargetRole[]>('/api/dream-company/roles/stream', { profile, analysis }, onDelta, opts)
 }
 
 export function generateRoadmapStream(
@@ -133,11 +176,13 @@ export function generateRoadmapStream(
   analysis: ProfileAnalysis,
   selectedRoles: TargetRole[],
   onDelta: (text: string) => void,
+  opts?: SSEOptions,
 ): Promise<RoadmapResponse> {
   return postSSE<RoadmapResponse>(
     '/api/dream-company/roadmap/stream',
     { profile, analysis, selectedRoles },
     onDelta,
+    opts,
   )
 }
 
