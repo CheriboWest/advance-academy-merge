@@ -38,7 +38,18 @@ Return ONLY a valid JSON object matching this exact schema:
 Return ONLY a valid JSON object. No explanation, no markdown, no code blocks.`;
 }
 
-export function buildTargetRolesPrompt(profile: DreamCompanyInput, analysis: ProfileAnalysis): string {
+export function buildTargetRolesPrompt(
+  profile: DreamCompanyInput,
+  analysis: ProfileAnalysis,
+  liveTitles: string[] = [],
+): string {
+  const liveSection = liveTitles.length > 0
+    ? `ROLES CURRENTLY BEING HIRED NEAR YOU (live job listings pulled from the market for this candidate's location and skills):
+${liveTitles.map((t) => `- ${t}`).join('\n')}
+
+`
+    : '';
+
   return `You are a talent acquisition specialist with 12 years of experience matching candidates to roles across tech, finance, consulting, and other industries. You understand job market dynamics and hiring trends deeply.
 
 Based on the candidate profile and market assessment below, identify the best-fit job roles for this candidate based on their CURRENT skills and experience level.
@@ -60,14 +71,18 @@ MARKET ASSESSMENT:
 - Unique Value: ${analysis.uniqueValueProposition}
 - Readiness Score: ${analysis.readinessScore}/100
 
-YOUR TASK:
+${liveSection}YOUR TASK:
 Identify exactly 10 job titles that match this candidate's CURRENT abilities. These should be roles they could realistically apply for right now based on their existing skills and experience. Prioritise quality and variety — cover distinct role types and levels rather than near-duplicate titles.
+
+${liveTitles.length > 0
+    ? 'IMPORTANT: Anchor your suggestions to the live listings above — these are roles employers are ACTIVELY hiring for near this candidate right now. Prefer titles that appear in (or closely align with) that list, and set demandLevel to "high" for those. Only suggest a role absent from the live list when it is a strong, realistic fit the market simply did not surface in this snapshot.'
+    : ''}
 
 For each role provide:
 - title: specific job title (e.g., "Senior Frontend Engineer", not just "Engineer")
 - level: seniority level (e.g., "Senior", "Mid-Level", "Lead")
 - fitScore: 0-100 how well this candidate matches the typical requirements
-- fitReason: specific explanation tied to their actual skills and experience
+- fitReason: ONE concise sentence tied to their actual skills/experience
 - demandLevel: current market demand for this role — "high", "medium", or "low"
 - avgSalary: average salary for this role in ${profile.location}
 
@@ -128,8 +143,8 @@ ${jobsSection}
 YOUR TASK:
 
 1. First, write a "Future You" section — paint a vivid picture of who this candidate will become after completing the full roadmap, specifically in the context of the selected roles. Include:
-   - personTheyWillBecome: A compelling 2-3 sentence description of the professional they will transform into. Be specific — reference the selected roles, the skills they'll master, and the kind of impact they'll make.
-   - achievementSummary: A concise summary of the key achievements and milestones they will have accomplished by the end of the roadmap.
+   - personTheyWillBecome: A compelling 1-2 sentence description of the professional they will transform into. Be specific — reference the selected roles and the key skills they'll master.
+   - achievementSummary: A concise 1-2 sentence summary of the key achievements and milestones they will have accomplished by the end of the roadmap.
 
 2. Then build exactly 3 phases:
 - Phase 1 (0-6 months): Foundation building and quick wins
@@ -140,8 +155,8 @@ For each phase provide:
 - phase: the phase number (1, 2, or 3)
 - duration: the time range (e.g., "0-6 months")
 - goal: one clear overarching goal for this phase
-- actions: 4-6 specific, actionable steps (e.g., "Build a portfolio project using React and TypeScript showcasing data visualization" not "improve your skills")
-- skills: 3-5 specific skills to develop during this phase
+- actions: 3-4 specific, actionable steps (e.g., "Build a portfolio project using React and TypeScript showcasing data visualization" not "improve your skills")
+- skills: 3-4 specific skills to develop during this phase
 - milestone: one concrete, measurable milestone that proves this phase is complete
 
 RULES:

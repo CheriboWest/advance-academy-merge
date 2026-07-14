@@ -20,8 +20,23 @@ import {
 } from '../lib/dream-company/prompts.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry, streamFinalWithRetry } from '../lib/llm-anthropic.js';
 import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
-import { searchLiveJobs } from './job-search.service.js';
+import { searchLiveJobs, searchMarketTitles } from './job-search.service.js';
 import { getJobMaxRoleQueries } from '../config/job-source.js';
+
+/**
+ * Derive a few geocodable job-search keywords from the profile to anchor the roles step
+ * to live demand (Item 3). Skills are the best signal (Adzuna/Reed `what` matches jobs
+ * mentioning them); fall back to degree words. Deterministic, no LLM. The roles step has
+ * no titles yet, so we search on skills and feed back the titles actually being hired.
+ */
+function deriveMarketKeywords(profile: DreamCompanyInput): string[] {
+  const fromSkills = (profile.skills ?? '')
+    .split(/[,;/|]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 2);
+  if (fromSkills.length > 0) return fromSkills.slice(0, 5);
+  return (profile.degree ?? '').split(/\s+/).filter((w) => w.length > 3).slice(0, 5);
+}
 
 /**
  * Per-step SDK timeouts (ms), env-overridable. Sized under the proxy budgets in
@@ -125,13 +140,17 @@ export async function generateTargetRoles(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.roles');
 
+  // Anchor suggestions to live demand (Item 3): search the market on the candidate's skills
+  // and feed back the titles actually being hired. Never throws — [] on any failure.
+  const liveTitles = await searchMarketTitles(deriveMarketKeywords(profile), profile.location, cost);
+
   const response = await withRetry(() => anthropic.messages.create({
     model,
     // 10 roles ≈ ~1200 output tokens (measured: 20 roles ≈ 2384). 4096 leaves a wide safety
     // margin; M1.2's stop_reason=max_tokens guard turns any truncation into a clean 502.
     max_tokens: 4096,
     system: 'You are a career intelligence engine. Return only valid JSON.',
-    messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
+    messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis, liveTitles) }],
   }));
   cost.llm('roles', model, response.usage);
   cost.flush();
@@ -149,25 +168,27 @@ export async function generateRoadmapWithJobs(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.roadmap');
 
+  // Server-side clamp (C2): the maxRoles cap is only enforced client-side, so clamp here
+  // too — otherwise a bypassing client gets a roadmap over N>6 roles but a job search over
+  // only the top 6. Flag computed from the ORIGINAL length before clamping.
+  const jobsTruncated = selectedRoles.length > getJobMaxRoleQueries();
+  const roles = jobsTruncated ? selectedRoles.slice(0, getJobMaxRoleQueries()) : selectedRoles;
+
   // Fetch the Exa job listings FIRST so the roadmap prompt can reference real, current
   // openings. Running the search and the LLM call in parallel meant the prompt was always
   // built with an empty job list (AAT-9). Still exactly one Exa search — no extra calls.
-  const { jobs, error: jobsError, notice: jobsNotice } = await searchJobsForRoles(selectedRoles, profile, cost);
+  const { jobs, error: jobsError, notice: jobsNotice } = await searchJobsForRoles(roles, profile, cost);
 
   const roadmapResponse = await withRetry(() => anthropic.messages.create({
     model,
     max_tokens: 4096,
     system: 'You are a career intelligence engine. Return only valid JSON.',
-    messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, jobs) }],
+    messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, roles, jobs) }],
   }));
   cost.llm('roadmap', model, roadmapResponse.usage);
   cost.flush();
 
   const roadmap = parseStepResponse<CareerRoadmap>(roadmapResponse, 'careerRoadmap');
-
-  // Defense-in-depth (AC3): if a client sent more roles than we search, say so — never
-  // truncate silently. Job search itself covers min(selected, MAX) via topRoles().
-  const jobsTruncated = selectedRoles.length > getJobMaxRoleQueries();
   return { jobs, roadmap, jobsError, jobsNotice: jobsNotice ?? null, jobsTruncated };
 }
 
@@ -211,12 +232,15 @@ export async function streamTargetRoles(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.roles.stream');
 
+  // Anchor suggestions to live demand (Item 3) — same as the non-streaming path.
+  const liveTitles = await searchMarketTitles(deriveMarketKeywords(profile), profile.location, cost);
+
   const final = await streamFinalWithRetry(
     () => anthropic.messages.stream({
       model,
       max_tokens: 4096,
       system: 'You are a career intelligence engine. Return only valid JSON.',
-      messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis) }],
+      messages: [{ role: 'user', content: buildTargetRolesPrompt(profile, analysis, liveTitles) }],
     }),
     onDelta,
   );
@@ -237,15 +261,19 @@ export async function streamRoadmapWithJobs(
   const model = getFeatureModel('dreamCompany');
   const cost = newCostBucket('dreamCompany.roadmap.stream');
 
+  // Server-side clamp (C2) — same as the non-streaming path.
+  const jobsTruncated = selectedRoles.length > getJobMaxRoleQueries();
+  const roles = jobsTruncated ? selectedRoles.slice(0, getJobMaxRoleQueries()) : selectedRoles;
+
   // Job search runs first (same as the non-streaming path) so the prompt has real jobs.
-  const { jobs, error: jobsError, notice: jobsNotice } = await searchJobsForRoles(selectedRoles, profile, cost);
+  const { jobs, error: jobsError, notice: jobsNotice } = await searchJobsForRoles(roles, profile, cost);
 
   const final = await streamFinalWithRetry(
     () => anthropic.messages.stream({
       model,
       max_tokens: 4096,
       system: 'You are a career intelligence engine. Return only valid JSON.',
-      messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, selectedRoles, jobs) }],
+      messages: [{ role: 'user', content: buildCareerRoadmapPrompt(profile, analysis, roles, jobs) }],
     }),
     onDelta,
   );
@@ -253,7 +281,6 @@ export async function streamRoadmapWithJobs(
   cost.flush();
 
   const roadmap = parseStepResponse<CareerRoadmap>(final, 'careerRoadmap');
-  const jobsTruncated = selectedRoles.length > getJobMaxRoleQueries();
   return { jobs, roadmap, jobsError, jobsNotice: jobsNotice ?? null, jobsTruncated };
 }
 

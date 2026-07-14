@@ -9,7 +9,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { searchLiveJobs, filterByRoleRelevance, extractCity } from '../../backend/src/services/job-search.service.js';
+import { searchLiveJobs, filterByRoleRelevance, extractCity, isBlockedJobUrl, searchMarketTitles } from '../../backend/src/services/job-search.service.js';
 import { searchAdzuna } from '../../backend/src/lib/adzuna-client.js';
 import { clearJobCache } from '../../backend/src/lib/job-cache.js';
 
@@ -33,8 +33,8 @@ const SEARCHES = [
 
 async function main(): Promise<void> {
   const rows: string[] = [];
-  rows.push('| Search | BEFORE jobs | BEFORE off-topic | AFTER jobs | AFTER off-topic |');
-  rows.push('|--------|-------------|------------------|------------|-----------------|');
+  rows.push('| Search | BEFORE jobs | BEFORE off-topic | AFTER jobs | AFTER off-topic | ≤48h | >48h | blocked |');
+  rows.push('|--------|-------------|------------------|------------|-----------------|------|------|---------|');
   const examples: string[] = [];
   let allPass = true;
   const failures: string[] = [];
@@ -59,7 +59,15 @@ async function main(): Promise<void> {
 
     if (afterOff.length > 0) { allPass = false; failures.push(`${s.role}: ${afterOff.length} off-topic survived: ${afterOff.map((j) => j.title).join(', ')}`); }
 
-    rows.push(`| ${s.role} @ ${s.location.split(',')[0]} | ${beforeTitles.length} | ${beforeOff.length} | ${jobs.length}${meta?.sparse ? ' (sparse)' : ''} | ${afterOff.length} |`);
+    // Boss checklist: no LinkedIn/Facebook profile URLs, and how fresh the results are.
+    const blocked = jobs.filter((j) => isBlockedJobUrl(j.url));
+    if (blocked.length > 0) { allPass = false; failures.push(`${s.role}: ${blocked.length} blocked-domain URL(s) leaked: ${blocked.map((j) => j.url).join(', ')}`); }
+    const now = Date.now();
+    const ageDays = (j: (typeof jobs)[number]) => (j.publishedDate ? (now - Date.parse(j.publishedDate)) / 86_400_000 : NaN);
+    const within48h = jobs.filter((j) => ageDays(j) <= 2).length;
+    const older = jobs.filter((j) => ageDays(j) > 2).length; // present only when 48h window widened (sparse)
+
+    rows.push(`| ${s.role} @ ${s.location.split(',')[0]} | ${beforeTitles.length} | ${beforeOff.length} | ${jobs.length}${meta?.sparse ? ' (sparse)' : ''} | ${afterOff.length} | ${within48h} | ${older} | ${blocked.length} |`);
     examples.push(
       `\n**${s.role} @ ${s.location.split(',')[0]}**\n` +
       `- BEFORE off-topic examples: ${beforeOff.slice(0, 4).join(' · ') || '(none)'}\n` +
@@ -67,6 +75,27 @@ async function main(): Promise<void> {
     );
     console.log(`${s.role} @ ${s.location.split(',')[0]}: before=${beforeTitles.length}(off ${beforeOff.length}) → after=${jobs.length}(off ${afterOff.length})${meta?.sparse ? ' SPARSE' : ''}`);
   }
+
+  // Item 3 anchor smoke: searchMarketTitles (skills → live titles) must surface real,
+  // fresh, non-blocked titles that the roles-suggestion prompt can anchor to. Uses skill
+  // keywords (NOT role titles) since the roles step has no titles yet.
+  const anchorRows: string[] = [];
+  const ANCHOR_CASES = [
+    { skills: ['Python', 'SQL', 'Excel'], location: 'London, United Kingdom' },
+    { skills: ['React', 'TypeScript'], location: 'Manchester, United Kingdom' },
+    { skills: ['Accounting', 'Xero'], location: 'Leeds, United Kingdom' },
+  ];
+  let anchored = 0;
+  for (const c of ANCHOR_CASES) {
+    clearJobCache();
+    const titles = await searchMarketTitles(c.skills, c.location);
+    if (titles.length > 0) anchored++;
+    else failures.push(`anchor ${c.skills.join('/')} @ ${c.location.split(',')[0]}: 0 live titles`);
+    anchorRows.push(`- **${c.skills.join(' / ')}** @ ${c.location.split(',')[0]}: ${titles.length} titles — ${titles.slice(0, 6).join(' · ') || '(none)'}`);
+    console.log(`anchor ${c.skills.join('/')}: ${titles.length} titles`);
+  }
+  // ≥ half the cases must return live titles (network/board flakiness tolerated, total silence not).
+  if (anchored < Math.ceil(ANCHOR_CASES.length / 2)) allPass = false;
 
   const doc = [
     '# COMPARISON — Relevance fix (Cách A: title_only + filterByRoleRelevance)',
@@ -78,6 +107,10 @@ async function main(): Promise<void> {
     '',
     '## Examples',
     ...examples,
+    '',
+    '## Item 3 anchor (searchMarketTitles: skills → live titles)',
+    ...anchorRows,
+    `- ≥ half the anchor cases returned live titles: **${anchored >= Math.ceil(ANCHOR_CASES.length / 2) ? '✅' : '❌'}** (${anchored}/${ANCHOR_CASES.length})`,
     '',
     '## Acceptance (AC3/AC4)',
     `- 0 off-topic jobs survive AFTER: **${failures.length ? '❌' : '✅'}**`,

@@ -53,6 +53,11 @@ export function useDreamCompany() {
   const profileRef = useRef<DreamCompanyInput | null>(null)
   const charsRef = useRef(0)
   const ceilingRef = useRef(96)
+  // Run-id guard (C1): each run bumps this; a stale run (superseded by a newer one) sees a
+  // mismatched id and skips all setState so a late-resolving old stream can't clobber fresh
+  // state. abortRef cancels the previous in-flight stream so it stops reading immediately.
+  const runIdRef = useRef(0)
+  const abortRef = useRef<AbortController | null>(null)
 
   // Load the role-selection cap from the backend (single source of truth). If it fails we
   // keep the sensible default — never block the flow on this.
@@ -87,6 +92,13 @@ export function useDreamCompany() {
   const generateFromProfile = useCallback(
     async (profile: DreamCompanyInput): Promise<void> => {
       profileRef.current = profile
+      const runId = ++runIdRef.current
+      abortRef.current?.abort()
+      const ac = new AbortController()
+      abortRef.current = ac
+      // Ignore token deltas from a superseded run so the progress bar can't be corrupted.
+      const guard = (fn: (t: string) => void) => (t: string) => { if (runId === runIdRef.current) fn(t) }
+
       setLoading(true)
       setError(null)
       setAnalysis(null)
@@ -98,20 +110,25 @@ export function useDreamCompany() {
 
       try {
         // Step 1: Profile Analysis (streamed)
-        const analysisResult = await analyzeProfileStream(profile, beginStep(EXPECTED_CHARS.analyze))
+        const analysisResult = await analyzeProfileStream(profile, guard(beginStep(EXPECTED_CHARS.analyze)), { signal: ac.signal })
+        if (runId !== runIdRef.current) return
         setAnalysis(analysisResult)
         setCurrentStep('generating-roles')
 
         // Step 2: Target Roles (streamed)
-        const rolesResult = await generateRolesStream(profile, analysisResult, beginStep(EXPECTED_CHARS.roles))
+        const rolesResult = await generateRolesStream(profile, analysisResult, guard(beginStep(EXPECTED_CHARS.roles)), { signal: ac.signal })
+        if (runId !== runIdRef.current) return
         setRoles(rolesResult)
         setCurrentStep('picking')
       } catch (err) {
+        if (runId !== runIdRef.current) return // stale/aborted run — don't clobber fresh state
         setError(err instanceof Error ? err.message : 'An unknown error occurred')
         setCurrentStep('idle')
       } finally {
-        setProgress(0)
-        setLoading(false)
+        if (runId === runIdRef.current) {
+          setProgress(0)
+          setLoading(false)
+        }
       }
     },
     [beginStep],
@@ -131,6 +148,12 @@ export function useDreamCompany() {
       const profile = profileRef.current
       if (!profile || !analysis || selectedRoles.length === 0) return
 
+      const runId = ++runIdRef.current
+      abortRef.current?.abort()
+      const ac = new AbortController()
+      abortRef.current = ac
+      const guard = (fn: (t: string) => void) => (t: string) => { if (runId === runIdRef.current) fn(t) }
+
       setLoading(true)
       setError(null)
       setJobsError(null)
@@ -140,7 +163,8 @@ export function useDreamCompany() {
 
       try {
         // Step 3: live job search + Roadmap (streamed)
-        const result = await generateRoadmapStream(profile, analysis, selectedRoles, beginStep(EXPECTED_CHARS.roadmap))
+        const result = await generateRoadmapStream(profile, analysis, selectedRoles, guard(beginStep(EXPECTED_CHARS.roadmap)), { signal: ac.signal })
+        if (runId !== runIdRef.current) return
         setJobs(result.jobs)
         setJobsError(result.jobsError)
         setJobsNotice(result.jobsNotice)
@@ -148,11 +172,14 @@ export function useDreamCompany() {
         setRoadmap(result.roadmap)
         setCurrentStep('done')
       } catch (err) {
+        if (runId !== runIdRef.current) return // stale/aborted run — don't clobber fresh state
         setError(err instanceof Error ? err.message : 'An unknown error occurred')
         setCurrentStep('picking')
       } finally {
-        setProgress(0)
-        setLoading(false)
+        if (runId === runIdRef.current) {
+          setProgress(0)
+          setLoading(false)
+        }
       }
     },
     [analysis, selectedRoles, beginStep],
@@ -184,6 +211,8 @@ export function useDreamCompany() {
   }, [])
 
   const reset = useCallback(() => {
+    runIdRef.current++ // invalidate any in-flight run so its late resolve is ignored
+    abortRef.current?.abort()
     profileRef.current = null
     setAnalysis(null)
     setRoles(null)
