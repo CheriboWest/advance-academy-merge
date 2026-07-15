@@ -188,6 +188,50 @@ CREATE TABLE IF NOT EXISTS "public"."companies" (
 ALTER TABLE "public"."companies" OWNER TO "postgres";
 
 
+-- NOTE: This table post-dates the original dump — it was added by migration 008 after
+-- this file was generated (which is why the Supabase RLS alert could name it). The shape,
+-- constraints, RLS, read policy and grants below mirror 008_company_additional_urls.sql
+-- (kept as one adjacent block rather than fragmented across the dump's sections, so this
+-- reference stays self-contained). The ≤30-URLs-per-company enforcement trigger
+-- (enforce_company_additional_url_limit) is NOT reproduced here — see migration 008 for it.
+-- RLS + read policy are reasserted by 011_rls_hardening_sweep.sql.
+CREATE TABLE IF NOT EXISTS "public"."company_additional_url" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "company_id" "uuid" NOT NULL,
+    "url" "text" NOT NULL,
+    "ordinal" integer DEFAULT 0 NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "company_additional_url_unique_per_company" UNIQUE ("company_id", "url"),
+    CONSTRAINT "company_additional_url_url_length" CHECK (("char_length"("url") <= 2048)),
+    CONSTRAINT "company_additional_url_url_scheme" CHECK (("url" ~* '^https?://'::"text"))
+);
+
+
+ALTER TABLE "public"."company_additional_url" OWNER TO "postgres";
+
+
+ALTER TABLE ONLY "public"."company_additional_url"
+    ADD CONSTRAINT "company_additional_url_pkey" PRIMARY KEY ("id");
+
+
+ALTER TABLE ONLY "public"."company_additional_url"
+    ADD CONSTRAINT "company_additional_url_company_id_fkey" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE CASCADE;
+
+
+CREATE INDEX "idx_company_additional_url_company" ON "public"."company_additional_url" USING "btree" ("company_id");
+
+
+ALTER TABLE "public"."company_additional_url" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "Anyone can read company additional URLs" ON "public"."company_additional_url" FOR SELECT USING (true);
+
+
+GRANT ALL ON TABLE "public"."company_additional_url" TO "anon";
+GRANT ALL ON TABLE "public"."company_additional_url" TO "authenticated";
+GRANT ALL ON TABLE "public"."company_additional_url" TO "service_role";
+
+
 CREATE TABLE IF NOT EXISTS "public"."company_research_reports" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "company_id" "uuid" NOT NULL,
