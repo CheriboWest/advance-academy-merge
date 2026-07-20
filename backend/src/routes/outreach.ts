@@ -3,11 +3,13 @@ import { generateOutreach } from '../services/outreach.service.js';
 import { runEnrichment } from '../services/outreach-enrichment.service.js';
 import { validateJdUrl } from '../services/outreach-jd-validator.service.js';
 import type { EnrichmentRequest, OutreachRequest } from '../types/outreach.js';
+import { perUserDaily } from '../lib/rate-limit.js';
 
 const RATE_1MIN = (max: number) => ({ config: { rateLimit: { max, timeWindow: '1 minute' } } });
 
 export async function registerOutreachRoutes(app: FastifyInstance) {
-  app.post<{ Body: OutreachRequest }>('/api/outreach/generate', RATE_1MIN(10), async (request, reply) => {
+  // Per-student daily cap on the paid endpoint; extract/enrich/validate stay on burst (sub-steps).
+  app.post<{ Body: OutreachRequest }>('/api/outreach/generate', perUserDaily('DAILY_LIMIT_OUTREACH', 5, 'Outreach Generator'), async (request, reply) => {
     const body = request.body;
 
     if (!body?.cvText || !body.targetCompany || !body.targetRole || !body.intent || !body.outputs) {

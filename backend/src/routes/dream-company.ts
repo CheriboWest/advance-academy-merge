@@ -13,6 +13,7 @@ import {
 } from '../services/dream-company.service.js';
 import type { DreamCompanyInput, ProfileAnalysis, TargetRole } from '../types/dream-company.js';
 import { getJobMaxRoleQueries } from '../config/job-source.js';
+import { perUserDaily } from '../lib/rate-limit.js';
 
 type FastifyReplyLike = {
   hijack: () => void;
@@ -154,11 +155,19 @@ function handleServiceError(error: unknown, request: { log: { error: (e: unknown
 
 const RATE_1MIN = (max: number) => ({ config: { rateLimit: { max, timeWindow: '1 minute' } } });
 
+// Per-student daily cap on the two credit-heavy steps (analyze + the job-search+roadmap step).
+// `roles` stays on the cheap per-minute burst — it's part of the same run and light. Env:
+// DAILY_LIMIT_DREAM_COMPANY (default 3).
+// ponytail: @fastify/rate-limit counts per-route, so the JSON and /stream variant of each step
+// have separate counters — the FE only calls /stream, so real usage is capped correctly; the
+// raw-JSON path is a bounded defensive edge case. A shared store isn't worth it.
+const DAILY_DREAM = () => perUserDaily('DAILY_LIMIT_DREAM_COMPANY', 3, 'Dream Company Finder');
+
 export async function registerDreamCompanyRoutes(app: FastifyInstance) {
   // Step 1: Profile Analysis
   app.post<{ Body: { profile?: DreamCompanyInput } }>(
     '/api/dream-company/analyze',
-    RATE_1MIN(10),
+    DAILY_DREAM(),
     async (request, reply) => {
       const profile = request.body?.profile;
       const missing = validateDreamCompanyProfile(profile);
@@ -205,7 +214,7 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
   // Step 3: Live Job Search + Roadmap (from selected roles)
   app.post<{ Body: { profile?: DreamCompanyInput; analysis?: ProfileAnalysis; selectedRoles?: TargetRole[] } }>(
     '/api/dream-company/roadmap',
-    RATE_1MIN(10),
+    DAILY_DREAM(),
     async (request, reply) => {
       const { profile, analysis, selectedRoles } = request.body ?? {};
       const missing = validateDreamCompanyProfile(profile);
@@ -231,7 +240,7 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
   // but stream text deltas and finish with a `done` event carrying the parsed result. ----
   app.post<{ Body: { profile?: DreamCompanyInput } }>(
     '/api/dream-company/analyze/stream',
-    RATE_1MIN(10),
+    DAILY_DREAM(),
     async (request, reply) => {
       const profile = request.body?.profile;
       const missing = validateDreamCompanyProfile(profile);
@@ -260,7 +269,7 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
 
   app.post<{ Body: { profile?: DreamCompanyInput; analysis?: ProfileAnalysis; selectedRoles?: TargetRole[] } }>(
     '/api/dream-company/roadmap/stream',
-    RATE_1MIN(10),
+    DAILY_DREAM(),
     async (request, reply) => {
       const { profile, analysis, selectedRoles } = request.body ?? {};
       const missing = validateDreamCompanyProfile(profile);
