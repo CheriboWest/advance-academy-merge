@@ -8,6 +8,7 @@ import {
   rewriteBulletWithAnswers,
 } from '../services/cv-optimizer.service.js';
 import { generateRewrittenCvFile } from '../services/cv-rewrite-file.service.js';
+import { perUserDaily } from '../lib/rate-limit.js';
 import type { AnalyzeCvRequest, RewriteBulletRequest, RewriteSuggestion } from '@advance-academy/contracts/cv-optimizer';
 
 export async function registerCvOptimizerRoutes(app: FastifyInstance) {
@@ -104,14 +105,11 @@ export async function registerCvOptimizerRoutes(app: FastifyInstance) {
     });
   });
 
-  app.post<{ Body: AnalyzeCvRequest }>('/api/cv-optimizer/analyze', {
-    config: {
-      rateLimit: {
-        max: 5,
-        timeWindow: '10 minutes',
-      },
-    },
-  }, async (request, reply) => {
+  // Per-student daily cap (was IP-keyed 5/10min — a whole campus behind one NAT shared it).
+  app.post<{ Body: AnalyzeCvRequest }>(
+    '/api/cv-optimizer/analyze',
+    perUserDaily('DAILY_LIMIT_CV', 5, 'CV Optimiser'),
+    async (request, reply) => {
     const body = request.body as AnalyzeCvRequest;
 
     if (!body?.targetRole || !body?.currentCvText) {

@@ -189,7 +189,9 @@ ALTER TABLE "public"."companies" OWNER TO "postgres";
 
 
 -- NOTE: This table post-dates the original dump — it was added by migration 008 after
--- this file was generated (which is why the Supabase RLS alert could name it). The shape,
+-- this file was generated, so it was missing from this reference entirely. (The Critical
+-- RLS alert actually named cv_analysis_jobs, but this table has the same exposure shape
+-- and is fixed by the same 011 sweep.) The shape,
 -- constraints, RLS, read policy and grants below mirror 008_company_additional_urls.sql
 -- (kept as one adjacent block rather than fragmented across the dump's sections, so this
 -- reference stays self-contained). The ≤30-URLs-per-company enforcement trigger
