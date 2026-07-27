@@ -20,6 +20,7 @@ import { registerCvLibraryRoutes } from './routes/cv-library.js';
 import { registerCoachAnswerRoutes } from './routes/coach-answer.js';
 import { registerInterviewRoutes } from './routes/interview.js';
 import { registerCoachUnderstandingRoutes } from './routes/coach-understanding.js';
+import { registerLeadsRoutes } from './routes/leads.js';
 
 function loadBackendEnvFile() {
   const candidates = [
@@ -63,7 +64,16 @@ async function bootstrap() {
   });
 
   app.addHook('preHandler', async (request, reply) => {
-    const skipPaths = ['/api/health', '/api/system'];
+    // Public lead-capture endpoints: hit by anonymous job-seekers and email-link
+    // clicks, so no bearer token. GET /api/leads (admin) is NOT listed here and
+    // stays auth-gated. Order matters: these are checked with startsWith.
+    const skipPaths = [
+      '/api/health',
+      '/api/system',
+      '/api/leads/capture',
+      '/api/leads/confirm',
+      '/api/leads/unsubscribe',
+    ];
     if (skipPaths.some((p) => request.url.startsWith(p))) return;
 
     const authHeader = request.headers.authorization;
@@ -86,6 +96,7 @@ async function bootstrap() {
   await registerCoachAnswerRoutes(app);
   await registerInterviewRoutes(app);
   await registerCoachUnderstandingRoutes(app);
+  await registerLeadsRoutes(app);
 
   await app.listen({
     port,
