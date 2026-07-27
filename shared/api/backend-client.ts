@@ -7,6 +7,7 @@ import type {
   RewriteBulletResponse,
 } from '@advance-academy/contracts'
 import type { DreamCompanyInput, ProfileAnalysis, TargetRole, RoadmapResponse } from '@/types/dream-company'
+import type { LeadsFilters, LeadsListResponse } from '@/types/leads'
 import type {
   EnrichmentRequest,
   EnrichmentResponse,
@@ -532,5 +533,22 @@ export function validateJdWithBackend(payload: { url: string }, authToken?: stri
     body: JSON.stringify(payload),
     headers: authHeaders(authToken),
     timeoutMs: 30000,
+  })
+}
+
+// Candidate Acquisition — admin lead list (CA-001, Bước 6). Backend enforces the
+// ADMIN_USER_IDS allowlist; a non-admin token comes back as HttpClientError 403.
+export function getLeadsFromBackend(filters: LeadsFilters, authToken?: string) {
+  const { backendUrl } = getServerEnv()
+  const qs = new URLSearchParams()
+  if (filters.status) qs.set('status', filters.status)
+  if (filters.source) qs.set('source', filters.source)
+  if (filters.limit) qs.set('limit', String(filters.limit))
+  const suffix = qs.toString() ? `?${qs.toString()}` : ''
+
+  return fetchJson<LeadsListResponse>(`${backendUrl}/api/leads${suffix}`, {
+    method: 'GET',
+    headers: authHeaders(authToken),
+    timeoutMs: 15000,
   })
 }
