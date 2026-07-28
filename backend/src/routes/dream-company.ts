@@ -14,6 +14,23 @@ import {
 import type { DreamCompanyInput, ProfileAnalysis, TargetRole } from '../types/dream-company.js';
 import { getJobMaxRoleQueries } from '../config/job-source.js';
 import { perUserDaily } from '../lib/rate-limit.js';
+import { assertTrialQuota, incrementTrialUsage } from '../lib/trial-quota.js';
+
+// Reply 429 for a trial-quota error; return true if it handled the error.
+function replyIfTrialLimit(
+  error: unknown,
+  reply: { code: (n: number) => { send: (body: unknown) => unknown } },
+): boolean {
+  const e = error as { statusCode?: number; code?: string; message?: string; scope?: string };
+  if (Number(e?.statusCode) !== 429) return false;
+  reply.code(429).send({
+    code: e.code ?? 'TRIAL_LIMIT_REACHED',
+    message: e.message ?? 'Trial limit reached.',
+    error: e.message ?? 'Trial limit reached.',
+    scope: e.scope,
+  });
+  return true;
+}
 
 type FastifyReplyLike = {
   hijack: () => void;
@@ -176,8 +193,13 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
       }
 
       try {
-        return await generateProfileAnalysis(profile!);
+        // Trial lifetime quota — counted once per run, at step 1 (no-op for students).
+        await assertTrialQuota(request.userId, 'dream');
+        const result = await generateProfileAnalysis(profile!);
+        await incrementTrialUsage(request.userId, 'dream');
+        return result;
       } catch (error) {
+        if (replyIfTrialLimit(error, reply)) return;
         return handleServiceError(error, request, reply);
       }
     },
@@ -247,7 +269,15 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
       if (missing.length > 0) {
         return reply.code(400).send({ error: 'Missing required fields', missing });
       }
+      // Trial quota must be checked BEFORE the stream opens (can't 429 mid-SSE).
+      try {
+        await assertTrialQuota(request.userId, 'dream');
+      } catch (error) {
+        if (replyIfTrialLimit(error, reply)) return;
+        return handleServiceError(error, request, reply);
+      }
       await runSse(request, reply, (onDelta) => streamProfileAnalysis(profile!, onDelta));
+      await incrementTrialUsage(request.userId, 'dream');
     },
   );
 
