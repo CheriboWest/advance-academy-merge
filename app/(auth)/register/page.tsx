@@ -46,8 +46,12 @@ export default function RegisterPage() {
             </svg>
           </div>
           <h2 className="text-xl font-serif font-bold text-blue-900 mb-2">Check your email</h2>
-          <p className="text-sm text-gray-500 mb-6">
+          <p className="text-sm text-gray-500 mb-4">
             We sent a confirmation link to <strong className="text-blue-900">{email}</strong>. Click it to activate your account.
+          </p>
+          <p className="text-sm text-gray-500 mb-6">
+            After that, a coach reviews your account before access is granted — usually within one working day.
+            We&apos;ll open up the tools as soon as it&apos;s approved.
           </p>
           <Link href="/login" className="inline-block text-sm font-semibold text-blue-900 hover:text-yellow-600 transition-colors">
             Back to sign in
@@ -63,6 +67,9 @@ export default function RegisterPage() {
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-serif font-bold text-blue-900">Create account</h1>
           <p className="mt-1 text-sm text-gray-500">Start accelerating your career today</p>
+          <p className="mt-3 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+            Accounts are reviewed by a coach before access is granted — usually within one working day.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">

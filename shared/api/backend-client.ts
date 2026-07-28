@@ -1,7 +1,9 @@
 import type {
+  AdminUser,
   AnalyzeCvAcceptedResponse,
   AnalyzeCvRequest,
   AnalyzeCvResult,
+  CurrentUser,
   JobStatusResponse,
   RewriteBulletRequest,
   RewriteBulletResponse,
@@ -532,5 +534,41 @@ export function validateJdWithBackend(payload: { url: string }, authToken?: stri
     body: JSON.stringify(payload),
     headers: authHeaders(authToken),
     timeoutMs: 30000,
+  })
+}
+
+export function getMeWithBackend(authToken?: string) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchJson<CurrentUser>(`${backendUrl}/api/me`, {
+    method: 'GET',
+    headers: authHeaders(authToken),
+    timeoutMs: 10000,
+  })
+}
+
+export function listUsersWithBackend(status: string | undefined, authToken?: string) {
+  const { backendUrl } = getServerEnv()
+  const query = status ? `?status=${encodeURIComponent(status)}` : ''
+
+  return fetchJson<AdminUser[]>(`${backendUrl}/api/admin/users${query}`, {
+    method: 'GET',
+    headers: authHeaders(authToken),
+    timeoutMs: 15000,
+  })
+}
+
+export function reviewUserWithBackend(
+  userId: string,
+  status: 'approved' | 'rejected',
+  authToken?: string,
+) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchJson<AdminUser>(`${backendUrl}/api/admin/users/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+    headers: authHeaders(authToken),
+    timeoutMs: 15000,
   })
 }

@@ -4,13 +4,16 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
 import { getUserIdFromToken } from './lib/supabase.js';
+import { approvalError, getUserAccess, type UserAccess } from './lib/user-access.js';
 import { startCvAnalysisReaper } from './lib/cv-analysis-reaper.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
     userId: string;
+    userAccess: UserAccess;
   }
 }
+import { registerAdminRoutes } from './routes/admin.js';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerCvOptimizerRoutes } from './routes/cv-optimizer.js';
 import { registerDreamCompanyRoutes } from './routes/dream-company.js';
@@ -75,8 +78,21 @@ async function bootstrap() {
     } catch {
       return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Invalid or expired token.' });
     }
+
+    // Approval gate. This is the ONE choke point every route already passes through,
+    // so new features are covered without touching them. 403 not 401 — the token is
+    // valid, the account just isn't cleared yet, and the frontend needs to tell those
+    // apart (401 → re-login, 403 → show the pending screen).
+    // `/api/me` is exempt so the pending screen can read its own status. Exact path
+    // match, not startsWith — a prefix would silently exempt any future `/api/me*`.
+    request.userAccess = await getUserAccess(request.userId);
+    if (request.url.split('?')[0] === '/api/me') return;
+
+    const denied = approvalError(request.userAccess);
+    if (denied) return reply.code(403).send(denied);
   });
 
+  await registerAdminRoutes(app);
   await registerSystemRoutes(app);
   await registerCvOptimizerRoutes(app);
   await registerDreamCompanyRoutes(app);
