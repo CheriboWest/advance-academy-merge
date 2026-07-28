@@ -1,0 +1,40 @@
+{
+  "id": "hieu-minh-fulltime",
+  "role": "Business Analyst / Data Analyst",
+  "seniority": "Mid-level",
+  "industry": "Business Intelligence / Consulting / Finance",
+  "sourceCount": 1,
+  "summaryPatterns": [
+    "Paragraph format emphasizing 3+ years of professional experience",
+    "Highlights end-to-end data pipelines, process optimization, and stakeholder management",
+    "Outlines specific career trajectory and value proposition for target roles"
+  ],
+  "experiencePatterns": [
+    "Group bullet points under bold functional skill headers (e.g., Dashboard Development, Data Quality, Process Optimisation)",
+    "Begin each bullet with direct action verbs",
+    "Connect technical work directly to business outcomes and decision support",
+    "Quantify metrics and scale where applicable"
+  ],
+  "achievementPatterns": [
+    "Reduced manual reporting time by 30%",
+    "Contributed to measurable CX ranking improvement (#4 to #1)",
+    "Managed end-to-end data workflows for datasets covering 14M+ users",
+    "Evaluated effectiveness across 20+ initiatives for 10K+ employees"
+  ],
+  "skillsPatterns": [
+    "Data Visualisation: Power BI, Excel (Advanced), think-cell",
+    "Programming: Python, R, SQL",
+    "Processes: Data cleaning, Data validation, Data pipelines, Reporting automation",
+    "Core Capabilities: KPI design, Dashboard development, Process optimisation"
+  ],
+  "atsPatterns": [
+    "Structured by skill domain within work experience entries",
+    "Dedicated Skills section categorized by domain upfront",
+    "Consistent date formats and clear geographic locations"
+  ],
+  "goodFragments": [
+    "Dashboard Development & Reporting Automation: Designed and deployed interactive Power BI dashboards and automated reporting workflows, reducing manual reporting time by 30%.",
+    "KPI Design & Data Modelling: Defined and implemented structured KPIs, reporting logic, and data models by translating business requirements into scalable analytics solutions.",
+    "Stakeholder Collaboration & Business Translation: Worked closely with cross-functional stakeholders to align analytical outputs with business needs."
+  ]
+}

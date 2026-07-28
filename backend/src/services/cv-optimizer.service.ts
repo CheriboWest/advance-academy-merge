@@ -27,6 +27,7 @@ import { getLlmConfig } from '../config/llm.js';
 import { getCvOptimizerFeatures } from '../config/features.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 import { getSupabase } from '../lib/supabase.js';
+import { getReferenceExamples, formatReferencePatterns } from './reference-cv.service.js';
 
 interface CvAnalysisJobRow {
   id: string;
@@ -720,6 +721,17 @@ Rules:
 - An Action Plan is generated in a separate call — do NOT produce an expertReview or actionPlan field here.
 - Do not invent facts. Do not be encouraging if the CV is weak. Score what is actually present.`;
 
+// How the model must treat the REFERENCE PATTERNS block. Placed in the user
+// prompt (not SYSTEM_PROMPT) so the response schema and scoring rules stay
+// untouched — these lines only govern how the few-shot references are used.
+const REFERENCE_USAGE_INSTRUCTIONS = [
+  '- Use the reference patterns only as guidance for structure, phrasing style, and ATS optimization.',
+  '- Do not copy wording, bullet points, or achievements from the reference examples.',
+  '- Do not invent experience, metrics, technologies, or responsibilities.',
+  '- If a metric is missing, suggest where the user could add one.',
+  '- Keep the output ATS-friendly and concise.',
+].join('\n');
+
 export async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeCvResult | null> {
   console.log('🐘 Using Monolith');
   assertLlmConfigured('cvOptimizer');
@@ -727,15 +739,27 @@ export async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeC
   const anthropic = createAnthropicClient('cvOptimizer');
   const model = getFeatureModel('cvOptimizer');
 
+  // Few-shot references (hardcoded library — no RAG, no retrieval). Never throws:
+  // getReferenceExamples() falls back to a generic ATS reference when no role
+  // matches, and formatReferencePatterns() emits only the four pattern fields.
+  const referenceExamples = getReferenceExamples(body.targetRole);
+  const referencePatterns = formatReferencePatterns(referenceExamples);
+
   const userPrompt = [
     `TARGET ROLE: ${body.targetRole}`,
     '',
-    '=== CV ===',
+    '=== REFERENCE PATTERNS FROM SUCCESSFUL CVS ===',
+    referencePatterns,
+    '',
+    '=== USER CV ===',
     body.currentCvText,
     '',
     body.jobDescription?.trim()
       ? `=== JOB DESCRIPTION ===\n${body.jobDescription.trim()}`
-      : '(No job description provided — evaluate the CV against the target role only.)',
+      : '=== JOB DESCRIPTION ===\n(No job description provided — evaluate the CV against the target role only.)',
+    '',
+    '=== INSTRUCTIONS ===',
+    REFERENCE_USAGE_INSTRUCTIONS,
   ].join('\n');
 
   // Run main analysis and ATS scoring in parallel

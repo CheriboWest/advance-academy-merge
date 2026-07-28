@@ -1,0 +1,40 @@
+{
+  "id": "john-dang-bi-data-analyst",
+  "role": "Data Analyst & Business Intelligence Professional",
+  "seniority": "Mid-level",
+  "industry": "E-commerce / Marketing / Digital Performance / Tech Consulting",
+  "sourceCount": 1,
+  "summaryPatterns": [
+    "Focuses on commercial experience delivering dashboard reporting, KPI analysis, and data-driven insights",
+    "Highlights end-to-end reporting solutions, multi-source data models, ETL workflows, and stakeholder management",
+    "Emphasizes PL-300 Power BI certification and experience in Agile environments"
+  ],
+  "experiencePatterns": [
+    "Prepend bullet points with bold domain headers (e.g., Dashboard Reporting & KPI Monitoring, Data Validation & Reporting Accuracy)",
+    "Highlight specific data technologies (Adobe Analytics, Power BI, Tableau, DAX, Power Query, Azure Synapse)",
+    "Demonstrate data governance, ETL pipeline creation, data reconciliation, and ad-hoc troubleshooting",
+    "Include a dedicated 'Project Experience' section detailing cloud architectures and data pipeline development"
+  ],
+  "achievementPatterns": [
+    "Built an automated ETL pipeline extracting music streaming data from APIs into Azure Synapse Analytics",
+    "Received an Honourable Mention award in Maven Analytics Challenge for dashboard storytelling and usability",
+    "Maintained reporting continuity across global brand accounts like Nike Southeast Asia Hub",
+    "Automated manual reporting processes across multi-source datasets (SQL, GA4, Salesforce, HubSpot)"
+  ],
+  "skillsPatterns": [
+    "Business Intelligence & Reporting (Power BI PL-300 Certified, DAX, Power Query, Tableau, Looker Studio)",
+    "Data Analytics & Databases (SQL, Data Validation, Data Cleansing, Trend Analysis)",
+    "ETL & Data Engineering (Azure Synapse Analytics, Pipeline Integration, API Integration)",
+    "Marketing & Digital Analytics (GA4, Adobe Analytics, Google Ads)"
+  ],
+  "atsPatterns": [
+    "Extensive Core Competencies section grouped by analytical domain near top",
+    "Explicit bold task headers prefixing experience bullet points",
+    "Dedicated Technical Stack section and reverse-chronological project/experience layout"
+  ],
+  "goodFragments": [
+    "ETL Pipeline Development: Designed and developed an end-to-end ETL pipeline that extracted, transformed, and loaded large-scale music streaming data from Spotify APIs and public web sources into Azure Synapse Analytics.",
+    "Dashboard Reporting & KPI Monitoring: Developed and maintained recurring operational and performance dashboards across website and mobile eCommerce channels using Adobe Analytics, Tableau, and Excel.",
+    "Data Validation & Reporting Accuracy: Performed data validation, reconciliation, and reporting quality checks across multiple datasets to ensure reporting accuracy, consistency, and reliability."
+  ]
+}
