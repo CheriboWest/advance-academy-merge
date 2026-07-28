@@ -7,6 +7,7 @@ import {
   sendConfirmEmail,
   isValidEmail,
 } from '../services/leads.service.js';
+import { createTrialAndSendMagicLink } from '../services/passwordless.service.js';
 
 /**
  * Candidate Acquisition — lead-capture pipe (CA-001).
@@ -43,6 +44,7 @@ interface CaptureBody {
   consentMarketing?: unknown;
   website?: unknown; // honeypot — real users never fill this
   utm?: { source?: unknown; medium?: unknown; campaign?: unknown };
+  ref?: unknown; // referral code of the inviter (P3c)
 }
 
 function str(v: unknown): string | null {
@@ -113,7 +115,20 @@ export async function registerLeadsRoutes(app: FastifyInstance) {
 
       // Only email people who actually opted in to marketing contact.
       if (consentMarketing) {
-        await sendConfirmEmail(body.email as string, optinToken);
+        if (source === 'quiz') {
+          // Quiz funnel (Lan story, steps 3–5): turn the lead into a trial
+          // account and email a magic login link instead of a plain confirm.
+          // Best-effort — the lead is already saved, so a mail/auth hiccup must
+          // never 500 the capture; fall back to the confirm email.
+          try {
+            await createTrialAndSendMagicLink(body.email as string, str(body.name), str(body.ref));
+          } catch (err) {
+            request.log.error(err);
+            await sendConfirmEmail(body.email as string, optinToken);
+          }
+        } else {
+          await sendConfirmEmail(body.email as string, optinToken);
+        }
       }
 
       return reply.code(200).send({ ok: true, leadId });
@@ -161,22 +176,30 @@ export async function registerLeadsRoutes(app: FastifyInstance) {
     if (!isAdminUser(request.userId)) {
       return reply.code(403).send({ code: 'FORBIDDEN', message: 'Admin access required.' });
     }
-    const q = (request.query ?? {}) as { status?: string; source?: string; format?: string; limit?: string };
+    const q = (request.query ?? {}) as {
+      status?: string;
+      source?: string;
+      utm_source?: string;
+      format?: string;
+      limit?: string;
+    };
     try {
       const rows = await listLeads({
         status: q.status,
         source: q.source,
+        utmSource: q.utm_source,
         limit: q.limit ? Number(q.limit) : undefined,
       });
 
       if (q.format === 'csv') {
-        const header = 'id,email,name,source,readiness_score,consent_marketing,double_optin,status,created_at';
+        const header =
+          'id,email,name,source,utm_source,readiness_score,consent_marketing,double_optin,status,created_at';
         const csvCell = (v: unknown) => {
           const s = v === null || v === undefined ? '' : String(v);
           return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
         };
         const lines = rows.map((r) =>
-          [r.id, r.email, r.name, r.source, r.readiness_score, r.consent_marketing, r.double_optin, r.status, r.created_at]
+          [r.id, r.email, r.name, r.source, r.utm_source, r.readiness_score, r.consent_marketing, r.double_optin, r.status, r.created_at]
             .map(csvCell)
             .join(','),
         );

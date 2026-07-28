@@ -24,6 +24,7 @@ const CSV_COLUMNS: (keyof LeadRow)[] = [
   'email',
   'name',
   'source',
+  'utm_source',
   'readiness_score',
   'consent_marketing',
   'double_optin',
@@ -64,10 +65,15 @@ const selectClass =
 export function LeadsTable() {
   const [source, setSource] = useState('')
   const [status, setStatus] = useState('')
+  const [channel, setChannel] = useState('')
 
   const filters = useMemo(
-    () => ({ source: source || undefined, status: status || undefined }),
-    [source, status],
+    () => ({
+      source: source || undefined,
+      status: status || undefined,
+      utmSource: channel.trim() || undefined,
+    }),
+    [source, status, channel],
   )
   const { data, isLoading, isFetching, error, refetch } = useLeads(filters)
 
@@ -106,6 +112,16 @@ export function LeadsTable() {
               </option>
             ))}
           </select>
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Channel (utm_source)
+          <input
+            className={selectClass}
+            value={channel}
+            onChange={(e) => setChannel(e.target.value)}
+            placeholder="e.g. fb_group"
+          />
         </label>
 
         <div className="ml-auto flex items-center gap-2">
@@ -151,6 +167,7 @@ export function LeadsTable() {
                   <TableHead>Email</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Source</TableHead>
+                  <TableHead>Channel</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-center">Consent</TableHead>
                   <TableHead className="text-center">Confirmed</TableHead>
@@ -160,7 +177,7 @@ export function LeadsTable() {
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       No leads match these filters yet.
                     </TableCell>
                   </TableRow>
@@ -170,6 +187,7 @@ export function LeadsTable() {
                       <TableCell className="font-medium">{r.email}</TableCell>
                       <TableCell>{r.name ?? '—'}</TableCell>
                       <TableCell>{r.source}</TableCell>
+                      <TableCell>{r.utm_source ?? '—'}</TableCell>
                       <TableCell>
                         <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
                       </TableCell>
