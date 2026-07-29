@@ -1,0 +1,28 @@
+{
+  "id": "alie-tran-customer-operations",
+  "role": "Customer Support & Operations / Student Services Specialist",
+  "seniority": "Mid-level",
+  "industry": "Higher Education / Operations / Public Sector / Retail",
+  "summaryPatterns": [
+    "Highlights customer-focused problem-solving across higher education, retail, and public sectors",
+    "Emphasizes process optimization and high-volume enquiry resolution",
+    "Mentions key achievements like increasing student retention and resolving operational inefficiencies"
+  ],
+  "experiencePatterns": [
+    "Prepend bullet points with bold operational skill areas (e.g., Customer & Student Support, Case Management & Resolution)",
+    "Combine high-volume service delivery with data accuracy and compliance",
+    "Demonstrate workflow improvements, cross-functional collaboration, and software usage (e.g., StarRez, Excel)",
+    "Focus on student outcomes, issue resolution, and operational visibility"
+  ],
+  "achievementPatterns": [
+    "Delivered front-line support to 50+ students daily across multiple channels",
+    "Increased student retention by 15%",
+    "Reduced stockouts by 20% through Excel sales & inventory analysis",
+    "Developed Excel- and Python-based tools to automate inventory tracking"
+  ],
+  "atsPatterns": [
+    "Categorized Core Skills section prior to work history",
+    "Explicit functional area headers prefixing experience bullet points",
+    "Standard reverse-chronological order and clean text formatting"
+  ]
+}

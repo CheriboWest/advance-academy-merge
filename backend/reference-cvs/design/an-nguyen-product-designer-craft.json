@@ -1,0 +1,28 @@
+{
+  "id": "an-nguyen-product-designer-craft",
+  "role": "Product Designer (UI/UX Craft-Focused)",
+  "seniority": "Mid-level (3+ years experience)",
+  "industry": "Consumer Apps / Enterprise Platforms / IT Services",
+  "summaryPatterns": [
+    "Highlights 3+ years of experience shipping high-fidelity, production-ready digital products",
+    "Emphasizes end-to-end practitioner skills from problem framing to detailed UI, micro-interactions, and launch",
+    "Focuses on design system ownership, close frontend/backend engineering collaboration, and iterative feedback loops"
+  ],
+  "experiencePatterns": [
+    "Prepend bullet points with bold UI/UX craft category headers (e.g., End-to-end product Design, UI & Interaction Craft, Design System Ownership)",
+    "Focus on polished Figma prototypes, component libraries, interaction design, and visual polish",
+    "Emphasize close engineering partnerships, technical feasibility, and reducing UI fragmentation",
+    "Highlight core user journeys, conversion paths, and product adoption metrics"
+  ],
+  "achievementPatterns": [
+    "Owned product design from early concepts through high-fidelity UI for a consumer app with 5,000+ active users",
+    "Built and maintained a lean design system from scratch, reducing one-off UI and improving delivery speed by 20%",
+    "Extended an enterprise design system with 20+ production components for a global IT automation platform",
+    "Shipped Cost Transparency feature increasing conversion by 23% and retention by 18%"
+  ],
+  "atsPatterns": [
+    "Areas of Expertise section tailored specifically toward UI craft and component library design",
+    "Explicit bold task headers prefixing experience bullet points",
+    "Standard text layout optimized for product and UI/UX design ATS parsing"
+  ]
+}

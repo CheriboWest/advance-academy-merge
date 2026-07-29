@@ -1,0 +1,26 @@
+{
+  "id": "harley-tran-data-governance",
+  "role": "Data Governance & Data Platform Intern",
+  "seniority": "Internship / Entry-level",
+  "industry": "Data Governance & Analytics",
+  "summaryPatterns": [
+    "Focuses on metadata management, data cataloging, data quality, and documentation",
+    "Highlights hands-on experience with Python, SQL, Excel, and Power BI",
+    "Emphasizes structured data management and cross-functional communication"
+  ],
+  "experiencePatterns": [
+    "Focus on dataset structuring, cataloging, metadata management, and documentation standards",
+    "Highlight data cleaning, transformation, and dataset organization",
+    "Demonstrate data inventory creation and quality assurance"
+  ],
+  "achievementPatterns": [
+    "Managed metadata and reproducible workflows for Master's thesis",
+    "Created KPI documentation and data inventories across 19 product datasets",
+    "Managed research repositories and source documentation using Zotero"
+  ],
+  "atsPatterns": [
+    "Explicit technical skill focus on governance and cataloging",
+    "Includes research project references detailing reproducible workflows",
+    "Standard reverse-chronological structure"
+  ]
+}

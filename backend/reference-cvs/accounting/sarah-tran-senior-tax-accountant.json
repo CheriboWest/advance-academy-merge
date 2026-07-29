@@ -1,0 +1,29 @@
+{
+  "id": "sarah-tran-senior-tax-accountant",
+  "role": "Senior Tax Accountant - VAT & Corporate Tax",
+  "seniority": "Senior / Experienced (7+ years)",
+  "industry": "Accounting & Professional Services",
+  "summaryPatterns": [
+    "Highlights Part-qualified ACCA status with 7+ years across Big 4 and in-house roles",
+    "Focuses on VAT, corporate tax compliance, and multi-jurisdictional tax reporting",
+    "Emphasizes ERP reconciliations, transfer pricing support, R&D claims, and tax audits",
+    "Mentions advanced technical tools (Excel, Alteryx, Power BI) for process automation"
+  ],
+  "experiencePatterns": [
+    "Begin bullets with strong compliance and accounting verbs",
+    "Highlight end-to-end return preparation, GL reconciliations, and audit coordination",
+    "Focus on tax automation, template design, and risk reduction outcomes",
+    "Quantify compliance precision (100% on-time filing, multimillion-dollar approvals)"
+  ],
+  "achievementPatterns": [
+    "Maintained 100% on-time filing rate for UK VAT returns",
+    "Secured multimillion-dollar VAT refund approvals for multinational clients",
+    "Designed automated VAT reporting templates reducing reconciliation discrepancies",
+    "Passed 9 of 13 ACCA exams"
+  ],
+  "atsPatterns": [
+    "Clear qualifications listed in header (AFA MIPA, Part-Qualified ACCA)",
+    "Categorized Core Competencies split into Tax, Financial Controls, and Systems",
+    "Structured experience entry containing explicit 'Impact' statements"
+  ]
+}

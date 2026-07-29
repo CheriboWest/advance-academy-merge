@@ -1,0 +1,28 @@
+{
+  "id": "queenie-duong-operations-compliance",
+  "role": "Operations & Administration Analyst / Risk & Compliance Specialist",
+  "seniority": "Mid-level / Experienced",
+  "industry": "Financial Services / Customer Operations / Banking / Higher Education",
+  "summaryPatterns": [
+    "Emphasizes business operations, compliance processes, and administrative coordination",
+    "Focuses on risk reviews, documentation control, and high-volume workflow management",
+    "Highlights experience across international marketplaces, retail, banking, and higher education"
+  ],
+  "experiencePatterns": [
+    "Use bold operational headers prior to each bullet point (e.g., Risk Operations & Compliance Management, SLA Management)",
+    "Highlight risk identification, queue management, and audit trail maintenance",
+    "Focus on strict adherence to SOPs, internal controls, and policy interpretation",
+    "Demonstrate SLA achievements and cross-functional policy collaboration"
+  ],
+  "achievementPatterns": [
+    "Exceeded operational SLA targets by 15% through queue prioritization in CRM systems",
+    "Reduced recurring queue bottlenecks by 12% in partnership with global QA and policy teams",
+    "Investigated transaction risks and account anomalies across international marketplaces",
+    "Processed mortgage, loan, and credit applications ensuring compliance and KYC verification"
+  ],
+  "atsPatterns": [
+    "Detailed categorized skills list covering administration, compliance, and systems",
+    "Explicit bold category tags at the beginning of each experience line item",
+    "Clear geographic location, citizenship status, and reverse-chronological order"
+  ]
+}
