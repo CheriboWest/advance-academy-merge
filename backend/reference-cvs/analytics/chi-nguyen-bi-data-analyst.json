@@ -1,0 +1,29 @@
+{
+  "id": "chi-nguyen-bi-data-analyst",
+  "role": "Data & Business Intelligence Analyst",
+  "seniority": "Mid-level (3 years experience)",
+  "industry": "Consulting & Analytics",
+  "summaryPatterns": [
+    "Highlights 3 years of experience delivering insights, reporting, and predictive analytics",
+    "Focuses on SQL, Python, Excel, and Power BI for large dataset analysis",
+    "Mentions KPI analysis, forecasting, predictive modeling, and translating technical outputs for non-technical stakeholders"
+  ],
+  "experiencePatterns": [
+    "Start bullets with analytical action verbs",
+    "Combine statistical/predictive modeling with dashboard visualization",
+    "Quantify metrics across data volume, process speed, and accuracy improvements",
+    "Include a dedicated Project Experience section detailing machine learning and simulation models"
+  ],
+  "achievementPatterns": [
+    "Built Power BI dashboards reducing reporting time by 40% (two days to same-day delivery)",
+    "Analysed 2.4M+ customer transactions using SQL and Python",
+    "Improved marketing targeting efficiency by 25% and demand planning accuracy by 20%",
+    "Developed predictive models with 92.8% accuracy"
+  ],
+  "atsPatterns": [
+    "Standard headings",
+    "Reverse chronological work history",
+    "Detailed Technical Competencies section upfront",
+    "Dedicated Project Experience section outlining data volume and ML accuracy"
+  ]
+}

@@ -3,7 +3,6 @@
   "role": "Product Designer (UI/UX Craft-Focused)",
   "seniority": "Mid-level (3+ years experience)",
   "industry": "Consumer Apps / Enterprise Platforms / IT Services",
-  "sourceCount": 1,
   "summaryPatterns": [
     "Highlights 3+ years of experience shipping high-fidelity, production-ready digital products",
     "Emphasizes end-to-end practitioner skills from problem framing to detailed UI, micro-interactions, and launch",
@@ -21,19 +20,9 @@
     "Extended an enterprise design system with 20+ production components for a global IT automation platform",
     "Shipped Cost Transparency feature increasing conversion by 23% and retention by 18%"
   ],
-  "skillsPatterns": [
-    "Product Design & Craft (High-fidelity UI design, Interaction design & micro-interactions, Advanced Figma prototyping)",
-    "Product Thinking (Core journey design, Adoption paths, Conversion/retention optimisation, Feedback loops)",
-    "Tools & Working Style (Figma, AfterEffects, Agile collaboration, Workshop facilitation)"
-  ],
   "atsPatterns": [
     "Areas of Expertise section tailored specifically toward UI craft and component library design",
     "Explicit bold task headers prefixing experience bullet points",
     "Standard text layout optimized for product and UI/UX design ATS parsing"
-  ],
-  "goodFragments": [
-    "UI & Interaction Craft: Delivered polished, production-ready screens and prototypes in Figma, answering 'how should this feel?' before engineering implementation.",
-    "Design System Ownership: Built and maintained a lean design system from scratch, creating reusable components and interaction patterns that reduced one-off UI and improved delivery speed by 20%.",
-    "Complex Product Workflows: Designed high-fidelity interfaces and interaction flows for a global IT automation platform used by 500+ teams."
   ]
 }

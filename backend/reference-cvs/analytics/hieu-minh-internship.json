@@ -1,0 +1,28 @@
+{
+  "id": "hieu-minh-internship",
+  "role": "Business Analytics Intern",
+  "seniority": "Entry-level / Internship",
+  "industry": "Financial Services / Technology",
+  "summaryPatterns": [
+    "1 paragraph overview highlighting current Master's degree pursuit",
+    "Focuses on data-driven decision making, metrics design, and Power BI dashboarding",
+    "Mentions interest in AI, advanced analytics, and operational efficiency"
+  ],
+  "experiencePatterns": [
+    "Start bullets with strong action verbs",
+    "Focus on technical achievements (Power BI, data modeling, AI use cases)",
+    "Include quantitative impact (e.g., % time saved, ranking improvement)",
+    "Keep bullet points concise and direct"
+  ],
+  "achievementPatterns": [
+    "Reduced reporting time by 30%",
+    "Improved CX performance ranking from #4 to #1",
+    "Managed research across 14M+ users and 13K+ staff",
+    "Awarded fully-funded scholarship and corporate awards"
+  ],
+  "atsPatterns": [
+    "Standard chronological flow: Objective -> Education -> Skills -> Awards -> Work Experience -> Leadership",
+    "Clear role titles with dates and locations",
+    "Standard ATS-friendly plain text formatting"
+  ]
+}

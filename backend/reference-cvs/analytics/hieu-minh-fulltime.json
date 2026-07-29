@@ -3,7 +3,6 @@
   "role": "Business Analyst / Data Analyst",
   "seniority": "Mid-level",
   "industry": "Business Intelligence / Consulting / Finance",
-  "sourceCount": 1,
   "summaryPatterns": [
     "Paragraph format emphasizing 3+ years of professional experience",
     "Highlights end-to-end data pipelines, process optimization, and stakeholder management",
@@ -21,20 +20,9 @@
     "Managed end-to-end data workflows for datasets covering 14M+ users",
     "Evaluated effectiveness across 20+ initiatives for 10K+ employees"
   ],
-  "skillsPatterns": [
-    "Data Visualisation: Power BI, Excel (Advanced), think-cell",
-    "Programming: Python, R, SQL",
-    "Processes: Data cleaning, Data validation, Data pipelines, Reporting automation",
-    "Core Capabilities: KPI design, Dashboard development, Process optimisation"
-  ],
   "atsPatterns": [
     "Structured by skill domain within work experience entries",
     "Dedicated Skills section categorized by domain upfront",
     "Consistent date formats and clear geographic locations"
-  ],
-  "goodFragments": [
-    "Dashboard Development & Reporting Automation: Designed and deployed interactive Power BI dashboards and automated reporting workflows, reducing manual reporting time by 30%.",
-    "KPI Design & Data Modelling: Defined and implemented structured KPIs, reporting logic, and data models by translating business requirements into scalable analytics solutions.",
-    "Stakeholder Collaboration & Business Translation: Worked closely with cross-functional stakeholders to align analytical outputs with business needs."
   ]
 }

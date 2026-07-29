@@ -1,0 +1,26 @@
+{
+  "id": "julie-le-accounts-assistant-multisite",
+  "role": "Accounts Assistant",
+  "seniority": "Mid-level",
+  "industry": "Hospitality & Finance",
+  "summaryPatterns": [
+    "Combines Big 4 audit experience with hands-on multi-site hospitality finance",
+    "Highlights end-to-end AP/AR, payroll, and resolving outsourced payroll discrepancies",
+    "Mentions ACCA Part-qualified status (F1–F4, F7 passed)"
+  ],
+  "experiencePatterns": [
+    "Focus on multi-site cash flow reports, flash reporting, and cost allocations",
+    "Highlight resolving complex outsourced payroll discrepancies for large staff pools",
+    "Demonstrate month-end payment processing through automated tools (Xero, Apron)"
+  ],
+  "achievementPatterns": [
+    "Designed Daily Flash Reports and updated Weekly KPI Reports across restaurant and café sites",
+    "Processed and reconciled payroll for approximately 100 employees, resolving discrepancies",
+    "Maintained weekly cash flow reports across multiple commercial sites"
+  ],
+  "atsPatterns": [
+    "Explicit ACCA Part-qualified badge in profile and education",
+    "Comprehensive fintech tool stack list",
+    "Standard chronological experience layout"
+  ]
+}

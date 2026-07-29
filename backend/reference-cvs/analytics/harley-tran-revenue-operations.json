@@ -1,0 +1,26 @@
+{
+  "id": "harley-tran-revenue-operations",
+  "role": "Revenue Operations Analyst",
+  "seniority": "Entry-level / Mid-level",
+  "industry": "Technology & Commercial Analytics",
+  "summaryPatterns": [
+    "Focuses on improving reporting accuracy, commercial performance analysis, and decision support",
+    "Highlights forecasting, KPI development, pricing analysis, and financial modeling",
+    "Expresses specific alignment with Revenue Operations (RevOps) and scalable reporting"
+  ],
+  "experiencePatterns": [
+    "Highlight market and pricing analysis across product lines",
+    "Demonstrate commercial reporting visibility and data governance improvements",
+    "Incorporate pricing and promotion performance analysis using panel-data techniques"
+  ],
+  "achievementPatterns": [
+    "Conducted market and pricing analysis across 19 medical products",
+    "Built standardized Excel databases and Power BI dashboards to enhance RevOps visibility",
+    "Evaluated pricing and promotion performance using regression and panel-data techniques"
+  ],
+  "atsPatterns": [
+    "GitHub Portfolio link in header",
+    "Skills block tailored toward commercial and revenue analytics",
+    "Standard chronological layout"
+  ]
+}

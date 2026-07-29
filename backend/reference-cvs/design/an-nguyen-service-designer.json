@@ -3,7 +3,6 @@
   "role": "Service & Product Designer (UX Strategy & Systems)",
   "seniority": "Mid-level (3+ years experience)",
   "industry": "Regulated Banking / Enterprise Platforms / IT Consulting / Startups",
-  "sourceCount": 1,
   "summaryPatterns": [
     "Highlights 3+ years' experience designing end-to-end services across regulated banking and enterprise platforms",
     "Emphasizes mapping complex as-is services, visualizing workflows, and transitioning to scalable to-be experiences",
@@ -21,19 +20,9 @@
     "Designed operational workflows supporting 500+ global teams within a regulated enterprise IT platform",
     "Established a lightweight design system and service patterns, improving delivery speed by 20%"
   ],
-  "skillsPatterns": [
-    "Service Design & Research (Service mapping, As-is/To-be journey mapping, Generative/evaluative research, Contextual inquiry)",
-    "Experience & Product Design (Information architecture, Interaction design, Design systems & service patterns)",
-    "Tools & Working Style (Figma, AfterEffects, Agile, Workshop facilitation, Design storytelling)"
-  ],
   "atsPatterns": [
     "Areas of Expertise section located below experience focusing on service mapping methodologies",
     "Bold competency tags prefixing experience bullet points",
     "Clean reverse-chronological layout emphasizing service delivery outcomes"
-  ],
-  "goodFragments": [
-    "Regulated Service Design: Redesigned three core banking services (money transfer, eKYC, savings), aligning user needs with regulatory, compliance, and operational constraints.",
-    "Service Mapping: Conducted as-is journey mapping and to-be service definition, identifying friction points across onboarding, pricing, and plan selection.",
-    "Outcome Delivery: Designed and shipped a Cost Transparency service feature in 8 weeks, improving conversion by 23% and retention by 18%."
   ]
 }

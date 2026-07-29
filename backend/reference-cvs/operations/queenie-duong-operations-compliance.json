@@ -3,7 +3,6 @@
   "role": "Operations & Administration Analyst / Risk & Compliance Specialist",
   "seniority": "Mid-level / Experienced",
   "industry": "Financial Services / Customer Operations / Banking / Higher Education",
-  "sourceCount": 1,
   "summaryPatterns": [
     "Emphasizes business operations, compliance processes, and administrative coordination",
     "Focuses on risk reviews, documentation control, and high-volume workflow management",
@@ -21,20 +20,9 @@
     "Investigated transaction risks and account anomalies across international marketplaces",
     "Processed mortgage, loan, and credit applications ensuring compliance and KYC verification"
   ],
-  "skillsPatterns": [
-    "Operations & Administrative Support (Records Management, Workflow Management)",
-    "Compliance & Quality Operations (Risk Review, SOP Adherence, Audit Trail Maintenance, Due Diligence)",
-    "Customer & Stakeholder Support (Escalation Handling, Query Resolution)",
-    "Systems & Technical Skills (CRM Systems, Ticketing Systems, MS Excel, Database Management)"
-  ],
   "atsPatterns": [
     "Detailed categorized skills list covering administration, compliance, and systems",
     "Explicit bold category tags at the beginning of each experience line item",
     "Clear geographic location, citizenship status, and reverse-chronological order"
-  ],
-  "goodFragments": [
-    "SLA Management & Escalation Handling: Exceeded operational SLA targets by 15% through the prioritisation and resolution of complex escalation queues within CRM and ticketing systems.",
-    "Process Improvement & Cross-Functional Collaboration: Partnered with global policy, operations, and QA teams to analyse risk trends, streamline operational workflows, and reduce recurring queue bottlenecks by 12%.",
-    "Risk Operations & Compliance Management: Investigated high-volume account anomalies, transaction risks, and fraud patterns across international marketplaces, mitigating compliance breaches."
   ]
 }

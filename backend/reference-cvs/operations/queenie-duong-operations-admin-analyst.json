@@ -1,0 +1,26 @@
+{
+  "id": "queenie-duong-operations-admin-analyst",
+  "role": "Operations & Administration Analyst",
+  "seniority": "Mid-level",
+  "industry": "Financial Services & Operations",
+  "summaryPatterns": [
+    "Highlights experience across financial services, customer operations, retail, and education",
+    "Focuses on workflow management, records management, compliance, and CRM systems",
+    "Emphasizes administrative coordination and stakeholder communication"
+  ],
+  "experiencePatterns": [
+    "Highlight transaction risk investigations, account anomaly detection, and fraud pattern tracking",
+    "Demonstrate SLA target exceedance and queue bottleneck reduction",
+    "Incorporate banking application processing (mortgages, loans) and KYC/due diligence support"
+  ],
+  "achievementPatterns": [
+    "Exceeded operational SLA targets by 15% within CRM/ticketing systems",
+    "Reduced recurring queue bottlenecks by 12% in partnership with global policy and QA teams",
+    "Processed mortgage, loan, credit, and CASA applications at Standard Chartered Bank"
+  ],
+  "atsPatterns": [
+    "Categorized Core Skills section placed upfront",
+    "Reverse chronological work history across international banking, consulting, and education",
+    "Clean plain-text formatting without graphics"
+  ]
+}

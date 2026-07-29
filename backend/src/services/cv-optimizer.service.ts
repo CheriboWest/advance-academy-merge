@@ -739,10 +739,12 @@ export async function buildLlmAnalysis(body: AnalyzeCvRequest): Promise<AnalyzeC
   const anthropic = createAnthropicClient('cvOptimizer');
   const model = getFeatureModel('cvOptimizer');
 
-  // Few-shot references (hardcoded library — no RAG, no retrieval). Never throws:
-  // getReferenceExamples() falls back to a generic ATS reference when no role
-  // matches, and formatReferencePatterns() emits only the four pattern fields.
-  const referenceExamples = getReferenceExamples(body.targetRole);
+  // Few-shot references (hardcoded role-family library — no RAG, no retrieval).
+  // Never throws: getReferenceExamples() returns up to 3 relevance-ordered
+  // references (the CV drives seniority-aware ranking) or a generic ATS
+  // reference when no family matches; formatReferencePatterns() emits only the
+  // four pattern fields.
+  const referenceExamples = getReferenceExamples(body.targetRole, body.currentCvText);
   const referencePatterns = formatReferencePatterns(referenceExamples);
 
   const userPrompt = [

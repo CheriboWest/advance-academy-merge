@@ -3,7 +3,6 @@
   "role": "Paid Social & Performance Marketing Specialist",
   "seniority": "Mid-level / Senior (5+ years experience)",
   "industry": "E-commerce / Retail / Higher Education / Digital Agency",
-  "sourceCount": 2,
   "summaryPatterns": [
     "Highlights 5+ years of experience planning, launching, and optimizing multi-channel paid ad campaigns",
     "Explicitly names advertising channels (LinkedIn, Meta, TikTok, YouTube, Google Ads)",
@@ -21,20 +20,9 @@
     "Scaled TikTok channel from launch to 115k+ followers and 25M+ video views in 3.5 months",
     "Increased email open rates by 48% and doubled click-through rates via Mailchimp workflows"
   ],
-  "skillsPatterns": [
-    "Paid Social & Performance Marketing (Meta Ads Manager, LinkedIn Campaign Manager, TikTok Ads, Google Ads)",
-    "Marketing Analytics & Reporting (GA4, Looker Studio, UTM Tracking, Conversion Tracking)",
-    "Email Marketing & Automation (Mailchimp, Workflow Segmentation)",
-    "Platforms & Creative Tools (Canva, Adobe Creative Suite, CapCut, ChatGPT, Predis.ai)"
-  ],
   "atsPatterns": [
     "Includes portfolio links and professional certifications (Google Analytics, HubSpot SEO)",
     "Categorized Core Skills matrix covering marketing platforms, analytics, and software",
     "Standard reverse-chronological structure separating main professional experience from secondary activities"
-  ],
-  "goodFragments": [
-    "ROAS Optimisation & Ecommerce Growth: Delivered 4-8x ROAS across key digital campaigns, increasing website traffic by 80% and driving 42% ecommerce sales growth through continuous campaign optimisation.",
-    "Revenue Growth & ROAS Optimisation: Delivered 15x ROAS through audience targeting, campaign optimisation, creative testing, and conversion-focused advertising strategies during peak festive periods.",
-    "TikTok Growth Strategy: Established and scaled Decathlon Vietnam's TikTok channels from launch to over 115k followers and 25M+ video views within 3.5 months through platform-native content strategies."
   ]
 }
