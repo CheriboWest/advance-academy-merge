@@ -8,6 +8,7 @@ import {
   isValidEmail,
 } from '../services/leads.service.js';
 import { createTrialAndSendMagicLink } from '../services/passwordless.service.js';
+import { isAdminUser } from '../lib/admin.js';
 
 /**
  * Candidate Acquisition — lead-capture pipe (CA-001).
@@ -49,22 +50,6 @@ interface CaptureBody {
 
 function str(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
-}
-
-/**
- * Admin allowlist for the lead-list endpoint. `candidate_leads` holds personal
- * data (emails, phone numbers), so the global "is authenticated" gate is not
- * enough — any logged-in student would otherwise read every lead. We restrict to
- * an explicit set of Supabase user IDs from `ADMIN_USER_IDS` (comma-separated).
- * Empty/unset => nobody is admin (fail closed).
- */
-function isAdminUser(userId: string | undefined): boolean {
-  if (!userId) return false;
-  const allow = (process.env.ADMIN_USER_IDS ?? '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return allow.includes(userId);
 }
 
 export async function registerLeadsRoutes(app: FastifyInstance) {
@@ -171,9 +156,10 @@ export async function registerLeadsRoutes(app: FastifyInstance) {
 
   // ── GET /api/leads (admin only) ───────────────────────────────────────────
   // The global preHandler already guarantees the caller is authenticated and set
-  // request.userId; here we further require membership in ADMIN_USER_IDS.
+  // request.userId; here we further require admin rights (users.is_admin or the
+  // ADMIN_USER_IDS allowlist — see lib/admin.ts).
   app.get('/api/leads', async (request, reply) => {
-    if (!isAdminUser(request.userId)) {
+    if (!(await isAdminUser(request.userId))) {
       return reply.code(403).send({ code: 'FORBIDDEN', message: 'Admin access required.' });
     }
     const q = (request.query ?? {}) as {
