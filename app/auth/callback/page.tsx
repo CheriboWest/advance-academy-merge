@@ -23,8 +23,8 @@ export default function AuthCallbackPage() {
     }
     if (session) {
       // Referral crediting now happens on the invitee's FIRST TOOL USE (see
-      // trial-quota.ts), not here — logging in alone doesn't earn the inviter a
-      // credit. So just enter the app.
+      // backend lib/credits.ts), not here — logging in alone doesn't earn the
+      // inviter a credit. So just enter the app.
       router.replace('/')
       return
     }

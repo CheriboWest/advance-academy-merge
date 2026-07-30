@@ -489,6 +489,32 @@ function SetupStep({
           value={context.extraLinks}
           onChange={(next) => updateContext({ extraLinks: next })}
         />
+
+        <div>
+          <label className="block text-sm font-semibold text-blue-900 mb-2">
+            Preferred questions <span className="text-gray-400 font-normal">(optional)</span>
+          </label>
+          <textarea
+            rows={4}
+            value={(context.questionBank ?? []).join('\n')}
+            onChange={(e) =>
+              updateContext({
+                // One question per line. Blank lines are dropped, and an empty box
+                // means "no bank" — the interviewer then behaves exactly as before.
+                questionBank: e.target.value
+                  .split('\n')
+                  .map((line) => line.trim())
+                  .filter(Boolean),
+              })
+            }
+            placeholder={'One question per line, e.g.\nWalk me through the payments migration you led.\nHow do you decide what not to build?'}
+            className="w-full p-3 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            The interviewer asks these first, rephrased in their own voice, while still
+            following up on your answers. Leave empty for the usual behaviour.
+          </p>
+        </div>
       </div>
 
       <div className="lg:col-span-2 flex justify-end">

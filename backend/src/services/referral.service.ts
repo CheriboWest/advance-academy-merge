@@ -2,17 +2,23 @@ import { randomBytes } from 'node:crypto';
 import { getSupabase } from '../lib/supabase.js';
 
 /**
- * Referral loop (CA-001, ticket P3c).
+ * Referral loop (CA-001 ticket P3c; wallet model from migration 015).
  *
- * Each successful referral (an invitee who ACTIVATES — signs in via their magic
- * link) grants the inviter +2 Dream Company credits, capped at 3 referrals. The
- * grant is credited from the invitee's own authenticated activation call, so a
- * fake email that never logs in never pays out. Self-referrals are ignored.
+ * Each successful referral (an invitee who ACTIVATES — signs in AND spends
+ * credits on a tool at least once) grants the inviter +2 credits, capped at 3
+ * referrals. The grant is triggered from the invitee's own authenticated run, so
+ * a fake email that never logs in never pays out. Self-referrals are ignored.
+ *
+ * Rewards land in the shared wallet (`users.credit_balance`) — before 015 they
+ * topped up `trial_usage.bonus_count` for Dream Company only. The loop stays
+ * available to membership accounts too, not just trial.
+ *
+ * Deliberately does NOT import from lib/credits.ts: credits.ts calls
+ * `creditReferralOnActivation`, so importing back would close a cycle.
  */
 
 const MAX_REFERRALS = 3;
 const CREDITS_PER_REFERRAL = 2;
-const REFERRAL_TOOL = 'dream'; // referral rewards top up Dream Company
 
 export interface ReferralStatus {
   code: string;
@@ -102,22 +108,18 @@ export async function creditReferralOnActivation(inviteeId: string): Promise<voi
   const supabase = getSupabase();
   const { data: invitee } = await supabase
     .from('users')
-    .select('referred_by, referral_credited')
+    .select('referred_by, referral_credited, first_tool_used_at')
     .eq('id', inviteeId)
     .maybeSingle();
 
   const inviterId = invitee?.referred_by as string | null | undefined;
   if (!inviterId || invitee?.referral_credited || inviterId === inviteeId) return;
 
-  // Activation = login + used at least one tool. Require a real tool use before
-  // paying the inviter, so a friend who only clicks the link (or a fake email
-  // that logs in but never uses anything) never earns credit.
-  const { data: usageRows } = await supabase
-    .from('trial_usage')
-    .select('used_count')
-    .eq('user_id', inviteeId);
-  const usedAnyTool = (usageRows ?? []).some((r) => ((r.used_count as number) ?? 0) > 0);
-  if (!usedAnyTool) return;
+  // Activation = login + spent credits on a tool at least once. Require a real
+  // run before paying the inviter, so a friend who only clicks the link (or a
+  // fake email that logs in but never uses anything) never earns credit.
+  // `first_tool_used_at` is stamped by spendCredits (lib/credits.ts).
+  if (!invitee?.first_tool_used_at) return;
 
   // Claim the credit atomically-ish: flip false→true and require it was false.
   const { data: marked } = await supabase
@@ -139,17 +141,12 @@ export async function creditReferralOnActivation(inviteeId: string): Promise<voi
 
   await supabase.from('users').update({ referral_count: count + 1 }).eq('id', inviterId);
 
-  const { data: usage } = await supabase
-    .from('trial_usage')
-    .select('bonus_count')
-    .eq('user_id', inviterId)
-    .eq('tool', REFERRAL_TOOL)
+  // Pay the reward into the inviter's shared wallet.
+  const { data: inviterWallet } = await supabase
+    .from('users')
+    .select('credit_balance')
+    .eq('id', inviterId)
     .maybeSingle();
-  const nextBonus = ((usage?.bonus_count as number) ?? 0) + CREDITS_PER_REFERRAL;
-  await supabase
-    .from('trial_usage')
-    .upsert(
-      { user_id: inviterId, tool: REFERRAL_TOOL, bonus_count: nextBonus, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,tool' },
-    );
+  const nextBalance = ((inviterWallet?.credit_balance as number) ?? 0) + CREDITS_PER_REFERRAL;
+  await supabase.from('users').update({ credit_balance: nextBalance }).eq('id', inviterId);
 }

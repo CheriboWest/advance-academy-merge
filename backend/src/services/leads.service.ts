@@ -141,6 +141,33 @@ export interface LeadRow {
   double_optin: boolean;
   status: string;
   created_at: string;
+  /** True when an account exists with this email — i.e. the lead converted. */
+  has_account: boolean;
+}
+
+/**
+ * Mark which of `emails` already own an account, matched case-insensitively.
+ *
+ * One extra query for the whole page rather than one per row. Supabase has no
+ * case-insensitive `in`, so we lower-case both sides in JS: lead emails are
+ * normalised on capture, but accounts created outside the funnel may not be.
+ */
+async function emailsWithAccounts(emails: string[]): Promise<Set<string>> {
+  const wanted = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  if (wanted.length === 0) return new Set();
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from('users').select('email').in('email', wanted);
+  if (error) {
+    // Non-fatal: the lead list is still useful without the conversion column.
+    console.error('[leads] account lookup failed:', error);
+    return new Set();
+  }
+  return new Set(
+    (data ?? [])
+      .map((r) => (r.email as string | null)?.trim().toLowerCase())
+      .filter((e): e is string => Boolean(e)),
+  );
 }
 
 /** Admin list (auth-gated in the route). Newest first, capped. */
@@ -159,7 +186,10 @@ export async function listLeads(
   if (opts.utmSource) q = q.eq('utm_source', opts.utmSource);
   const { data, error } = await q;
   if (error) throw Object.assign(new Error('List failed'), { statusCode: 500, cause: error });
-  return (data ?? []) as LeadRow[];
+
+  const rows = (data ?? []) as Omit<LeadRow, 'has_account'>[];
+  const converted = await emailsWithAccounts(rows.map((r) => r.email));
+  return rows.map((r) => ({ ...r, has_account: converted.has(r.email?.trim().toLowerCase()) }));
 }
 
 /**
