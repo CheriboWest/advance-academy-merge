@@ -8,7 +8,7 @@ import { HomeScreen } from '@/features/home/components/home-screen'
 import { OutreachScreen } from '@/features/outreach/components/outreach-screen'
 import { CvOptimizerScreen } from '@/features/cv-optimizer/components/cv-optimizer-screen'
 import { InterviewPrepScreen } from '@/features/interview-prep/components/interview-prep-screen'
-import { InterviewHistoryScreen } from '@/features/interview-prep/components/interview-history-screen'
+import { HistoryScreen } from '@/features/tool-history/components/history-screen'
 import { DreamCompanyScreen } from '@/features/dream-company/components/dream-company-screen'
 import { CvLibraryScreen } from '@/features/cv-library/components/cv-library-screen'
 import { useAuth } from '@/features/auth/context/AuthContext'
@@ -62,7 +62,7 @@ export function HomePageContent() {
       {currentView === 'interview' && (
         <InterviewPrepScreen onNavigate={handleNavigate} />
       )}
-      {currentView === 'history' && <InterviewHistoryScreen />}
+      {currentView === 'history' && <HistoryScreen />}
       {currentView === 'companies' && (
         <DreamCompanyScreen />
       )}

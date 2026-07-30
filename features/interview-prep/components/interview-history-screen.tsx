@@ -122,10 +122,12 @@ function ListView({
   return (
     <>
       <div className="mb-8">
-        <h1 className="text-4xl font-serif font-bold text-blue-900 mb-2 flex items-center gap-3">
+        {/* h2, not h1: this screen now renders inside the History page, which
+            owns the page-level heading. */}
+        <h2 className="text-4xl font-serif font-bold text-blue-900 mb-2 flex items-center gap-3">
           <History className="w-9 h-9 text-yellow-500" />
           Interview History
-        </h1>
+        </h2>
         <p className="text-gray-600 text-lg">
           Review your past mock interviews and feedback reports.
         </p>
