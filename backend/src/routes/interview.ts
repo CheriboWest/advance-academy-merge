@@ -14,6 +14,7 @@ import type {
 } from '../types/interview-prep.js';
 import { perUserDaily } from '../lib/rate-limit.js';
 import { assertCredits, spendCredits, requireMembership } from '../lib/credits.js';
+import { recordToolResult } from '../services/tool-results.service.js';
 
 const ALLOWED_AUDIO_EXTENSIONS = ['.webm', '.mp3', '.wav', '.m4a', '.ogg', '.mp4', '.mpeg', '.mpga'];
 
@@ -74,7 +75,14 @@ export async function registerInterviewRoutes(app: FastifyInstance) {
 
   app.post<{ Body: EvaluateSessionBody }>('/api/evaluate', async (request, reply) => {
     try {
-      return await evaluateInterview(request.body);
+      const evaluation = await evaluateInterview(request.body);
+      // The feedback report is the session's finished output — store it so the
+      // user can reread it from History without re-running the evaluation.
+      // Best-effort: a failed write never fails the evaluation.
+      const context = request.body?.session?.context;
+      const label = [context?.jobTitle, context?.companyName].filter(Boolean).join(' · ');
+      await recordToolResult(request.userId, 'interview', label || 'Interview Lab', evaluation);
+      return evaluation;
     } catch (error) {
       const code = statusOf(error);
       const message = error instanceof Error ? error.message : 'Internal error';
