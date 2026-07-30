@@ -21,6 +21,8 @@ import { registerCoachAnswerRoutes } from './routes/coach-answer.js';
 import { registerInterviewRoutes } from './routes/interview.js';
 import { registerCoachUnderstandingRoutes } from './routes/coach-understanding.js';
 import { registerLeadsRoutes } from './routes/leads.js';
+import { registerAuthRoutes } from './routes/auth.js';
+import { registerReferralRoutes } from './routes/referral.js';
 
 function loadBackendEnvFile() {
   const candidates = [
@@ -73,6 +75,7 @@ async function bootstrap() {
       '/api/leads/capture',
       '/api/leads/confirm',
       '/api/leads/unsubscribe',
+      '/api/auth/passwordless',
     ];
     if (skipPaths.some((p) => request.url.startsWith(p))) return;
 
@@ -97,6 +100,8 @@ async function bootstrap() {
   await registerInterviewRoutes(app);
   await registerCoachUnderstandingRoutes(app);
   await registerLeadsRoutes(app);
+  await registerAuthRoutes(app);
+  await registerReferralRoutes(app);
 
   await app.listen({
     port,

@@ -13,6 +13,7 @@ import type {
   EvaluateSessionBody,
 } from '../types/interview-prep.js';
 import { perUserDaily } from '../lib/rate-limit.js';
+import { assertTrialQuota, incrementTrialUsage } from '../lib/trial-quota.js';
 
 const ALLOWED_AUDIO_EXTENSIONS = ['.webm', '.mp3', '.wav', '.m4a', '.ogg', '.mp4', '.mpeg', '.mpga'];
 
@@ -40,7 +41,12 @@ export async function registerInterviewRoutes(app: FastifyInstance) {
     const body = request.body as (StartSessionBody | SendMessageBody) & { action?: string };
     try {
       if (body?.action === 'start') {
-        return await startInterviewSession(body as StartSessionBody, request.userId);
+        // Trial lifetime quota (no-op for tier='student'). Only the session start
+        // counts; per-turn 'message' calls are part of the started session.
+        await assertTrialQuota(request.userId, 'interview');
+        const session = await startInterviewSession(body as StartSessionBody, request.userId);
+        await incrementTrialUsage(request.userId, 'interview');
+        return session;
       }
       if (body?.action === 'message') {
         return await sendInterviewMessage(body as SendMessageBody);
@@ -50,6 +56,12 @@ export async function registerInterviewRoutes(app: FastifyInstance) {
       const code = statusOf(error);
       const message = error instanceof Error ? error.message : 'Internal error';
       request.log.error(error);
+      // 429 = trial limit reached. The interview FE reads `message` from a 429,
+      // so include it alongside the existing `error` field.
+      if (code === 429) {
+        const e = error as { code?: string; scope?: string };
+        return reply.code(429).send({ code: e.code ?? 'TRIAL_LIMIT_REACHED', message, error: message, scope: e.scope });
+      }
       return reply.code(code).send({ error: message });
     }
   });

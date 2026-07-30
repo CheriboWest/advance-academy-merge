@@ -10,6 +10,7 @@ export async function listLeads(filters: LeadsFilters = {}): Promise<LeadsListRe
   const qs = new URLSearchParams()
   if (filters.status) qs.set('status', filters.status)
   if (filters.source) qs.set('source', filters.source)
+  if (filters.utmSource) qs.set('utm_source', filters.utmSource)
   if (filters.limit) qs.set('limit', String(filters.limit))
   const suffix = qs.toString() ? `?${qs.toString()}` : ''
 

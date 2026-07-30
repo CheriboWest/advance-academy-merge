@@ -15,6 +15,7 @@ export async function GET(request: Request) {
       {
         status: params.get('status') ?? undefined,
         source: params.get('source') ?? undefined,
+        utmSource: params.get('utm_source') ?? undefined,
         limit: limitRaw ? Number(limitRaw) : undefined,
       },
       authToken,

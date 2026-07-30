@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getSupabase } from '../lib/supabase.js';
+import { sendEmail, isEmailSendingEnabled } from '../lib/email.js';
 
 /**
  * Candidate-acquisition lead-capture pipe (CA-001).
@@ -134,6 +135,7 @@ export interface LeadRow {
   email: string;
   name: string | null;
   source: string;
+  utm_source: string | null;
   readiness_score: number | null;
   consent_marketing: boolean;
   double_optin: boolean;
@@ -142,34 +144,85 @@ export interface LeadRow {
 }
 
 /** Admin list (auth-gated in the route). Newest first, capped. */
-export async function listLeads(opts: { status?: string; source?: string; limit?: number } = {}): Promise<LeadRow[]> {
+export async function listLeads(
+  opts: { status?: string; source?: string; utmSource?: string; limit?: number } = {},
+): Promise<LeadRow[]> {
   const supabase = getSupabase();
   let q = supabase
     .from(TABLE)
-    .select('id, email, name, source, readiness_score, consent_marketing, double_optin, status, created_at')
+    .select('id, email, name, source, utm_source, readiness_score, consent_marketing, double_optin, status, created_at')
     .order('created_at', { ascending: false })
     .limit(Math.min(opts.limit ?? 500, 2000));
   if (opts.status) q = q.eq('status', opts.status);
   if (opts.source) q = q.eq('source', opts.source);
+  // P3a: filter by acquisition channel (utm_source, e.g. 'fb_group', 'share').
+  if (opts.utmSource) q = q.eq('utm_source', opts.utmSource);
   const { data, error } = await q;
   if (error) throw Object.assign(new Error('List failed'), { statusCode: 500, cause: error });
   return (data ?? []) as LeadRow[];
 }
 
 /**
- * Send the double-opt-in confirmation email.
+ * Send the double-opt-in confirmation email (CA-001, Bước 5).
  *
- * Bước 5 wires a real provider (Resend / Google SMTP). Until EMAIL_API_KEY is set
- * we log the link so the whole pipe is testable end-to-end without a provider.
+ * When EMAIL_API_KEY is set we send a real email via Resend (see lib/email.ts).
+ * When it's unset we log the link instead, so the whole pipe stays testable
+ * end-to-end without a provider. Best-effort: sending failures are logged, never
+ * thrown, so the lead-capture request that triggered this can't 500 on a mail
+ * hiccup (the lead is already saved by the time we get here).
  */
 export async function sendConfirmEmail(email: string, token: string): Promise<void> {
   const base = (process.env.APP_BASE_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
   const confirmUrl = `${base}/api/leads/confirm?token=${encodeURIComponent(token)}`;
 
-  if (!process.env.EMAIL_API_KEY?.trim()) {
+  if (!isEmailSendingEnabled()) {
     console.log(`[leads] (no EMAIL_API_KEY) confirm link for ${email}: ${confirmUrl}`);
     return;
   }
-  // TODO (Bước 5): call the transactional email provider here.
-  console.log(`[leads] TODO send confirm email to ${email}: ${confirmUrl}`);
+
+  const result = await sendEmail({
+    to: email,
+    subject: 'Please confirm your email — Advance Academy',
+    html: buildConfirmEmailHtml(confirmUrl),
+  });
+
+  if (result.ok) {
+    console.log(`[leads] confirm email sent to ${email} (id=${result.id ?? 'n/a'})`);
+  } else {
+    console.error(`[leads] confirm email FAILED for ${email}: ${result.error}`);
+  }
+}
+
+/** Minimal, inline-styled HTML for the double-opt-in confirmation email. */
+function buildConfirmEmailHtml(confirmUrl: string): string {
+  return `<!doctype html>
+<html>
+  <body style="margin:0;background:#f6f7f9;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;padding:32px;">
+            <tr><td style="font-size:20px;font-weight:bold;padding-bottom:12px;">Confirm your email</td></tr>
+            <tr><td style="font-size:14px;line-height:22px;color:#444;padding-bottom:24px;">
+              Thanks for your interest in Advance Academy. Please confirm you'd like to
+              receive career tips and updates from us by clicking the button below.
+            </td></tr>
+            <tr><td style="padding-bottom:24px;">
+              <a href="${confirmUrl}" style="display:inline-block;background:#c9a84c;color:#1a1a1a;text-decoration:none;font-weight:bold;padding:12px 24px;border-radius:8px;">
+                Confirm my email
+              </a>
+            </td></tr>
+            <tr><td style="font-size:12px;line-height:18px;color:#888;">
+              If the button doesn't work, copy this link into your browser:<br>
+              <a href="${confirmUrl}" style="color:#888;">${confirmUrl}</a>
+            </td></tr>
+            <tr><td style="font-size:12px;line-height:18px;color:#aaa;padding-top:24px;">
+              If you didn't request this, you can safely ignore this email.
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
 }

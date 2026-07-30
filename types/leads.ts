@@ -6,6 +6,7 @@ export interface LeadRow {
   email: string
   name: string | null
   source: string
+  utm_source: string | null
   readiness_score: number | null
   consent_marketing: boolean
   double_optin: boolean
@@ -21,5 +22,6 @@ export interface LeadsListResponse {
 export interface LeadsFilters {
   status?: string
   source?: string
+  utmSource?: string
   limit?: number
 }
