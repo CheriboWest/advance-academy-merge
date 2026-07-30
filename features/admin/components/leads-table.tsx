@@ -30,6 +30,7 @@ const CSV_COLUMNS: (keyof LeadRow)[] = [
   'double_optin',
   'status',
   'created_at',
+  'has_account',
 ]
 
 function csvCell(v: unknown): string {
@@ -79,6 +80,12 @@ export function LeadsTable() {
 
   const rows = data?.leads ?? []
   const forbidden = error instanceof HttpClientError && error.status === 403
+
+  // Funnel conversion for the rows currently on screen: how many of these leads
+  // went on to create an account. Reflects the active filters, so it answers
+  // "how well does THIS channel convert?", not just the overall rate.
+  const converted = rows.filter((r) => r.has_account).length
+  const conversionPct = rows.length > 0 ? Math.round((converted / rows.length) * 100) : 0
 
   return (
     <div className="space-y-4">
@@ -158,6 +165,14 @@ export function LeadsTable() {
         <>
           <p className="text-sm text-muted-foreground">
             {rows.length} lead{rows.length === 1 ? '' : 's'}
+            {rows.length > 0 ? (
+              <>
+                {' · '}
+                <span className="font-medium text-foreground">
+                  {converted} signed up ({conversionPct}%)
+                </span>
+              </>
+            ) : null}
             {isFetching ? ' · updating…' : ''}
           </p>
           <div className="overflow-x-auto rounded-md border">
@@ -171,13 +186,14 @@ export function LeadsTable() {
                   <TableHead>Status</TableHead>
                   <TableHead className="text-center">Consent</TableHead>
                   <TableHead className="text-center">Confirmed</TableHead>
+                  <TableHead className="text-center">Account</TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                       No leads match these filters yet.
                     </TableCell>
                   </TableRow>
@@ -193,6 +209,13 @@ export function LeadsTable() {
                       </TableCell>
                       <TableCell className="text-center">{r.consent_marketing ? '✓' : '—'}</TableCell>
                       <TableCell className="text-center">{r.double_optin ? '✓' : '—'}</TableCell>
+                      <TableCell className="text-center">
+                        {r.has_account ? (
+                          <Badge variant="default">signed up</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {new Date(r.created_at).toLocaleString()}
                       </TableCell>

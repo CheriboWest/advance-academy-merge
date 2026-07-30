@@ -12,6 +12,8 @@ export interface LeadRow {
   double_optin: boolean
   status: string
   created_at: string
+  /** True when an account exists with this email — i.e. the lead converted. */
+  has_account: boolean
 }
 
 export interface LeadsListResponse {
