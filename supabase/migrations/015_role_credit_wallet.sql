@@ -15,12 +15,15 @@
 --  Prices (env-tunable, see backend/src/lib/credits.ts):
 --    CV Optimiser 1 · Dream Company 2 · Interview Lab 1
 --
---  MIGRATION SAFETY — nobody loses access:
+--  EXISTING ACCOUNTS ALL START AS TRIAL:
 --  `tier` defaulted to 'student' in 013 (fail-open for every pre-existing
---  classroom account). Those rows become 'membership' here, which keeps their
---  tool access and ADDS Interview Lab. They do move from "uncapped" to "20
---  credits" — that is the intended product decision, and CREDIT_GRANT_MEMBERSHIP
---  below is the knob if it needs raising.
+--  account). Those rows become 'trial' with the standard 2 credits — the same
+--  starting point as a brand-new signup. Membership is granted deliberately, one
+--  account at a time, from /admin/users. Nobody is pre-approved.
+--
+--  This means every current account moves from "uncapped" to 2 credits and loses
+--  Interview Lab until an admin upgrades them. That is the intended product
+--  decision; upgrade the real students from /admin/users right after running this.
 --
 --  `trial_usage` (013) is KEPT but becomes legacy history: nothing writes to it
 --  after this migration. Its only remaining job — "has this user actually used a
@@ -37,11 +40,11 @@ alter table public.users
   -- are only paid out once the invitee reaches this point.
   add column if not exists first_tool_used_at timestamptz;
 
--- 2) Widen the tier vocabulary: 'student' (013's fail-open default) retires in
---    favour of 'membership'. Drop the old constraint first so the UPDATE can run.
+-- 2) Retire 'student' (013's fail-open default): every existing account becomes
+--    a trial account. Drop the old constraint first so the UPDATE can run.
 alter table public.users drop constraint if exists users_tier_check;
 
-update public.users set tier = 'membership' where tier = 'student';
+update public.users set tier = 'trial' where tier = 'student';
 
 alter table public.users
   add constraint users_tier_check check (tier in ('trial', 'membership'));
@@ -51,9 +54,10 @@ alter table public.users
 -- 'trial' explicitly — this default covers every other signup path.)
 alter table public.users alter column tier set default 'trial';
 
--- 3) Seed balances. Column default already gave everyone 2; top membership up.
---    Keep this in sync with CREDIT_GRANT_MEMBERSHIP in backend/.env.
-update public.users set credit_balance = 20 where tier = 'membership';
+-- 3) Balances: the column default above already seeded every account with 2,
+--    which is exactly what a trial account should hold. Nothing else to seed —
+--    the 20-credit membership grant is applied by /admin/users on upgrade (see
+--    CREDIT_GRANT_MEMBERSHIP in backend/.env).
 
 -- 4) Carry over referral rewards already earned under the 013/014 model, so no
 --    trial user loses credits they invited friends for. (bonus_count was a
@@ -89,4 +93,5 @@ alter table public.users enable row level security;
 --
 --   select tier, is_admin, count(*), min(credit_balance), max(credit_balance)
 --   from public.users group by tier, is_admin;
---   -- expect every pre-existing account on tier='membership' with 20 credits
+--   -- expect every pre-existing account on tier='trial' with 2 credits
+--   -- (more than 2 only where referral bonuses were carried over in step 4)
