@@ -179,13 +179,13 @@ export async function registerLeadsRoutes(app: FastifyInstance) {
 
       if (q.format === 'csv') {
         const header =
-          'id,email,name,source,utm_source,readiness_score,consent_marketing,double_optin,status,created_at';
+          'id,email,name,source,utm_source,readiness_score,consent_marketing,double_optin,status,created_at,has_account';
         const csvCell = (v: unknown) => {
           const s = v === null || v === undefined ? '' : String(v);
           return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
         };
         const lines = rows.map((r) =>
-          [r.id, r.email, r.name, r.source, r.utm_source, r.readiness_score, r.consent_marketing, r.double_optin, r.status, r.created_at]
+          [r.id, r.email, r.name, r.source, r.utm_source, r.readiness_score, r.consent_marketing, r.double_optin, r.status, r.created_at, r.has_account]
             .map(csvCell)
             .join(','),
         );
