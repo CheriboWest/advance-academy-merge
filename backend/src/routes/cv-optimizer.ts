@@ -9,7 +9,7 @@ import {
 } from '../services/cv-optimizer.service.js';
 import { generateRewrittenCvFile } from '../services/cv-rewrite-file.service.js';
 import { perUserDaily } from '../lib/rate-limit.js';
-import { assertTrialQuota, incrementTrialUsage } from '../lib/trial-quota.js';
+import { assertCredits, spendCredits } from '../lib/credits.js';
 import type { AnalyzeCvRequest, RewriteBulletRequest, RewriteSuggestion } from '@advance-academy/contracts/cv-optimizer';
 
 export async function registerCvOptimizerRoutes(app: FastifyInstance) {
@@ -121,18 +121,18 @@ export async function registerCvOptimizerRoutes(app: FastifyInstance) {
     }
 
     try {
-      // Trial lifetime quota (no-op for tier='student'). Gate before creating the
-      // job, count after so a failed submission doesn't burn a credit.
-      await assertTrialQuota(request.userId, 'cv');
+      // Credit wallet (no-op for admins). Check before creating the job, charge
+      // after so a failed submission doesn't burn credits.
+      await assertCredits(request.userId, 'cv');
       const job = await createCvAnalysisJob(body, request.userId);
-      await incrementTrialUsage(request.userId, 'cv');
+      await spendCredits(request.userId, 'cv');
       return reply.code(202).send(job);
     } catch (error) {
       const e = error as { statusCode?: number; code?: string; message?: string; scope?: string };
       if (Number(e?.statusCode) === 429) {
         return reply.code(429).send({
-          code: e.code ?? 'TRIAL_LIMIT_REACHED',
-          message: e.message ?? 'Trial limit reached.',
+          code: e.code ?? 'CREDIT_EXHAUSTED',
+          message: e.message ?? 'You have no credits left.',
           scope: e.scope,
         });
       }
