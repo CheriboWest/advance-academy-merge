@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase.js';
+import { creditReferralOnActivation } from '../services/referral.service.js';
 
 /**
  * Trial-tier lifetime tool quotas (CA-001, ticket P2/2c).
@@ -89,7 +90,8 @@ export async function incrementTrialUsage(userId: string | undefined, tool: Tria
     .eq('tool', tool)
     .maybeSingle();
 
-  const next = (usage?.used_count ?? 0) + 1;
+  const prev = usage?.used_count ?? 0;
+  const next = prev + 1;
   const { error } = await supabase
     .from('trial_usage')
     .upsert(
@@ -97,4 +99,14 @@ export async function incrementTrialUsage(userId: string | undefined, tool: Tria
       { onConflict: 'user_id,tool' },
     );
   if (error) throw Object.assign(new Error('Usage increment failed'), { statusCode: 500, cause: error });
+
+  // First time this trial user touches a tool → they count as "activated", so
+  // try to credit whoever referred them (self-guarded + idempotent in referral.service).
+  if (prev === 0) {
+    try {
+      await creditReferralOnActivation(userId);
+    } catch (err) {
+      console.error(`[trial] referral credit on activation failed for ${userId}:`, err);
+    }
+  }
 }

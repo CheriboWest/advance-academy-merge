@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/features/auth/context/AuthContext'
-import { getAuthHeaders } from '@/shared/auth/get-auth-headers'
 
 // Magic-link landing (CA-001, P2/2a). Supabase redirects here with the session
 // tokens in the URL hash; the browser client (detectSessionInUrl) picks them up
@@ -23,16 +22,10 @@ export default function AuthCallbackPage() {
       return
     }
     if (session) {
-      // Credit the inviter if this user was referred (P3c). Best-effort and
-      // idempotent server-side — fire it, then go into the app regardless.
-      void (async () => {
-        try {
-          await fetch('/api/referral/activate', { method: 'POST', headers: await getAuthHeaders() })
-        } catch {
-          // ignore — activation crediting must never block login
-        }
-        router.replace('/')
-      })()
+      // Referral crediting now happens on the invitee's FIRST TOOL USE (see
+      // trial-quota.ts), not here — logging in alone doesn't earn the inviter a
+      // credit. So just enter the app.
+      router.replace('/')
       return
     }
     // Fallback: no session established within a few seconds.

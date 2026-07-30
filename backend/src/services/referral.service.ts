@@ -109,6 +109,16 @@ export async function creditReferralOnActivation(inviteeId: string): Promise<voi
   const inviterId = invitee?.referred_by as string | null | undefined;
   if (!inviterId || invitee?.referral_credited || inviterId === inviteeId) return;
 
+  // Activation = login + used at least one tool. Require a real tool use before
+  // paying the inviter, so a friend who only clicks the link (or a fake email
+  // that logs in but never uses anything) never earns credit.
+  const { data: usageRows } = await supabase
+    .from('trial_usage')
+    .select('used_count')
+    .eq('user_id', inviteeId);
+  const usedAnyTool = (usageRows ?? []).some((r) => ((r.used_count as number) ?? 0) > 0);
+  if (!usedAnyTool) return;
+
   // Claim the credit atomically-ish: flip false→true and require it was false.
   const { data: marked } = await supabase
     .from('users')
