@@ -80,6 +80,9 @@ export async function createTrialAndSendMagicLink(
         console.error(`[passwordless] attachReferrer failed for ${normalized}:`, err);
       }
     }
+  } else if (createErr) {
+    // Duplicate email is expected (returning user); anything else is worth seeing.
+    console.warn(`[passwordless] createUser note for ${normalized}: ${createErr.message}`);
   }
 
   // 3) Ask Supabase to email a magic login link (built-in delivery).
@@ -87,7 +90,10 @@ export async function createTrialAndSendMagicLink(
   if (anon) {
     const { error: otpErr } = await anon.auth.signInWithOtp({
       email: normalized,
-      options: { emailRedirectTo: redirectTo, shouldCreateUser: false },
+      // Create on the fly if the admin.createUser step above didn't (e.g. the
+      // account was cleaned up). Requires "Allow new users to sign up" = ON in
+      // Supabase; otherwise GoTrue returns "Signups not allowed for otp".
+      options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
     });
     if (!otpErr) {
       return { isNew, emailSent: true };
