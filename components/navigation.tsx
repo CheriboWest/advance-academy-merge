@@ -3,20 +3,37 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Menu, X, Target, LogOut } from 'lucide-react'
+import { Menu, X, Target, LogOut, Coins, Shield } from 'lucide-react'
 import type { ViewName } from '@/shared/types/navigation'
 import { NAV_ITEMS } from '@/shared/config/navigation'
 import { useAuth } from '@/features/auth/context/AuthContext'
+import { useAccount } from '@/shared/hooks/use-account'
 
 interface NavigationProps {
   currentView: ViewName
   onNavigate: (view: ViewName) => void
 }
 
+/** Wallet balance pill. Admins spend nothing, so they see ∞ rather than a number. */
+function CreditPill({ credits, isAdmin }: { credits: number; isAdmin: boolean }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-900"
+      title={isAdmin ? 'Admins are not charged credits' : 'Credits left'}
+    >
+      <Coins className="h-4 w-4 text-yellow-500" />
+      {isAdmin ? '∞' : credits}
+    </span>
+  )
+}
+
 export function Navigation({ currentView, onNavigate }: NavigationProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { signOut } = useAuth()
   const router = useRouter()
+  // Undefined while loading or signed out — render nothing rather than a
+  // flash of "0 credits" or an Admin link the user can't actually open.
+  const { data: account } = useAccount()
 
   const handleNavigate = (view: ViewName) => {
     onNavigate(view)
@@ -68,6 +85,20 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
                 </button>
               )
             )}
+            {account?.isAdmin ? (
+              <Link
+                href="/admin/users"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-blue-900 hover:bg-blue-50 transition-colors flex items-center gap-1.5"
+              >
+                <Shield className="w-4 h-4" />
+                Admin
+              </Link>
+            ) : null}
+            {account ? (
+              <span className="ml-2">
+                <CreditPill credits={account.credits} isAdmin={account.isAdmin} />
+              </span>
+            ) : null}
             <button
               onClick={handleSignOut}
               className="ml-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors flex items-center gap-1.5"
@@ -113,6 +144,21 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
                 </button>
               )
             )}
+            {account?.isAdmin ? (
+              <Link
+                href="/admin/users"
+                className="w-full text-left px-4 py-2 rounded-lg text-sm font-medium text-blue-900 hover:bg-blue-50 transition-colors flex items-center gap-1.5"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Shield className="w-4 h-4" />
+                Admin
+              </Link>
+            ) : null}
+            {account ? (
+              <div className="px-4 py-2">
+                <CreditPill credits={account.credits} isAdmin={account.isAdmin} />
+              </div>
+            ) : null}
             <button
               onClick={handleSignOut}
               className="w-full text-left px-4 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors flex items-center gap-1.5"
