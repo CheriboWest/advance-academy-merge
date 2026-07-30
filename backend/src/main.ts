@@ -24,6 +24,7 @@ import { registerLeadsRoutes } from './routes/leads.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerReferralRoutes } from './routes/referral.js';
 import { registerAdminRoutes } from './routes/admin.js';
+import { registerAccountRoutes } from './routes/account.js';
 
 function loadBackendEnvFile() {
   const candidates = [
@@ -104,6 +105,7 @@ async function bootstrap() {
   await registerAuthRoutes(app);
   await registerReferralRoutes(app);
   await registerAdminRoutes(app);
+  await registerAccountRoutes(app);
 
   await app.listen({
     port,
