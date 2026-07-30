@@ -15,6 +15,14 @@ import type { DreamCompanyInput, ProfileAnalysis, TargetRole } from '../types/dr
 import { getJobMaxRoleQueries } from '../config/job-source.js';
 import { perUserDaily } from '../lib/rate-limit.js';
 import { assertCredits, spendCredits } from '../lib/credits.js';
+import { recordToolResult } from '../services/tool-results.service.js';
+
+/** Short label for the history list, e.g. "Data Analyst, ML Engineer · London". */
+function dreamSummary(profile: DreamCompanyInput, roles: TargetRole[]): string {
+  const titles = roles.map((r) => r.title).filter(Boolean).slice(0, 3).join(', ');
+  const location = profile.location?.trim();
+  return [titles || 'Dream Company', location].filter(Boolean).join(' · ');
+}
 
 // Reply 429 for an out-of-credits error; return true if it handled the error.
 function replyIfOutOfCredits(
@@ -70,11 +78,15 @@ function toStreamError(error: unknown): { status: number; code: string; message:
 // Runs an SSE response: emits `open`, streams `delta` text chunks, then `done` with the final
 // result (or `error`). Keeps the connection alive with heartbeat comments and stops writing if
 // the client disconnects.
+//
+// Returns the produced value so the caller can act on a successful run (charge
+// credits, record history) — and `undefined` when it failed, which is what tells
+// those callers to do nothing.
 async function runSse<T>(
   request: FastifyRequestLike,
   reply: FastifyReplyLike,
   produce: (onDelta: (text: string) => void) => Promise<T>,
-) {
+): Promise<T | undefined> {
   reply.hijack();
   const raw = reply.raw;
   raw.writeHead(200, {
@@ -93,9 +105,11 @@ async function runSse<T>(
   try {
     const result = await produce((text) => send('delta', { text }));
     send('done', result);
+    return result;
   } catch (err) {
     request.log.error(err);
     send('error', toStreamError(err));
+    return undefined;
   } finally {
     clearInterval(heartbeat);
     if (!closed) raw.end();
@@ -252,7 +266,17 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
       }
 
       try {
-        return await generateRoadmapWithJobs(profile!, analysis, selectedRoles);
+        const roadmap = await generateRoadmapWithJobs(profile!, analysis, selectedRoles);
+        // Step 3 is the artifact worth reopening — the roadmap plus the live job
+        // list. Recorded here rather than at step 1 so history holds the finished
+        // output, not an intermediate analysis. Best-effort: never fails the run.
+        await recordToolResult(
+          request.userId,
+          'dream',
+          dreamSummary(profile!, selectedRoles),
+          roadmap,
+        );
+        return roadmap;
       } catch (error) {
         return handleServiceError(error, request, reply);
       }
@@ -277,8 +301,12 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
         if (replyIfOutOfCredits(error, reply)) return;
         return handleServiceError(error, request, reply);
       }
-      await runSse(request, reply, (onDelta) => streamProfileAnalysis(profile!, onDelta));
-      await spendCredits(request.userId, 'dream');
+      // Only charge when the stream actually produced an analysis — a failed run
+      // must not burn credits, same rule as the non-streaming routes.
+      const analysis = await runSse(request, reply, (onDelta) =>
+        streamProfileAnalysis(profile!, onDelta),
+      );
+      if (analysis) await spendCredits(request.userId, 'dream');
     },
   );
 
@@ -313,7 +341,20 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
       if (!selectedRoles || selectedRoles.length === 0) {
         return reply.code(400).send({ error: 'Select at least one role' });
       }
-      await runSse(request, reply, (onDelta) => streamRoadmapWithJobs(profile!, analysis, selectedRoles, onDelta));
+      // The UI uses this streaming route, not the JSON one above, so history has
+      // to be recorded here too. `undefined` means the stream failed — nothing to
+      // save. The response is already closed by now; this is a DB write only.
+      const roadmap = await runSse(request, reply, (onDelta) =>
+        streamRoadmapWithJobs(profile!, analysis, selectedRoles, onDelta),
+      );
+      if (roadmap) {
+        await recordToolResult(
+          request.userId,
+          'dream',
+          dreamSummary(profile!, selectedRoles),
+          roadmap,
+        );
+      }
     },
   );
 
