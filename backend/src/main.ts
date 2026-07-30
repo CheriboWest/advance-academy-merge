@@ -23,6 +23,7 @@ import { registerCoachUnderstandingRoutes } from './routes/coach-understanding.j
 import { registerLeadsRoutes } from './routes/leads.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerReferralRoutes } from './routes/referral.js';
+import { registerAdminRoutes } from './routes/admin.js';
 
 function loadBackendEnvFile() {
   const candidates = [
@@ -102,6 +103,7 @@ async function bootstrap() {
   await registerLeadsRoutes(app);
   await registerAuthRoutes(app);
   await registerReferralRoutes(app);
+  await registerAdminRoutes(app);
 
   await app.listen({
     port,
