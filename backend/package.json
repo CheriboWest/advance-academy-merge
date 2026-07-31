@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "check:companies-house": "tsx scripts/check-companies-house.ts",
+    "check:migration-018": "tsx scripts/check-migration-018.ts",
     "usage": "tsx scripts/usage-report.ts",
     "usage:week": "tsx scripts/usage-report.ts -- --days 7",
     "usage:month": "tsx scripts/usage-report.ts -- --days 30"
