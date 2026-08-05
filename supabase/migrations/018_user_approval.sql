@@ -31,6 +31,18 @@ create index if not exists users_status_idx on public.users (status);
 comment on column public.users.status is
   'Admin approval gate. Only "approved" users pass the backend auth preHandler.';
 
+-- ── Step 1b: let the audit log record approvals ───────────────────────────────
+-- 016_admin_actions.sql predates the approval gate, so its CHECK rejects the
+-- 'set_status' action that admin.service.ts writes on every approve/reject. The
+-- audit rows go in as ONE batch insert, so without this an approve-and-upgrade in
+-- the same PATCH silently loses BOTH rows (the insert is best-effort and only
+-- logs `[admin] audit write failed`). Net effect: "who approved this account" —
+-- the question 016 exists to answer — is unanswerable.
+
+alter table public.admin_actions drop constraint if exists admin_actions_action_check;
+alter table public.admin_actions add constraint admin_actions_action_check
+  check (action in ('set_tier', 'adjust_credits', 'set_admin', 'set_status'));
+
 -- ── Step 2: keep RLS on ───────────────────────────────────────────────────────
 -- No-op if already enabled. The backend reads this table with the service-role key,
 -- which bypasses RLS entirely, so this has zero effect on the running app.
@@ -89,3 +101,8 @@ where id = '00000000-0000-0000-0000-000000000000';
 --   select email, status from public.users where is_admin;   -- all must be 'approved'
 --   select tablename, rowsecurity from pg_tables
 --   where schemaname = 'public' and rowsecurity = false;     -- expect zero rows
+--
+-- Then approve someone from /admin/users and confirm step 1b took — this must
+-- return a 'set_status' row, and the backend log must show no `audit write failed`:
+--   select action, detail, created_at from public.admin_actions
+--   order by created_at desc limit 5;

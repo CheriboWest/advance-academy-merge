@@ -12,7 +12,6 @@ interface AuthContextValue {
   status: UserStatus | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string) => Promise<{ error: string | null }>
   // Passwordless: request a magic login link emailed via Resend (CA-001 P2).
   sendMagicLink: (email: string, name?: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
@@ -82,11 +81,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message ?? null }
   }
 
-  async function signUp(email: string, password: string) {
-    const { error } = await getSupabaseBrowser().auth.signUp({ email, password })
-    return { error: error?.message ?? null }
-  }
-
   async function sendMagicLink(email: string, name?: string) {
     try {
       const res = await fetch('/api/auth/passwordless', {
@@ -118,7 +112,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status,
         loading,
         signIn,
-        signUp,
         sendMagicLink,
         signOut,
       }}

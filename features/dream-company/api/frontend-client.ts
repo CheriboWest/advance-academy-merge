@@ -1,7 +1,7 @@
 'use client'
 
 import type { DreamCompanyInput, ProfileAnalysis, TargetRole, RoadmapResponse } from '@/types/dream-company'
-import { fetchFormDataJson, fetchJson } from '@/shared/api/http-client'
+import { fetchFormDataJson, fetchJson, HttpClientError } from '@/shared/api/http-client'
 import { getAuthHeaders } from '@/shared/auth/get-auth-headers'
 
 export async function getDreamCompanyConfig(): Promise<{ maxRoles: number }> {
@@ -92,15 +92,20 @@ async function postSSE<T>(
     })
 
     // Bad input / auth errors come back as normal JSON (not an event stream) — surface them.
+    // HttpClientError rather than a bare Error: its constructor is what routes a 403
+    // ACCOUNT_PENDING / ACCOUNT_REJECTED to /pending, and SSE never touches fetchJson.
+    // It extends Error, so callers reading `.message` are unaffected.
     if (!res.headers.get('content-type')?.includes('text/event-stream') || !res.body) {
       let message = `Request failed (${res.status})`
+      let code = 'HTTP_ERROR'
       try {
-        const j = (await res.json()) as { message?: string; error?: string }
+        const j = (await res.json()) as { message?: string; error?: string; code?: string }
         message = j.message || j.error || message
+        if (j.code) code = j.code
       } catch {
         /* keep default */
       }
-      throw new Error(message)
+      throw new HttpClientError(res.status, { code, message })
     }
 
     const reader = res.body.getReader()
