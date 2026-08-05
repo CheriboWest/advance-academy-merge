@@ -1,12 +1,14 @@
 import { getSupabase } from '../lib/supabase.js';
 import { membershipGrant, type Tier } from '../lib/credits.js';
+import { invalidateUserStatus, type UserStatus } from '../lib/user-access.js';
 
 /**
  * Admin user management (sprint F4).
  *
- * Backs /admin/users: list accounts, move them between tiers, top up credits and
- * toggle the admin flag. Every mutation writes an `admin_actions` row (migration
- * 016) so "who granted these credits, and when" is answerable later.
+ * Backs /admin/users: review the signup queue (migration 018), list accounts, move
+ * them between tiers, top up credits and toggle the admin flag. Every mutation
+ * writes an `admin_actions` row (migration 016) so "who approved this account /
+ * granted these credits, and when" is answerable later.
  *
  * All access control lives in the route (lib/admin.ts) — this module assumes the
  * caller is already proven to be an admin.
@@ -16,11 +18,13 @@ export interface AdminUserRow {
   id: string;
   email: string | null;
   full_name: string | null;
+  status: UserStatus;
   tier: Tier;
   is_admin: boolean;
   credit_balance: number;
   referral_count: number;
   first_tool_used_at: string | null;
+  reviewed_at: string | null;
   created_at: string;
 }
 
@@ -28,11 +32,12 @@ export interface ListUsersFilters {
   /** Case-insensitive substring match on email. */
   search?: string;
   tier?: string;
+  status?: string;
   limit?: number;
 }
 
 const SELECT_COLS =
-  'id, email, full_name, tier, is_admin, credit_balance, referral_count, first_tool_used_at, created_at';
+  'id, email, full_name, status, tier, is_admin, credit_balance, referral_count, first_tool_used_at, reviewed_at, created_at';
 
 export async function listUsers(filters: ListUsersFilters = {}): Promise<AdminUserRow[]> {
   const supabase = getSupabase();
@@ -40,6 +45,7 @@ export async function listUsers(filters: ListUsersFilters = {}): Promise<AdminUs
 
   let query = supabase.from('users').select(SELECT_COLS).order('created_at', { ascending: false }).limit(limit);
   if (filters.tier) query = query.eq('tier', filters.tier);
+  if (filters.status) query = query.eq('status', filters.status);
   if (filters.search?.trim()) query = query.ilike('email', `%${filters.search.trim()}%`);
 
   const { data, error } = await query;
@@ -50,6 +56,8 @@ export async function listUsers(filters: ListUsersFilters = {}): Promise<AdminUs
 }
 
 export interface UpdateUserPatch {
+  /** Approval decision (migration 018). Only an admin can move an account off 'pending'. */
+  status?: Exclude<UserStatus, 'pending'>;
   tier?: Tier;
   /** Signed change to the wallet, e.g. +5 or -2. */
   creditDelta?: number;
@@ -89,9 +97,21 @@ export async function updateUser(
   if (patch.isAdmin === false && actorId === targetId) {
     throw Object.assign(new Error('You cannot remove your own admin access.'), { statusCode: 400 });
   }
+  // Same reasoning for the approval gate: rejecting yourself locks you out of the
+  // queue you'd need to un-reject yourself from.
+  if (patch.status === 'rejected' && actorId === targetId) {
+    throw Object.assign(new Error('You cannot review your own account.'), { statusCode: 400 });
+  }
 
   const updates: Record<string, unknown> = {};
   const audits: { action: string; detail: Record<string, unknown> }[] = [];
+
+  if (patch.status && patch.status !== current.status) {
+    updates.status = patch.status;
+    updates.reviewed_at = new Date().toISOString();
+    updates.reviewed_by = actorId;
+    audits.push({ action: 'set_status', detail: { from: current.status, to: patch.status } });
+  }
 
   if (patch.tier && patch.tier !== current.tier) {
     updates.tier = patch.tier;
@@ -129,6 +149,9 @@ export async function updateUser(
   if (writeErr || !after) {
     throw Object.assign(new Error('Could not update the account'), { statusCode: 500, cause: writeErr });
   }
+
+  // Without this the approval sits behind the 60s status cache in lib/user-access.
+  if (updates.status) invalidateUserStatus(targetId);
 
   // Audit is best-effort: the change already landed, and losing the log entry
   // must not turn a successful update into an error for the admin.

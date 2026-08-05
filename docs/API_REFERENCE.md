@@ -5,6 +5,53 @@ Every HTTP endpoint exposed by the backend. The frontend hits the **same paths**
 - **Base URL (dev):** `http://localhost:4000`
 - **Content-Type:** `application/json` unless noted (multipart for file uploads).
 - **Error shape:** all errors return `{ code: string, message: string }` per `@advance-academy/contracts`.
+- **Auth:** every endpoint needs `Authorization: Bearer <supabase-token>` and an **approved** account, except the public ones listed under Auth & Accounts. See the Authentication section of `CLAUDE.md`.
+
+---
+
+## Auth & Accounts
+
+### `POST /api/auth/passwordless`
+
+**Public** (no bearer token). Sign-up and sign-in are the same call: mints a trial account if the email is new, then emails a Supabase magic link. Rate limited **5 / minute by IP**.
+
+**Request** — `{ "email": "a@b.com", "name": "Ada", "ref": "<referral code>" }` (`name` and `ref` optional).
+
+**Response 200** — always `{ "ok": true }` for a valid email, whether or not the account existed. Never reveals whether an address is registered.
+
+- `422 INVALID_EMAIL` — malformed address.
+- `500 PASSWORDLESS_FAILED` — could not send the link.
+
+The new account lands `status = 'pending'` (migration 018 column default) and cannot reach any other endpoint until an admin approves it.
+
+### `GET /api/account/me`
+
+The signed-in user's own state. **The one authenticated route exempt from the approval gate** (exact path match), so the `/pending` screen can read why it's blocked.
+
+**Response 200**
+
+```json
+{ "status": "pending", "tier": "trial", "credits": 2, "isAdmin": false }
+```
+
+`status` is `pending | approved | rejected`; `tier` is `trial | membership`; admins read `credits` as unlimited.
+
+### `GET /api/admin/users`
+
+Admin only — `isAdminUser()` is checked inline, `403 FORBIDDEN` otherwise. Not rate limited.
+
+**Query** — `search` (email substring), `tier`, `status`, `limit` (clamped 1–500, newest first). The pending-approval queue is `?status=pending`.
+
+### `PATCH /api/admin/users/:userId`
+
+Admin only. Approve, reject, change tier, adjust credits, or toggle admin — any combination in one call.
+
+**Request** — `{ "status": "approved" | "rejected", "tier": "trial" | "membership", "creditDelta": 5, "isAdmin": true }`, at least one field.
+
+`status` cannot be set back to `'pending'` — a review is a decision. Approving stamps `reviewed_at` / `reviewed_by`, invalidates the 60s status cache so it takes effect immediately, and writes a `set_status` row to `admin_actions`. Upgrading to `membership` tops the wallet up to the grant rather than adding to it.
+
+- `400` — empty patch, or a self-lockout attempt (removing your own admin flag, rejecting your own account).
+- `403 FORBIDDEN` — caller is not an admin.
 
 ---
 
@@ -268,7 +315,12 @@ URL mode uses the Jina Reader API (`https://r.jina.ai/{targetUrl}`). Set `JINA_A
 | Status | When | Typical message |
 |---|---|---|
 | 400 | Bad request body / missing fields / invalid file type | "Missing required fields" |
+| 401 | Missing or invalid bearer token (`UNAUTHORIZED`) — re-login | "Authentication required." |
 | 401 | Anthropic key rejected | "Anthropic API rejected the key (401). Check LLM_API_KEY in backend/.env." |
+| 403 | Account not approved (`ACCOUNT_PENDING` / `ACCOUNT_REJECTED`) — token is valid, the account isn't cleared. The frontend redirects to `/pending`. | "Your account is awaiting approval." |
+| 403 | Non-admin hitting `/api/admin/*` (`FORBIDDEN`) | "Admin access required." |
+| 403 | Trial user hitting a membership feature (`MEMBERSHIP_REQUIRED`) | "… is part of Mentorship." |
+| 429 | Credit wallet empty (`CREDIT_EXHAUSTED`) | "You need 1 credit to run … and have 0 left." |
 | 404 | Unknown jobId (CV Optimizer) | — |
 | 422 | Valid request but parsing/extraction failed | "Parse failed" |
 | 500 | Unexpected or LLM response parse error | "Internal server error" or `{ error, step }` |
@@ -288,5 +340,9 @@ The frontend hits these paths on **its own origin** (Next.js, port 3000 in dev).
 | `/api/dream-company/parse-cv` | `/api/dream-company/parse-cv` |
 | `/api/outreach/generate` | `/api/outreach/generate` |
 | `/api/outreach/extract` | `/api/outreach/extract` |
+| `/api/auth/passwordless` | `/api/auth/passwordless` |
+| `/api/account/me` | `/api/account/me` |
+| `/api/admin/users` | `/api/admin/users` |
+| `/api/admin/users/:userId` | `/api/admin/users/:userId` |
 
 The proxy paths are identical to the backend paths by convention. **Keep it that way** when you add new endpoints.

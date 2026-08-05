@@ -15,6 +15,7 @@ export async function GET(request: Request) {
       {
         search: params.get('search') ?? undefined,
         tier: params.get('tier') ?? undefined,
+        status: params.get('status') ?? undefined,
         limit: limitRaw ? Number(limitRaw) : undefined,
       },
       authToken,

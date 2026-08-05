@@ -17,6 +17,13 @@ import {
 } from '@/components/ui/table'
 
 const TIER_FILTERS = ['', 'trial', 'membership'] as const
+const STATUS_FILTERS = ['', 'pending', 'approved', 'rejected'] as const
+
+const STATUS_VARIANT = {
+  pending: 'outline',
+  approved: 'secondary',
+  rejected: 'destructive',
+} as const
 
 const selectClass =
   'h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring'
@@ -65,10 +72,15 @@ function CreditControls({
 export function UsersTable() {
   const [search, setSearch] = useState('')
   const [tier, setTier] = useState('')
+  const [status, setStatus] = useState('')
 
   const filters = useMemo(
-    () => ({ search: search.trim() || undefined, tier: tier || undefined }),
-    [search, tier],
+    () => ({
+      search: search.trim() || undefined,
+      tier: tier || undefined,
+      status: status || undefined,
+    }),
+    [search, tier, status],
   )
   const { data, isLoading, isFetching, error, refetch } = useAdminUsers(filters)
   const update = useUpdateAdminUser()
@@ -100,6 +112,17 @@ export function UsersTable() {
             {TIER_FILTERS.map((t) => (
               <option key={t} value={t}>
                 {t === '' ? 'All tiers' : t}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+          Approval
+          <select className={selectClass} value={status} onChange={(e) => setStatus(e.target.value)}>
+            {STATUS_FILTERS.map((s) => (
+              <option key={s} value={s}>
+                {s === '' ? 'All statuses' : s}
               </option>
             ))}
           </select>
@@ -146,6 +169,7 @@ export function UsersTable() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Email</TableHead>
+                  <TableHead>Approval</TableHead>
                   <TableHead>Tier</TableHead>
                   <TableHead className="text-right">Credits</TableHead>
                   <TableHead>Adjust</TableHead>
@@ -158,7 +182,7 @@ export function UsersTable() {
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                       No accounts match these filters.
                     </TableCell>
                   </TableRow>
@@ -174,6 +198,9 @@ export function UsersTable() {
                               admin
                             </Badge>
                           ) : null}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={STATUS_VARIANT[u.status] ?? 'outline'}>{u.status}</Badge>
                         </TableCell>
                         <TableCell>
                           <Badge variant={u.tier === 'membership' ? 'default' : 'secondary'}>
@@ -201,6 +228,25 @@ export function UsersTable() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
+                            {u.status !== 'approved' ? (
+                              <Button
+                                size="sm"
+                                disabled={busy}
+                                onClick={() => patch(u.id, { status: 'approved' })}
+                              >
+                                Approve
+                              </Button>
+                            ) : null}
+                            {u.status !== 'rejected' ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={busy}
+                                onClick={() => patch(u.id, { status: 'rejected' })}
+                              >
+                                Reject
+                              </Button>
+                            ) : null}
                             {u.tier === 'trial' ? (
                               <Button
                                 size="sm"

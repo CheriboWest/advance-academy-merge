@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { getAuthHeaders } from '@/shared/auth/get-auth-headers'
+import { HttpClientError } from '@/shared/api/http-client'
 
 interface ReferralStatus {
   code: string
@@ -22,7 +23,15 @@ export default function ReferralPage() {
     ;(async () => {
       try {
         const res = await fetch('/api/referral/me', { headers: await getAuthHeaders() })
-        if (!res.ok) throw new Error('Could not load referral status')
+        // HttpClientError so a 403 ACCOUNT_PENDING routes to /pending instead of
+        // showing a pending user a generic "could not load" on this page.
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { code?: string; message?: string }
+          throw new HttpClientError(res.status, {
+            code: body.code ?? 'REFERRAL_FAILED',
+            message: body.message ?? 'Could not load referral status',
+          })
+        }
         setStatus(await res.json())
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Something went wrong')

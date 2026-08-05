@@ -1,12 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import { getAccount } from '../lib/credits.js';
 import { isAdminUser } from '../lib/admin.js';
+import { getUserStatus } from '../lib/user-access.js';
 
 /**
  * The caller's own account summary (sprint F4 follow-up).
  *
- * GET /api/account/me — tier, wallet balance and admin flag. Drives the header:
- * the credit pill, and whether the Admin link is rendered at all.
+ * GET /api/account/me — approval status, tier, wallet balance and admin flag.
+ * Drives the header (credit pill, Admin link) and the /pending screen.
+ *
+ * This is the ONE route the approval gate in main.ts lets a pending account
+ * through to — otherwise the pending screen could not read its own status.
  *
  * `isAdmin` comes from lib/admin.ts rather than straight off the row, so the
  * ADMIN_USER_IDS allowlist counts here exactly as it does on the admin routes —
@@ -18,11 +22,13 @@ export async function registerAccountRoutes(app: FastifyInstance) {
       return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Authentication required.' });
     }
     try {
-      const [account, isAdmin] = await Promise.all([
+      const [account, isAdmin, status] = await Promise.all([
         getAccount(request.userId),
         isAdminUser(request.userId),
+        getUserStatus(request.userId),
       ]);
       return reply.code(200).send({
+        status,
         tier: account.tier,
         credits: account.credits,
         isAdmin,

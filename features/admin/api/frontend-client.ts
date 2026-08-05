@@ -35,6 +35,7 @@ export async function listAdminUsers(
   const qs = new URLSearchParams()
   if (filters.search) qs.set('search', filters.search)
   if (filters.tier) qs.set('tier', filters.tier)
+  if (filters.status) qs.set('status', filters.status)
   if (filters.limit) qs.set('limit', String(filters.limit))
   const suffix = qs.toString() ? `?${qs.toString()}` : ''
 

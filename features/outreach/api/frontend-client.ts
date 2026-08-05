@@ -1,4 +1,4 @@
-import { fetchJson } from '@/shared/api/http-client'
+import { fetchJson, HttpClientError } from '@/shared/api/http-client'
 import { getAuthHeaders } from '@/shared/auth/get-auth-headers'
 import type {
   EnrichmentRequest,
@@ -47,9 +47,15 @@ export async function extractOutreachSource(source: File | string): Promise<{ te
       headers: authHeaders,
     })
 
+    // HttpClientError, not Error: the constructor routes a 403 ACCOUNT_PENDING /
+    // ACCOUNT_REJECTED to /pending. This branch is raw fetch (multipart), so it
+    // never passes through fetchJson's own handling.
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}))
-      throw new Error(errorData.error || 'Failed to extract text from file')
+      throw new HttpClientError(res.status, {
+        code: errorData.code ?? 'EXTRACT_FAILED',
+        message: errorData.message || errorData.error || 'Failed to extract text from file',
+      })
     }
 
     return res.json()

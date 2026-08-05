@@ -12,6 +12,8 @@ import type { Tier } from '../lib/credits.js';
  */
 
 const TIERS: Tier[] = ['trial', 'membership'];
+// 'pending' is the DB default, not something an admin sets — a review is a decision.
+const REVIEW_DECISIONS = ['approved', 'rejected'] as const;
 
 export async function registerAdminRoutes(app: FastifyInstance) {
   // ── GET /api/admin/users ──────────────────────────────────────────────────
@@ -19,11 +21,17 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     if (!(await isAdminUser(request.userId))) {
       return reply.code(403).send({ code: 'FORBIDDEN', message: 'Admin access required.' });
     }
-    const q = (request.query ?? {}) as { search?: string; tier?: string; limit?: string };
+    const q = (request.query ?? {}) as {
+      search?: string;
+      tier?: string;
+      status?: string;
+      limit?: string;
+    };
     try {
       const users = await listUsers({
         search: q.search,
         tier: q.tier,
+        status: q.status,
         limit: q.limit ? Number(q.limit) : undefined,
       });
       return reply.code(200).send({ users, count: users.length });
@@ -34,7 +42,8 @@ export async function registerAdminRoutes(app: FastifyInstance) {
   });
 
   // ── PATCH /api/admin/users/:userId ────────────────────────────────────────
-  // Body: { tier?: 'trial'|'membership', creditDelta?: number, isAdmin?: boolean }
+  // Body: { status?: 'approved'|'rejected', tier?: 'trial'|'membership',
+  //         creditDelta?: number, isAdmin?: boolean }
   app.patch<{ Params: { userId: string }; Body: UpdateUserPatch }>(
     '/api/admin/users/:userId',
     async (request, reply) => {
@@ -45,6 +54,15 @@ export async function registerAdminRoutes(app: FastifyInstance) {
       const body = (request.body ?? {}) as UpdateUserPatch;
       const patch: UpdateUserPatch = {};
 
+      if (body.status !== undefined) {
+        if (!REVIEW_DECISIONS.includes(body.status)) {
+          return reply.code(400).send({
+            code: 'INVALID_REQUEST',
+            message: `status must be one of: ${REVIEW_DECISIONS.join(', ')}`,
+          });
+        }
+        patch.status = body.status;
+      }
       if (body.tier !== undefined) {
         if (!TIERS.includes(body.tier)) {
           return reply
