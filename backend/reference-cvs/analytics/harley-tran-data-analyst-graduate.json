@@ -1,0 +1,26 @@
+{
+  "id": "harley-tran-data-analyst-graduate",
+  "role": "Data Analyst / Business Analytics Graduate",
+  "seniority": "Graduate / Entry-level",
+  "industry": "Data Analytics & Industrial Technology",
+  "summaryPatterns": [
+    "Focuses on analytical workflows, machine learning models, and structured data systems",
+    "Highlights Python and SQL for data pipelines, forecasting, and predictive modeling",
+    "Emphasizes scalable data processes and dashboard development"
+  ],
+  "experiencePatterns": [
+    "Highlight Python-based data processing pipeline development",
+    "Demonstrate research repository standardization and preparation time reductions",
+    "Emphasize go-to-market data support and ML model construction"
+  ],
+  "achievementPatterns": [
+    "Built Python-based data processing pipelines, reducing preparation time by 30%",
+    "Developed predictive models for fraud classification, churn prediction, and profitability forecasting",
+    "Awarded 100% MSc Scholarship and Dean's List recognition"
+  ],
+  "atsPatterns": [
+    "Includes portfolio links in header",
+    "Comprehensive cloud and programming skill listing",
+    "Clear distinction between work experience, academic research, and technical projects"
+  ]
+}

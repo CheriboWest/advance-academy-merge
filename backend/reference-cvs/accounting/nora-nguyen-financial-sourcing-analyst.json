@@ -1,0 +1,30 @@
+{
+  "id": "nora-nguyen-financial-sourcing-analyst",
+  "role": "Financial Analyst / Sourcing Analyst",
+  "seniority": "Mid-level",
+  "industry": "Finance & Accounting / Chemical Distribution / Manufacturing / Supply Chain",
+  "summaryPatterns": [
+    "Focuses on data analysis, strategic budget management, and report planning",
+    "Highlights advanced Excel proficiency (PivotTable, VLOOKUP, Financial Modeling)",
+    "Mentions core competencies across Strategic Analysis, Financial Accounting, and Partner Relationship Management",
+    "Expresses clear intent for accounting and financial roles"
+  ],
+  "experiencePatterns": [
+    "Group bullet points under explicit functional sub-headers (e.g., Strategic Planning and Analysis, Partnership Development and Financial Negotiation)",
+    "Begin bullets with strong action verbs",
+    "Demonstrate cost-efficiency, budget formulation, and contract negotiation outcomes",
+    "Highlight data optimization across large datasets (30,000+ candidate profiles) and order management"
+  ],
+  "achievementPatterns": [
+    "Negotiated contracts resulting in a 15-20% average cost reduction per agreement",
+    "Managed and optimized a talent pool database of over 30,000 candidate profiles",
+    "Maintained an average of 10 to 15 daily orders while orchestrating raw material acquisitions",
+    "Achieved a 25% reduction in event expenses through precise cost estimation and proposal development",
+    "Grew club membership by 250% through targeted recruitment campaigns"
+  ],
+  "atsPatterns": [
+    "Standard section headers (Personal Summary -> Education -> Work Experience -> Extra Curricular -> Core Skills)",
+    "Detailed module lists and dissertation topics included under Education",
+    "Clear chronological breakdown with company descriptions under role titles"
+  ]
+}

@@ -1,14 +1,19 @@
 import type {
-  AdminUser,
   AnalyzeCvAcceptedResponse,
   AnalyzeCvRequest,
   AnalyzeCvResult,
-  CurrentUser,
   JobStatusResponse,
   RewriteBulletRequest,
   RewriteBulletResponse,
 } from '@advance-academy/contracts'
 import type { DreamCompanyInput, ProfileAnalysis, TargetRole, RoadmapResponse } from '@/types/dream-company'
+import type { LeadsFilters, LeadsListResponse } from '@/types/leads'
+import type {
+  AdminUserPatch,
+  AdminUserPatchResponse,
+  AdminUsersFilters,
+  AdminUsersListResponse,
+} from '@/types/admin'
 import type {
   EnrichmentRequest,
   EnrichmentResponse,
@@ -537,38 +542,52 @@ export function validateJdWithBackend(payload: { url: string }, authToken?: stri
   })
 }
 
-export function getMeWithBackend(authToken?: string) {
+// Candidate Acquisition — admin lead list (CA-001, Bước 6). Backend enforces the
+// ADMIN_USER_IDS allowlist; a non-admin token comes back as HttpClientError 403.
+export function getLeadsFromBackend(filters: LeadsFilters, authToken?: string) {
   const { backendUrl } = getServerEnv()
+  const qs = new URLSearchParams()
+  if (filters.status) qs.set('status', filters.status)
+  if (filters.source) qs.set('source', filters.source)
+  if (filters.utmSource) qs.set('utm_source', filters.utmSource)
+  if (filters.limit) qs.set('limit', String(filters.limit))
+  const suffix = qs.toString() ? `?${qs.toString()}` : ''
 
-  return fetchJson<CurrentUser>(`${backendUrl}/api/me`, {
-    method: 'GET',
-    headers: authHeaders(authToken),
-    timeoutMs: 10000,
-  })
-}
-
-export function listUsersWithBackend(status: string | undefined, authToken?: string) {
-  const { backendUrl } = getServerEnv()
-  const query = status ? `?status=${encodeURIComponent(status)}` : ''
-
-  return fetchJson<AdminUser[]>(`${backendUrl}/api/admin/users${query}`, {
+  return fetchJson<LeadsListResponse>(`${backendUrl}/api/leads${suffix}`, {
     method: 'GET',
     headers: authHeaders(authToken),
     timeoutMs: 15000,
   })
 }
 
-export function reviewUserWithBackend(
-  userId: string,
-  status: 'approved' | 'rejected',
-  authToken?: string,
-) {
+// Admin user management (sprint F4). Backend gates both on users.is_admin /
+// ADMIN_USER_IDS; a non-admin token comes back as HttpClientError 403.
+export function getAdminUsersFromBackend(filters: AdminUsersFilters, authToken?: string) {
   const { backendUrl } = getServerEnv()
+  const qs = new URLSearchParams()
+  if (filters.search) qs.set('search', filters.search)
+  if (filters.tier) qs.set('tier', filters.tier)
+  if (filters.status) qs.set('status', filters.status)
+  if (filters.limit) qs.set('limit', String(filters.limit))
+  const suffix = qs.toString() ? `?${qs.toString()}` : ''
 
-  return fetchJson<AdminUser>(`${backendUrl}/api/admin/users/${userId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status }),
+  return fetchJson<AdminUsersListResponse>(`${backendUrl}/api/admin/users${suffix}`, {
+    method: 'GET',
     headers: authHeaders(authToken),
     timeoutMs: 15000,
   })
+}
+
+export function patchAdminUserOnBackend(userId: string, patch: AdminUserPatch, authToken?: string) {
+  const { backendUrl } = getServerEnv()
+
+  return fetchJson<AdminUserPatchResponse>(
+    `${backendUrl}/api/admin/users/${encodeURIComponent(userId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+      headers: authHeaders(authToken),
+      timeoutMs: 15000,
+    },
+  )
 }

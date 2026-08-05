@@ -1,89 +1,104 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { getSupabase } from '../lib/supabase.js';
-import { invalidateUserAccess } from '../lib/user-access.js';
+import type { FastifyInstance } from 'fastify';
+import { isAdminUser } from '../lib/admin.js';
+import { listUsers, updateUser, type UpdateUserPatch } from '../services/admin.service.js';
+import type { Tier } from '../lib/credits.js';
 
-interface AdminUserRow {
-  id: string;
-  email: string;
-  full_name: string | null;
-  status: string;
-  created_at: string;
-  reviewed_at: string | null;
-}
+/**
+ * Admin user management (sprint F4). The global auth preHandler already proves
+ * the caller is logged in; every route here additionally requires admin rights
+ * (users.is_admin or the ADMIN_USER_IDS allowlist — see lib/admin.ts).
+ *
+ * Not rate-limited: admin-only, no LLM spend.
+ */
 
-/** request.userAccess is set by the global auth preHandler in main.ts. */
-async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
-  if (!request.userAccess?.isAdmin) {
-    return reply.code(403).send({ code: 'FORBIDDEN', message: 'Admin access required.' });
-  }
-}
+const TIERS: Tier[] = ['trial', 'membership'];
+// 'pending' is the DB default, not something an admin sets — a review is a decision.
+const REVIEW_DECISIONS = ['approved', 'rejected'] as const;
 
 export async function registerAdminRoutes(app: FastifyInstance) {
-  // Exempt from the approval gate (see main.ts) so a pending user can read their own
-  // status and the /pending screen has something to render.
-  app.get('/api/me', async (request) => {
-    const { userId, email, status, isAdmin } = request.userAccess;
-    return { userId, email, status, isAdmin };
+  // ── GET /api/admin/users ──────────────────────────────────────────────────
+  app.get('/api/admin/users', async (request, reply) => {
+    if (!(await isAdminUser(request.userId))) {
+      return reply.code(403).send({ code: 'FORBIDDEN', message: 'Admin access required.' });
+    }
+    const q = (request.query ?? {}) as {
+      search?: string;
+      tier?: string;
+      status?: string;
+      limit?: string;
+    };
+    try {
+      const users = await listUsers({
+        search: q.search,
+        tier: q.tier,
+        status: q.status,
+        limit: q.limit ? Number(q.limit) : undefined,
+      });
+      return reply.code(200).send({ users, count: users.length });
+    } catch (error) {
+      request.log.error(error);
+      return reply.code(500).send({ code: 'LIST_FAILED', message: 'Could not load users.' });
+    }
   });
 
-  app.get<{ Querystring: { status?: string } }>(
-    '/api/admin/users',
-    { preHandler: requireAdmin },
-    async (request, reply) => {
-      const status = request.query.status;
-      let query = getSupabase()
-        .from('users')
-        .select('id, email, full_name, status, created_at, reviewed_at')
-        .order('created_at', { ascending: false })
-        .limit(500);
-
-      if (status) query = query.eq('status', status);
-
-      const { data, error } = await query;
-      if (error) {
-        request.log.error(error);
-        return reply.code(500).send({ code: 'DB_ERROR', message: 'Could not load users.' });
-      }
-      return (data ?? []) as AdminUserRow[];
-    },
-  );
-
-  app.patch<{ Params: { userId: string }; Body: { status?: string } }>(
+  // ── PATCH /api/admin/users/:userId ────────────────────────────────────────
+  // Body: { status?: 'approved'|'rejected', tier?: 'trial'|'membership',
+  //         creditDelta?: number, isAdmin?: boolean }
+  app.patch<{ Params: { userId: string }; Body: UpdateUserPatch }>(
     '/api/admin/users/:userId',
-    { preHandler: requireAdmin },
     async (request, reply) => {
-      const { status } = request.body ?? {};
-      if (status !== 'approved' && status !== 'rejected') {
-        return reply
-          .code(400)
-          .send({ code: 'BAD_REQUEST', message: 'status must be "approved" or "rejected".' });
-      }
-      // Admins can't demote themselves out of the tool by accident.
-      if (request.params.userId === request.userId) {
-        return reply
-          .code(400)
-          .send({ code: 'BAD_REQUEST', message: 'You cannot review your own account.' });
+      if (!(await isAdminUser(request.userId))) {
+        return reply.code(403).send({ code: 'FORBIDDEN', message: 'Admin access required.' });
       }
 
-      const { data, error } = await getSupabase()
-        .from('users')
-        .update({ status, reviewed_at: new Date().toISOString(), reviewed_by: request.userId })
-        .eq('id', request.params.userId)
-        .select('id, email, full_name, status, created_at, reviewed_at')
-        .maybeSingle();
+      const body = (request.body ?? {}) as UpdateUserPatch;
+      const patch: UpdateUserPatch = {};
 
-      if (error) {
+      if (body.status !== undefined) {
+        if (!REVIEW_DECISIONS.includes(body.status)) {
+          return reply.code(400).send({
+            code: 'INVALID_REQUEST',
+            message: `status must be one of: ${REVIEW_DECISIONS.join(', ')}`,
+          });
+        }
+        patch.status = body.status;
+      }
+      if (body.tier !== undefined) {
+        if (!TIERS.includes(body.tier)) {
+          return reply
+            .code(400)
+            .send({ code: 'INVALID_REQUEST', message: `tier must be one of: ${TIERS.join(', ')}` });
+        }
+        patch.tier = body.tier;
+      }
+      if (body.creditDelta !== undefined) {
+        const delta = Number(body.creditDelta);
+        if (!Number.isFinite(delta) || !Number.isInteger(delta)) {
+          return reply
+            .code(400)
+            .send({ code: 'INVALID_REQUEST', message: 'creditDelta must be a whole number.' });
+        }
+        patch.creditDelta = delta;
+      }
+      if (body.isAdmin !== undefined) {
+        if (typeof body.isAdmin !== 'boolean') {
+          return reply.code(400).send({ code: 'INVALID_REQUEST', message: 'isAdmin must be a boolean.' });
+        }
+        patch.isAdmin = body.isAdmin;
+      }
+
+      try {
+        const user = await updateUser(request.userId!, request.params.userId, patch);
+        return reply.code(200).send({ user });
+      } catch (error) {
+        const e = error as { statusCode?: number; message?: string };
+        const status = Number(e?.statusCode) || 500;
+        if (status !== 500) {
+          return reply.code(status).send({ code: 'UPDATE_REJECTED', message: e.message });
+        }
         request.log.error(error);
-        return reply.code(500).send({ code: 'DB_ERROR', message: 'Could not update the account.' });
+        return reply.code(500).send({ code: 'UPDATE_FAILED', message: 'Could not update the account.' });
       }
-      if (!data) {
-        return reply.code(404).send({ code: 'NOT_FOUND', message: 'User not found.' });
-      }
-
-      // Without this the decision sits behind the 60s cache TTL.
-      invalidateUserAccess(request.params.userId);
-      request.log.info({ reviewedBy: request.userId, target: data.email, status }, '[admin] user reviewed');
-      return data as AdminUserRow;
     },
   );
 }

@@ -27,6 +27,11 @@ export interface InterviewContext {
   companyName: string
   companyUrl: string
   extraLinks: string[]
+  /**
+   * Optional questions the interviewer draws from first (sprint F6b). Sent with
+   * every turn, not just at start — see the backend type for why.
+   */
+  questionBank?: string[]
 }
 
 export interface IRSScorePart {

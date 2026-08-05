@@ -13,6 +13,8 @@ import type {
   EvaluateSessionBody,
 } from '../types/interview-prep.js';
 import { perUserDaily } from '../lib/rate-limit.js';
+import { assertCredits, spendCredits, requireMembership } from '../lib/credits.js';
+import { recordToolResult } from '../services/tool-results.service.js';
 
 const ALLOWED_AUDIO_EXTENSIONS = ['.webm', '.mp3', '.wav', '.m4a', '.ogg', '.mp4', '.mpeg', '.mpga'];
 
@@ -40,7 +42,16 @@ export async function registerInterviewRoutes(app: FastifyInstance) {
     const body = request.body as (StartSessionBody | SendMessageBody) & { action?: string };
     try {
       if (body?.action === 'start') {
-        return await startInterviewSession(body as StartSessionBody, request.userId);
+        // Interview Lab is the mentorship perk: trial accounts get 403 here no
+        // matter their balance. Checked before credits so the user sees the
+        // upgrade prompt rather than a confusing "out of credits".
+        await requireMembership(request.userId, 'Interview Lab');
+        // Credit wallet (no-op for admins). Only the session start is charged;
+        // per-turn 'message' calls belong to the session already paid for.
+        await assertCredits(request.userId, 'interview');
+        const session = await startInterviewSession(body as StartSessionBody, request.userId);
+        await spendCredits(request.userId, 'interview');
+        return session;
       }
       if (body?.action === 'message') {
         return await sendInterviewMessage(body as SendMessageBody);
@@ -50,13 +61,28 @@ export async function registerInterviewRoutes(app: FastifyInstance) {
       const code = statusOf(error);
       const message = error instanceof Error ? error.message : 'Internal error';
       request.log.error(error);
+      // 429 = out of credits, 403 = trial account hitting a mentorship feature.
+      // The interview FE reads `message` off both, so send it alongside the
+      // existing `error` field.
+      if (code === 429 || code === 403) {
+        const e = error as { code?: string; scope?: string };
+        const fallback = code === 403 ? 'MEMBERSHIP_REQUIRED' : 'CREDIT_EXHAUSTED';
+        return reply.code(code).send({ code: e.code ?? fallback, message, error: message, scope: e.scope });
+      }
       return reply.code(code).send({ error: message });
     }
   });
 
   app.post<{ Body: EvaluateSessionBody }>('/api/evaluate', async (request, reply) => {
     try {
-      return await evaluateInterview(request.body);
+      const evaluation = await evaluateInterview(request.body);
+      // The feedback report is the session's finished output — store it so the
+      // user can reread it from History without re-running the evaluation.
+      // Best-effort: a failed write never fails the evaluation.
+      const context = request.body?.session?.context;
+      const label = [context?.jobTitle, context?.companyName].filter(Boolean).join(' · ');
+      await recordToolResult(request.userId, 'interview', label || 'Interview Lab', evaluation);
+      return evaluation;
     } catch (error) {
       const code = statusOf(error);
       const message = error instanceof Error ? error.message : 'Internal error';

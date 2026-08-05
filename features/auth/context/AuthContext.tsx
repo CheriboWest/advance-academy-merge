@@ -2,17 +2,19 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import type { CurrentUser } from '@advance-academy/contracts'
 import { getSupabaseBrowser } from '@/shared/auth/supabase-browser'
+import type { UserStatus } from '@/types/admin'
 
 interface AuthContextValue {
   session: Session | null
   user: User | null
-  /** null until GET /api/me resolves. */
-  account: CurrentUser | null
+  /** Approval status; null until GET /api/account/me resolves. */
+  status: UserStatus | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signUp: (email: string, password: string) => Promise<{ error: string | null }>
+  // Passwordless: request a magic login link emailed via Resend (CA-001 P2).
+  sendMagicLink: (email: string, name?: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -32,22 +34,26 @@ function syncSessionCookie(value: string | null) {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
-  const [account, setAccount] = useState<CurrentUser | null>(null)
+  const [status, setStatus] = useState<UserStatus | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const loadAccount = useCallback(async (accessToken: string | undefined) => {
+  // Duplicates shared/hooks/use-account on cold load. Deliberate: the provider
+  // sits above the query client and has to set the cookie before any page renders.
+  const loadStatus = useCallback(async (accessToken: string | undefined) => {
     if (!accessToken) {
-      setAccount(null)
+      setStatus(null)
       syncSessionCookie(null)
       return
     }
     // Unknown status: let middleware through and let the backend 403 decide.
     syncSessionCookie('1')
     try {
-      const res = await fetch('/api/me', { headers: { Authorization: `Bearer ${accessToken}` } })
+      const res = await fetch('/api/account/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
       if (!res.ok) return
-      const me = (await res.json()) as CurrentUser
-      setAccount(me)
+      const me = (await res.json()) as { status: UserStatus }
+      setStatus(me.status)
       syncSessionCookie(me.status)
     } catch {
       // Network hiccup — leave the cookie at '1'; the backend still gates the data.
@@ -59,17 +65,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session)
-      await loadAccount(data.session?.access_token)
+      await loadStatus(data.session?.access_token)
       setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      void loadAccount(session?.access_token)
+      void loadStatus(session?.access_token)
     })
 
     return () => subscription.unsubscribe()
-  }, [loadAccount])
+  }, [loadStatus])
 
   async function signIn(email: string, password: string) {
     const { error } = await getSupabaseBrowser().auth.signInWithPassword({ email, password })
@@ -81,15 +87,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message ?? null }
   }
 
+  async function sendMagicLink(email: string, name?: string) {
+    try {
+      const res = await fetch('/api/auth/passwordless', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name }),
+      })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string }
+        return { error: data.message ?? 'Could not send your login link.' }
+      }
+      return { error: null }
+    } catch {
+      return { error: 'Could not send your login link. Please try again.' }
+    }
+  }
+
   async function signOut() {
     await getSupabaseBrowser().auth.signOut()
-    setAccount(null)
+    setStatus(null)
     syncSessionCookie(null)
   }
 
   return (
     <AuthContext.Provider
-      value={{ session, user: session?.user ?? null, account, loading, signIn, signUp, signOut }}
+      value={{
+        session,
+        user: session?.user ?? null,
+        status,
+        loading,
+        signIn,
+        signUp,
+        sendMagicLink,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>

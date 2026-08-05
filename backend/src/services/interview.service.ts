@@ -42,6 +42,30 @@ function logCacheUsage(label: string, usage: Anthropic.Messages.Usage | undefine
   );
 }
 
+/**
+ * Optional preferred-question block (sprint F6b). Emits nothing at all when no
+ * bank is supplied, so the prompt stays byte-identical to before this feature —
+ * existing sessions keep their cached prefix.
+ *
+ * Capped so a long bank can't crowd out the CV/JD or blow the cache-prefix size.
+ */
+function buildQuestionBankBlock(questionBank?: string[]): string {
+  const questions = (questionBank ?? [])
+    .map((q) => String(q).trim().slice(0, 300))
+    .filter(Boolean)
+    .slice(0, 20);
+  if (questions.length === 0) return '';
+
+  return `
+=== PREFERRED QUESTIONS ===
+Draw your questions from this list first, choosing whichever fits the conversation
+next and rephrasing it naturally in your own voice. Follow-ups to the candidate's
+answers still take priority — never abandon a thread just to reach the next item.
+Once the list is exhausted, continue with your own questions as usual.
+${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
+`;
+}
+
 function buildContextPreamble(context: InterviewContext): string {
   const cvText = context.cvText.slice(0, 12000);
   return `
@@ -57,7 +81,7 @@ ${context.jobDescription}
 """
 ${cvText}
 """
-${context.extraLinks?.length ? `\nAdditional candidate links:\n${context.extraLinks.map((u) => `- ${u}`).join('\n')}\n` : ''}
+${context.extraLinks?.length ? `\nAdditional candidate links:\n${context.extraLinks.map((u) => `- ${u}`).join('\n')}\n` : ''}${buildQuestionBankBlock(context.questionBank)}
 === RULES FOR YOUR QUESTIONS ===
 1. Tailor questions to the job above, but base any reference to "what the candidate said/wrote/claims" ONLY on the CV section — never on the Job Description.
 2. Do NOT paraphrase, quote, or attribute Job Description text to the candidate. The JD is the role's requirements, not the candidate's statements.

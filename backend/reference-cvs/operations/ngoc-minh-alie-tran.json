@@ -1,0 +1,28 @@
+{
+  "id": "ngoc-minh-alie-tran",
+  "role": "Customer Service, Administration & Claims Handler",
+  "seniority": "Mid-level",
+  "industry": "Higher Education / Operations / Public Sector / Retail",
+  "summaryPatterns": [
+    "Header tag line with defining professional traits",
+    "Short profile paragraph emphasizing empathy, detail orientation, and digital confidence",
+    "Highlights experience across higher education, retail, and public sector environments"
+  ],
+  "experiencePatterns": [
+    "Prepend bullet points with bold operational task labels (e.g., Customer Service Delivery, Case Handling, Data Accuracy)",
+    "Demonstrate transferable skills applied across high-volume environments",
+    "Combine soft skills (empathy, active listening) with technical execution (Excel, Python, SQL)",
+    "Focus on process efficiency, SLA adherence, and data precision"
+  ],
+  "achievementPatterns": [
+    "Supported 50+ customers daily across multiple communication channels",
+    "Contributed to a 20% reduction in stockouts through data-driven planning",
+    "Built Python and Excel tools to automate reporting and reduce manual errors",
+    "Graduated with Distinction in BA International Economics"
+  ],
+  "atsPatterns": [
+    "Extensive 'Core Skills' section near the top categorized by operational area",
+    "Functional capability headings prefixing experience bullet points",
+    "Standard reverse-chronological work and education history"
+  ]
+}

@@ -27,6 +27,16 @@ export interface InterviewContext {
   companyName: string;
   companyUrl: string;
   extraLinks: string[];
+  /**
+   * Optional questions the interviewer should draw from first (sprint F6b).
+   *
+   * Lives on the context rather than on StartSessionBody so it travels with
+   * every turn and is persisted in `context_json` — the per-turn system prompt
+   * is rebuilt from this object, so a field that only existed at start time
+   * would both be forgotten after turn 1 and change the cached prefix, costing
+   * a prompt-cache miss on every subsequent turn.
+   */
+  questionBank?: string[];
 }
 
 export interface IRSScorePart {

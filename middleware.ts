@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/login', '/register']
+// /auth/callback finalises the magic-link session client-side (the token arrives
+// in the URL hash, which never reaches the server) — it MUST be public, or the
+// middleware would bounce it to /login before the session cookie is set.
+const PUBLIC_PATHS = ['/login', '/register', '/auth/callback']
 
 // ponytail: routing convenience only. The `aa-session` cookie is client-set and
 // forgeable — the real gate is the backend 403 (ACCOUNT_PENDING / ACCOUNT_REJECTED).

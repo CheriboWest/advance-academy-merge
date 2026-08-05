@@ -1,0 +1,26 @@
+{
+  "id": "harley-tran-market-analyst",
+  "role": "Market Analyst",
+  "seniority": "Entry-level / Graduate",
+  "industry": "Market Intelligence & Consulting",
+  "summaryPatterns": [
+    "Focuses on market analysis, customer research, dashboard development, and insight generation",
+    "Highlights Python, SQL, Excel, and Power BI applications",
+    "Emphasizes market intelligence, forecasting, and data visualization"
+  ],
+  "experiencePatterns": [
+    "Highlight competitor analysis, Excel database creation, and SWOT frameworks",
+    "Demonstrate customer survey analysis (500+ responses) and adoption barrier research",
+    "Include machine learning and econometric project references"
+  ],
+  "achievementPatterns": [
+    "Analysed competitor data across 19 medical products to deliver product launch recommendations",
+    "Analysed 500+ survey responses across technology firms",
+    "Built machine learning models for churn prediction and profitability forecasting"
+  ],
+  "atsPatterns": [
+    "Categorized technical skill list placed near top",
+    "Structured project section illustrating ML and forecasting applications",
+    "Clear academic distinction details"
+  ]
+}

@@ -5,15 +5,15 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/features/auth/context/AuthContext'
 
 export default function PendingPage() {
-  const { account, loading, signOut } = useAuth()
+  const { user, status, loading, signOut } = useAuth()
   const router = useRouter()
-  const rejected = account?.status === 'rejected'
+  const rejected = status === 'rejected'
 
   // Middleware only sees the cookie as it was at request time, so an approval that
   // lands during this page's lifetime has to be routed client-side.
   useEffect(() => {
-    if (account?.status === 'approved') router.replace('/')
-  }, [account?.status, router])
+    if (status === 'approved') router.replace('/')
+  }, [status, router])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -42,7 +42,7 @@ export default function PendingPage() {
             <>Your account request was not approved. Please speak to your programme coach if you think this is a mistake.</>
           ) : (
             <>
-              Thanks for signing up{account?.email ? <> as <strong className="text-blue-900">{account.email}</strong></> : null}.
+              Thanks for signing up{user?.email ? <> as <strong className="text-blue-900">{user.email}</strong></> : null}.
               A coach needs to approve your account before you can use the tools — this is usually done within one working day.
               You&apos;ll be able to sign in and start straight away once it&apos;s approved.
             </>

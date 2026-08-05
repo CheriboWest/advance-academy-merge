@@ -4,16 +4,14 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import Fastify from 'fastify';
 import { getUserIdFromToken } from './lib/supabase.js';
-import { approvalError, getUserAccess, type UserAccess } from './lib/user-access.js';
+import { approvalError, getUserStatus } from './lib/user-access.js';
 import { startCvAnalysisReaper } from './lib/cv-analysis-reaper.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
     userId: string;
-    userAccess: UserAccess;
   }
 }
-import { registerAdminRoutes } from './routes/admin.js';
 import { registerSystemRoutes } from './routes/system.js';
 import { registerCvOptimizerRoutes } from './routes/cv-optimizer.js';
 import { registerDreamCompanyRoutes } from './routes/dream-company.js';
@@ -23,6 +21,12 @@ import { registerCvLibraryRoutes } from './routes/cv-library.js';
 import { registerCoachAnswerRoutes } from './routes/coach-answer.js';
 import { registerInterviewRoutes } from './routes/interview.js';
 import { registerCoachUnderstandingRoutes } from './routes/coach-understanding.js';
+import { registerLeadsRoutes } from './routes/leads.js';
+import { registerAuthRoutes } from './routes/auth.js';
+import { registerReferralRoutes } from './routes/referral.js';
+import { registerAdminRoutes } from './routes/admin.js';
+import { registerAccountRoutes } from './routes/account.js';
+import { registerToolResultsRoutes } from './routes/tool-results.js';
 
 function loadBackendEnvFile() {
   const candidates = [
@@ -66,7 +70,17 @@ async function bootstrap() {
   });
 
   app.addHook('preHandler', async (request, reply) => {
-    const skipPaths = ['/api/health', '/api/system'];
+    // Public lead-capture endpoints: hit by anonymous job-seekers and email-link
+    // clicks, so no bearer token. GET /api/leads (admin) is NOT listed here and
+    // stays auth-gated. Order matters: these are checked with startsWith.
+    const skipPaths = [
+      '/api/health',
+      '/api/system',
+      '/api/leads/capture',
+      '/api/leads/confirm',
+      '/api/leads/unsubscribe',
+      '/api/auth/passwordless',
+    ];
     if (skipPaths.some((p) => request.url.startsWith(p))) return;
 
     const authHeader = request.headers.authorization;
@@ -83,16 +97,14 @@ async function bootstrap() {
     // so new features are covered without touching them. 403 not 401 — the token is
     // valid, the account just isn't cleared yet, and the frontend needs to tell those
     // apart (401 → re-login, 403 → show the pending screen).
-    // `/api/me` is exempt so the pending screen can read its own status. Exact path
-    // match, not startsWith — a prefix would silently exempt any future `/api/me*`.
-    request.userAccess = await getUserAccess(request.userId);
-    if (request.url.split('?')[0] === '/api/me') return;
+    // `/api/account/me` is exempt so the pending screen can read its own status.
+    // Exact path match, not startsWith — a prefix would exempt any future sibling.
+    if (request.url.split('?')[0] === '/api/account/me') return;
 
-    const denied = approvalError(request.userAccess);
+    const denied = approvalError(await getUserStatus(request.userId));
     if (denied) return reply.code(403).send(denied);
   });
 
-  await registerAdminRoutes(app);
   await registerSystemRoutes(app);
   await registerCvOptimizerRoutes(app);
   await registerDreamCompanyRoutes(app);
@@ -102,6 +114,12 @@ async function bootstrap() {
   await registerCoachAnswerRoutes(app);
   await registerInterviewRoutes(app);
   await registerCoachUnderstandingRoutes(app);
+  await registerLeadsRoutes(app);
+  await registerAuthRoutes(app);
+  await registerReferralRoutes(app);
+  await registerAdminRoutes(app);
+  await registerAccountRoutes(app);
+  await registerToolResultsRoutes(app);
 
   await app.listen({
     port,
