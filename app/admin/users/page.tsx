@@ -7,9 +7,11 @@ export default function AdminUsersPage() {
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Users</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          People with an account. Move them between trial and membership, top up credits,
-          and grant admin access. Upgrading tops the wallet up to the membership grant;
-          admins bypass credits entirely. Every change is recorded in the audit log.
+          People with an account. New signups land as <strong>pending</strong> and cannot
+          reach any tool until approved here. You can also move them between trial and
+          membership, top up credits, and grant admin access. Upgrading tops the wallet up
+          to the membership grant; admins bypass credits entirely. Every change is recorded
+          in the audit log.
         </p>
       </header>
       <UsersTable />

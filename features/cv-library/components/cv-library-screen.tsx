@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+// React 19 dropped the global JSX namespace; it's imported from 'react' now.
+import { useCallback, useEffect, useState, type JSX } from 'react'
 import { authedFetch } from '@/shared/auth/authed-fetch'
 import { useFakeProgress } from '@/shared/hooks/use-fake-progress'
 import { ProgressBar } from '@/shared/hooks/progress-bar'

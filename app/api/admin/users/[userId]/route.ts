@@ -5,6 +5,8 @@ import { HttpClientError } from '@/shared/api/http-client'
 import type { AdminUserPatch, Tier } from '@/types/admin'
 
 const TIERS: Tier[] = ['trial', 'membership']
+// 'pending' is the DB default, not a decision an admin submits.
+const REVIEW_DECISIONS = ['approved', 'rejected'] as const
 
 // Validate here as well as on the backend — the proxy layer owns request-shape
 // checks so a malformed body never reaches Fastify (see docs/ARCHITECTURE.md).
@@ -13,6 +15,10 @@ function toPatch(body: unknown): AdminUserPatch | null {
   const b = body as Record<string, unknown>
   const patch: AdminUserPatch = {}
 
+  if (b.status !== undefined) {
+    if (typeof b.status !== 'string' || !REVIEW_DECISIONS.includes(b.status as never)) return null
+    patch.status = b.status as AdminUserPatch['status']
+  }
   if (b.tier !== undefined) {
     if (typeof b.tier !== 'string' || !TIERS.includes(b.tier as Tier)) return null
     patch.tier = b.tier as Tier
@@ -36,7 +42,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
     const patch = toPatch(await request.json().catch(() => null))
     if (!patch) {
       return NextResponse.json(
-        { code: 'INVALID_REQUEST', message: 'Provide at least one of: tier, creditDelta, isAdmin.' },
+        {
+          code: 'INVALID_REQUEST',
+          message: 'Provide at least one of: status, tier, creditDelta, isAdmin.',
+        },
         { status: 400 },
       )
     }
