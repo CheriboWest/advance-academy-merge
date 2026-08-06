@@ -37,6 +37,16 @@ export interface InterviewContext {
    * a prompt-cache miss on every subsequent turn.
    */
   questionBank?: string[];
+  /**
+   * The coaching session this mock was launched from (ticket T7).
+   *
+   * Deliberately NOT read by `buildContextPreamble` — it is a link, not prompt
+   * material, and putting it in the preamble would change the cached prefix for
+   * no benefit. It rides on the context purely so it survives every turn and
+   * reaches the evaluation, which is where the mock gets tied back to the
+   * session the coach will read it against.
+   */
+  coachingSessionId?: string;
 }
 
 export interface IRSScorePart {

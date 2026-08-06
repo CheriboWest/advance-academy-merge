@@ -7,5 +7,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'CV Optimizer', view: 'cv' },
   { label: 'CV Library', view: 'cv-library' },
   { label: 'Interview Prep', view: 'interview' },
+  { label: 'Coaching', view: 'coaching' },
   { label: 'History', view: 'history' },
 ]

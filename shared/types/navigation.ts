@@ -5,6 +5,7 @@ export type ViewName =
   | 'cv'
   | 'interview'
   | 'cv-library'
+  | 'coaching'
   | 'history'
 
 export interface NavItem {

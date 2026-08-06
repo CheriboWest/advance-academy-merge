@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { ArrowLeft, Shield } from 'lucide-react'
 
 const TABS = [
+  { href: '/admin/coaching', label: 'Coaching', hint: 'Booked sessions and their prep packs' },
   { href: '/admin/users', label: 'Users', hint: 'Accounts, tiers and credits' },
   { href: '/admin/leads', label: 'Leads', hint: 'Emails captured before signup' },
 ] as const
@@ -35,7 +36,8 @@ export function AdminNav() {
 
       <nav className="flex gap-1">
         {TABS.map((tab) => {
-          const active = pathname === tab.href
+          // Prefix match so a detail page (/admin/coaching/<id>) keeps its tab lit.
+          const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`)
           return (
             <Link
               key={tab.href}

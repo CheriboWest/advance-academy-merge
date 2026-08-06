@@ -32,6 +32,12 @@ export interface InterviewContext {
    * every turn, not just at start — see the backend type for why.
    */
   questionBank?: string[]
+  /**
+   * Set when the mock was launched from an approved coaching pack (ticket T7).
+   * Travels with every turn and reaches the evaluation, which is what ties the
+   * result back to the session the coach reads it against.
+   */
+  coachingSessionId?: string
 }
 
 export interface IRSScorePart {

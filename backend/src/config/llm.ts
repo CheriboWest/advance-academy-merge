@@ -6,7 +6,8 @@ export type LlmFeature =
   | 'outreach'
   | 'dreamCompany'
   | 'interviewPrep'
-  | 'interviewScoring';
+  | 'interviewScoring'
+  | 'coaching';
 
 export interface LlmFeatureConfig {
   enabled: boolean;
@@ -77,6 +78,13 @@ function getFeatureModels(provider: LlmProvider): Record<LlmFeature, string> {
       process.env.LLM_MODEL_INTERVIEW_SCORING,
       readRequiredString(process.env.LLM_MODEL_INTERVIEW_PREP, defaultModel),
     ),
+    // Falls back to LLM_MODEL_DEFAULT, deliberately NOT to LLM_MODEL_DREAM_COMPANY.
+    // Dream Company was moved to Haiku for cost after a quality comparison, and
+    // chaining onto it would have silently made coaching a Haiku feature too.
+    // Coaching output is read by a coach, edited, and then handed to a student
+    // before a real interview — the one place a cheaper model is a false economy.
+    // Set LLM_MODEL_COACHING to override.
+    coaching: readRequiredString(process.env.LLM_MODEL_COACHING, defaultModel),
   };
 }
 
@@ -90,6 +98,9 @@ function getFeatureApiKey(feature: LlmFeature): string {
   switch (feature) {
     case 'outreach':
     case 'dreamCompany':
+    // Coaching shares the Outreach key: it runs the same kind of workload
+    // (web-grounded research + synthesis) against the same quota.
+    case 'coaching':
       return pick(process.env.LLM_API_KEY_OUTREACH);
     case 'cvOptimizer':
       return pick(process.env.LLM_API_KEY_CV);

@@ -50,6 +50,19 @@ export function trialGrant(): number {
   return envInt('CREDIT_GRANT_TRIAL', 2);
 }
 
+/**
+ * Coaching sessions granted once on upgrade to membership (migration 019).
+ *
+ * A separate quota from the wallet above, on purpose. Credits meter LLM spend;
+ * a coaching session's scarce resource is an hour of the coach's time. Priced in
+ * credits it would have to be ~20 to mean "one per membership", which would
+ * leave the student unable to run the tools that produce the session's own
+ * context. Keeping them independent avoids that trade entirely.
+ */
+export function coachingGrant(): number {
+  return envInt('COACHING_GRANT_MEMBERSHIP', 1);
+}
+
 export interface Account {
   tier: Tier;
   isAdmin: boolean;
@@ -184,4 +197,94 @@ export async function requireMembership(userId: string | undefined, feature: str
     new Error(`${feature} is part of Mentorship. Upgrade your account to unlock it.`),
     { statusCode: 403, code: 'MEMBERSHIP_REQUIRED', scope: feature },
   );
+}
+
+// ── Coaching quota (migration 019) ──────────────────────────────────────────
+
+/** Sessions this account has left. Admins are unlimited and report Infinity. */
+export async function getCoachingCredits(userId: string): Promise<number> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('users')
+    .select('is_admin, coaching_credits')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) {
+    throw Object.assign(new Error('Account lookup failed'), { statusCode: 500, cause: error });
+  }
+  if (data?.is_admin) return Infinity;
+  return (data?.coaching_credits as number) ?? 0;
+}
+
+/**
+ * Throw unless the user may book a coaching session: 403 off membership, 429
+ * with the quota spent. Call BEFORE creating the session row; pair it with
+ * `spendCoachingCredit` once the row exists.
+ */
+export async function assertCoachingCredit(userId: string | undefined): Promise<void> {
+  if (!userId) return;
+  await requireMembership(userId, 'Coaching');
+
+  const remaining = await getCoachingCredits(userId);
+  if (remaining < 1) {
+    throw Object.assign(
+      new Error(
+        'You have used the coaching session included with your Mentorship. Renew or ask your coach to add another.',
+      ),
+      { statusCode: 429, code: 'COACHING_QUOTA_EXHAUSTED', scope: 'Coaching', balance: 0 },
+    );
+  }
+}
+
+/**
+ * Consume one session. No-op for admins — the coach books on students' behalf
+ * and must never be metered for it.
+ *
+ * Guarded on `coaching_credits >= 1` so two concurrent bookings can't drive the
+ * quota negative. The loser is logged rather than thrown: the session row it
+ * belongs to already exists, and failing here would leave the student staring at
+ * an error for work that succeeded.
+ */
+export async function spendCoachingCredit(userId: string | undefined): Promise<void> {
+  if (!userId) return;
+  const supabase = getSupabase();
+
+  const { data: account } = await supabase
+    .from('users')
+    .select('is_admin, coaching_credits')
+    .eq('id', userId)
+    .maybeSingle();
+  if (account?.is_admin) return;
+
+  const current = (account?.coaching_credits as number) ?? 0;
+  const { data: charged, error } = await supabase
+    .from('users')
+    .update({ coaching_credits: Math.max(0, current - 1) })
+    .eq('id', userId)
+    .gte('coaching_credits', 1)
+    .select('coaching_credits')
+    .maybeSingle();
+
+  if (error) {
+    throw Object.assign(new Error('Coaching quota deduction failed'), { statusCode: 500, cause: error });
+  }
+  if (!charged) {
+    console.warn(`[credits] coaching deduction skipped for ${userId}: quota already spent`);
+  }
+}
+
+/** Add coaching sessions to an account (admin top-up). Returns the new balance. */
+export async function addCoachingCredits(userId: string, amount: number): Promise<number> {
+  const supabase = getSupabase();
+  const { data: current } = await supabase
+    .from('users')
+    .select('coaching_credits')
+    .eq('id', userId)
+    .maybeSingle();
+  const next = Math.max(0, ((current?.coaching_credits as number) ?? 0) + amount);
+  const { error } = await supabase.from('users').update({ coaching_credits: next }).eq('id', userId);
+  if (error) {
+    throw Object.assign(new Error('Coaching quota update failed'), { statusCode: 500, cause: error });
+  }
+  return next;
 }

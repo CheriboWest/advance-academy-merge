@@ -14,6 +14,8 @@ export interface AdminUserRow {
   tier: Tier
   is_admin: boolean
   credit_balance: number
+  /** Coaching sessions left — a quota separate from the credit wallet. */
+  coaching_credits: number
   referral_count: number
   /** Null until the account spends credits on a tool for the first time. */
   first_tool_used_at: string | null
@@ -41,6 +43,8 @@ export interface AdminUserPatch {
   tier?: Tier
   /** Signed change to the wallet, e.g. +5 or -2. */
   creditDelta?: number
+  /** Signed change to the coaching quota, e.g. +1 to grant another session. */
+  coachingDelta?: number
   isAdmin?: boolean
 }
 

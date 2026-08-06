@@ -1,7 +1,7 @@
 // Tool run history (sprint F5).
 // Mirrors the backend shapes returned by GET /api/tool-results.
 
-export type ToolName = 'cv' | 'dream' | 'interview'
+export type ToolName = 'cv' | 'dream' | 'interview' | 'coaching'
 
 export interface ToolResultSummary {
   id: string
@@ -14,6 +14,10 @@ export interface ToolResultSummary {
 export interface ToolResultDetail extends ToolResultSummary {
   /** The tool's stored output. Shape depends on `tool`. */
   result: unknown
+  /** What was fed in. Null on rows written before migration 018. */
+  input_json?: unknown
+  /** `cv_versions` row this run was based on, when there was one. */
+  cv_version_id?: string | null
 }
 
 export interface ToolResultsListResponse {
@@ -34,4 +38,5 @@ export const TOOL_LABELS: Record<ToolName, string> = {
   cv: 'CV Optimiser',
   dream: 'Dream Company',
   interview: 'Interview Lab',
+  coaching: 'Coaching',
 }
