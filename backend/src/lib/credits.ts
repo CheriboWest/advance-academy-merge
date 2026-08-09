@@ -217,6 +217,19 @@ export async function getCoachingCredits(userId: string): Promise<number> {
 }
 
 /**
+ * The wire form of a coaching quota.
+ *
+ * `getCoachingCredits` reports Infinity for admins, and `JSON.stringify(Infinity)`
+ * is the string `null` — so the field would arrive as null either way. Mapping it
+ * explicitly makes that the contract rather than an accident of serialisation:
+ * **null means unlimited**, and the UI renders ∞. A real zero stays 0 and blocks
+ * booking, which is why the two must never be conflated.
+ */
+export function toJsonQuota(quota: number): number | null {
+  return Number.isFinite(quota) ? quota : null;
+}
+
+/**
  * Throw unless the user may book a coaching session: 403 off membership, 429
  * with the quota spent. Call BEFORE creating the session row; pair it with
  * `spendCoachingCredit` once the row exists.

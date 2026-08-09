@@ -15,6 +15,19 @@ const TIERS: Tier[] = ['trial', 'membership'];
 // 'pending' is the DB default, not something an admin sets — a review is a decision.
 const REVIEW_DECISIONS = ['approved', 'rejected'] as const;
 
+/**
+ * Both balances move by a signed whole number, and both are typed `number` on the
+ * wire, so `"3"`, `3.5` and `NaN` all have to be rejected here rather than reach
+ * `planUserUpdate`, where a fractional delta would write a fractional balance.
+ */
+export function readDelta(value: unknown): number | null {
+  // Booleans, null and objects are rejected outright: `Number(true)` is 1, which
+  // would turn `{"coachingDelta": true}` into a free session.
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  const delta = Number(value);
+  return Number.isInteger(delta) ? delta : null;
+}
+
 export async function registerAdminRoutes(app: FastifyInstance) {
   // ── GET /api/admin/users ──────────────────────────────────────────────────
   app.get('/api/admin/users', async (request, reply) => {
@@ -43,7 +56,7 @@ export async function registerAdminRoutes(app: FastifyInstance) {
 
   // ── PATCH /api/admin/users/:userId ────────────────────────────────────────
   // Body: { status?: 'approved'|'rejected', tier?: 'trial'|'membership',
-  //         creditDelta?: number, isAdmin?: boolean }
+  //         creditDelta?: number, coachingDelta?: number, isAdmin?: boolean }
   app.patch<{ Params: { userId: string }; Body: UpdateUserPatch }>(
     '/api/admin/users/:userId',
     async (request, reply) => {
@@ -72,13 +85,22 @@ export async function registerAdminRoutes(app: FastifyInstance) {
         patch.tier = body.tier;
       }
       if (body.creditDelta !== undefined) {
-        const delta = Number(body.creditDelta);
-        if (!Number.isFinite(delta) || !Number.isInteger(delta)) {
+        const delta = readDelta(body.creditDelta);
+        if (delta === null) {
           return reply
             .code(400)
             .send({ code: 'INVALID_REQUEST', message: 'creditDelta must be a whole number.' });
         }
         patch.creditDelta = delta;
+      }
+      if (body.coachingDelta !== undefined) {
+        const delta = readDelta(body.coachingDelta);
+        if (delta === null) {
+          return reply
+            .code(400)
+            .send({ code: 'INVALID_REQUEST', message: 'coachingDelta must be a whole number.' });
+        }
+        patch.coachingDelta = delta;
       }
       if (body.isAdmin !== undefined) {
         if (typeof body.isAdmin !== 'boolean') {

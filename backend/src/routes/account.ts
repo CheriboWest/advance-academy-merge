@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { getAccount } from '../lib/credits.js';
+import { getAccount, getCoachingCredits, toJsonQuota } from '../lib/credits.js';
 import { isAdminUser } from '../lib/admin.js';
 import { getUserStatus } from '../lib/user-access.js';
 
@@ -22,16 +22,23 @@ export async function registerAccountRoutes(app: FastifyInstance) {
       return reply.code(401).send({ code: 'UNAUTHORIZED', message: 'Authentication required.' });
     }
     try {
-      const [account, isAdmin, status] = await Promise.all([
+      const [account, isAdmin, status, coachingCredits] = await Promise.all([
         getAccount(request.userId),
         isAdminUser(request.userId),
         getUserStatus(request.userId),
+        // Its own quota, not part of the wallet (migration 019). The booking
+        // screen needs it to say "one session left" before the student fills in
+        // a form they cannot submit. Swallowed on failure: a missing migration
+        // 019 must not take down the one route a pending account can reach.
+        getCoachingCredits(request.userId).catch(() => 0),
       ]);
       return reply.code(200).send({
         status,
         tier: account.tier,
         credits: account.credits,
         isAdmin,
+        // Infinity does not survive JSON; admins are unlimited and the UI shows ∞.
+        coachingCredits: toJsonQuota(coachingCredits),
       });
     } catch (error) {
       request.log.error(error);

@@ -27,6 +27,12 @@ function toPatch(body: unknown): AdminUserPatch | null {
     if (typeof b.creditDelta !== 'number' || !Number.isInteger(b.creditDelta)) return null
     patch.creditDelta = b.creditDelta
   }
+  // The coaching quota (migration 019) is not part of the wallet above — a
+  // session is an hour of the coach's time, priced separately on purpose.
+  if (b.coachingDelta !== undefined) {
+    if (typeof b.coachingDelta !== 'number' || !Number.isInteger(b.coachingDelta)) return null
+    patch.coachingDelta = b.coachingDelta
+  }
   if (b.isAdmin !== undefined) {
     if (typeof b.isAdmin !== 'boolean') return null
     patch.isAdmin = b.isAdmin
@@ -44,7 +50,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ us
       return NextResponse.json(
         {
           code: 'INVALID_REQUEST',
-          message: 'Provide at least one of: status, tier, creditDelta, isAdmin.',
+          message: 'Provide at least one of: status, tier, creditDelta, coachingDelta, isAdmin.',
         },
         { status: 400 },
       )
