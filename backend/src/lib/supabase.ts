@@ -17,6 +17,24 @@ export function getSupabase(): SupabaseClient {
   return cached;
 }
 
+/**
+ * True when a query failed because the database is missing a column the code
+ * expects — i.e. this deploy is running ahead of its migration.
+ *
+ * Migrations in this project are applied by hand in the Supabase SQL editor,
+ * with no tool enforcing that they land before the code that needs them. Callers
+ * use this to degrade (write the row without the new column) instead of failing
+ * a request outright, so a lagging migration costs data richness rather than
+ * uptime. `PGRST204` is PostgREST's "column not found in schema cache"; `42703`
+ * is Postgres' own undefined_column.
+ */
+export function isMissingColumnError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const { code, message } = error as { code?: string; message?: string };
+  if (code === 'PGRST204' || code === '42703') return true;
+  return /column .* does not exist|could not find the .* column/i.test(message ?? '');
+}
+
 export async function getUserIdFromToken(token: string): Promise<string> {
   const supabase = getSupabase();
   const { data: { user }, error } = await supabase.auth.getUser(token);

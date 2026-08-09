@@ -15,6 +15,7 @@ import type {
 import { perUserDaily } from '../lib/rate-limit.js';
 import { assertCredits, spendCredits, requireMembership } from '../lib/credits.js';
 import { recordToolResult } from '../services/tool-results.service.js';
+import { ensureCvVersion } from '../lib/cv-version-link.js';
 
 const ALLOWED_AUDIO_EXTENSIONS = ['.webm', '.mp3', '.wav', '.m4a', '.ogg', '.mp4', '.mpeg', '.mpga'];
 
@@ -79,9 +80,38 @@ export async function registerInterviewRoutes(app: FastifyInstance) {
       // The feedback report is the session's finished output — store it so the
       // user can reread it from History without re-running the evaluation.
       // Best-effort: a failed write never fails the evaluation.
-      const context = request.body?.session?.context;
+      const session = request.body?.session;
+      const context = session?.context;
       const label = [context?.jobTitle, context?.companyName].filter(Boolean).join(' · ');
-      await recordToolResult(request.userId, 'interview', label || 'Interview Lab', evaluation);
+      // The mock's setup travels with the report (migration 018): a score means
+      // little to a coach without the JD and persona it was scored against.
+      // `cvText` is excluded on purpose — it goes to `cv_versions` instead, so
+      // the CV is stored once and pointed at rather than copied per run.
+      const cvVersionId = await ensureCvVersion({
+        userId: request.userId,
+        rawText: context?.cvText ?? '',
+        name: `Interview Lab · ${label || 'mock'}`,
+        origin: 'interview_lab',
+      });
+      await recordToolResult(request.userId, 'interview', label || 'Interview Lab', evaluation, {
+        input: context
+          ? {
+              personaId: session?.personaId ?? null,
+              jobTitle: context.jobTitle,
+              jobDescription: context.jobDescription,
+              companyName: context.companyName,
+              companyUrl: context.companyUrl,
+              extraLinks: context.extraLinks,
+              questionBank: context.questionBank ?? null,
+              // The link back to the coaching session that launched this mock
+              // (ticket T7). Stored here rather than in a column of its own:
+              // the mock IS a tool run, it already lives in tool_results, and a
+              // parallel copy on coaching_sessions would be a second truth.
+              coachingSessionId: context.coachingSessionId ?? null,
+            }
+          : undefined,
+        cvVersionId,
+      });
       return evaluation;
     } catch (error) {
       const code = statusOf(error);

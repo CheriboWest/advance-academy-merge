@@ -11,9 +11,10 @@ import { InterviewPrepScreen } from '@/features/interview-prep/components/interv
 import { HistoryScreen } from '@/features/tool-history/components/history-screen'
 import { DreamCompanyScreen } from '@/features/dream-company/components/dream-company-screen'
 import { CvLibraryScreen } from '@/features/cv-library/components/cv-library-screen'
+import { CoachingScreen } from '@/features/coaching/components/coaching-screen'
 import { useAuth } from '@/features/auth/context/AuthContext'
 
-const VIEWS_FROM_QUERY = new Set<string>(['home', 'outreach', 'cv', 'interview', 'history', 'companies', 'cv-library'])
+const VIEWS_FROM_QUERY = new Set<string>(['home', 'outreach', 'cv', 'interview', 'history', 'companies', 'cv-library', 'coaching'])
 
 function viewFromSearchParams(searchParams: URLSearchParams | null): ViewName {
   const raw = searchParams?.get('view')
@@ -62,6 +63,7 @@ export function HomePageContent() {
       {currentView === 'interview' && (
         <InterviewPrepScreen onNavigate={handleNavigate} />
       )}
+      {currentView === 'coaching' && <CoachingScreen />}
       {currentView === 'history' && <HistoryScreen />}
       {currentView === 'companies' && (
         <DreamCompanyScreen />

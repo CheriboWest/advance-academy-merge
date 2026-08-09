@@ -11,6 +11,11 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "check:companies-house": "tsx scripts/check-companies-house.ts",
+    "check:migration-018": "tsx scripts/check-migration-018.ts",
+    "check:migration-019": "tsx scripts/check-migration-019.ts",
+    "research:company": "tsx scripts/research-company.ts",
+    "context:check": "tsx scripts/context-readiness.ts",
+    "generate:pack": "tsx scripts/generate-pack.ts",
     "usage": "tsx scripts/usage-report.ts",
     "usage:week": "tsx scripts/usage-report.ts -- --days 7",
     "usage:month": "tsx scripts/usage-report.ts -- --days 30"

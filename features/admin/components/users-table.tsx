@@ -69,6 +69,49 @@ function CreditControls({
   )
 }
 
+/**
+ * Coaching sessions left — a quota of its own, not part of the wallet above.
+ * Steps of one because that is the unit: one booking, one hour of the coach's
+ * time. Admins are unlimited server-side, so the buttons would be a no-op.
+ */
+function CoachingControls({
+  user,
+  onPatch,
+  busy,
+}: {
+  user: AdminUserRow
+  onPatch: (patch: AdminUserPatch) => void
+  busy: boolean
+}) {
+  // `?? 0` because a backend running ahead of migration 019 omits the column.
+  const held = user.coaching_credits ?? 0
+  return (
+    <div className="flex items-center justify-center gap-1">
+      <span className="w-5 text-right tabular-nums">{user.is_admin ? '∞' : held}</span>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 px-2"
+        disabled={busy || user.is_admin || held === 0}
+        onClick={() => onPatch({ coachingDelta: -1 })}
+        title="Remove one coaching session"
+      >
+        −1
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 px-2"
+        disabled={busy || user.is_admin}
+        onClick={() => onPatch({ coachingDelta: 1 })}
+        title="Grant one coaching session"
+      >
+        +1
+      </Button>
+    </div>
+  )
+}
+
 export function UsersTable() {
   const [search, setSearch] = useState('')
   const [tier, setTier] = useState('')
@@ -173,6 +216,7 @@ export function UsersTable() {
                   <TableHead>Tier</TableHead>
                   <TableHead className="text-right">Credits</TableHead>
                   <TableHead>Adjust</TableHead>
+                  <TableHead className="text-center">Coaching</TableHead>
                   <TableHead className="text-center">Referrals</TableHead>
                   <TableHead className="text-center">Used a tool</TableHead>
                   <TableHead>Joined</TableHead>
@@ -182,7 +226,7 @@ export function UsersTable() {
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
                       No accounts match these filters.
                     </TableCell>
                   </TableRow>
@@ -212,6 +256,13 @@ export function UsersTable() {
                         </TableCell>
                         <TableCell>
                           <CreditControls
+                            user={u}
+                            busy={busy}
+                            onPatch={(p) => patch(u.id, p)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <CoachingControls
                             user={u}
                             busy={busy}
                             onPatch={(p) => patch(u.id, p)}

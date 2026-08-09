@@ -125,3 +125,42 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * Printing (ticket T6).
+ *
+ * The student's approved prep pack is exported with the browser's own
+ * Save-as-PDF rather than a server-side renderer: the page already reads well,
+ * and a PDF library would mean a second layout to keep in sync with this one.
+ *
+ * These rules only have to strip the app furniture — the header, the site nav —
+ * and stop cards being split across a page break mid-sentence. Components opt
+ * out of paper individually with Tailwind's `print:hidden`.
+ */
+@media print {
+  nav,
+  header[data-app-header],
+  button:not([data-print-keep]) {
+    display: none !important;
+  }
+
+  /* Ink, not screen: dark backgrounds cost a fortune and read worse on paper. */
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  a {
+    text-decoration: underline;
+  }
+
+  /* A question or a STAR story split across two pages is unreadable. */
+  .break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  @page {
+    margin: 16mm;
+  }
+}

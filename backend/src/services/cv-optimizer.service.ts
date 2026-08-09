@@ -26,7 +26,8 @@ import type { ApiErrorResponse, JobStatus, JobStatusResponse } from '@advance-ac
 import { getLlmConfig } from '../config/llm.js';
 import { getCvOptimizerFeatures } from '../config/features.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
-import { getSupabase } from '../lib/supabase.js';
+import { getSupabase, isMissingColumnError } from '../lib/supabase.js';
+import { ensureCvVersion } from '../lib/cv-version-link.js';
 import { getReferenceExamples, formatReferencePatterns } from './reference-cv.service.js';
 
 interface CvAnalysisJobRow {
@@ -862,8 +863,33 @@ async function analyzeCv(body: AnalyzeCvRequest): Promise<AnalyzeCvResult> {
   return buildFallbackAnalysis(body);
 }
 
-async function runCvAnalysisJob(jobId: string, body: AnalyzeCvRequest) {
+/**
+ * Point the job at the `cv_versions` row holding the CV it analysed (migration
+ * 018). Runs in the background rather than in `createCvAnalysisJob` so the 202
+ * still returns immediately, and is best-effort throughout: a job that analyses
+ * a CV fine but fails to link it is a job that succeeded.
+ */
+async function linkJobToCvVersion(jobId: string, body: AnalyzeCvRequest, userId: string) {
+  try {
+    const cvVersionId = await ensureCvVersion({
+      userId,
+      rawText: body.currentCvText,
+      name: `CV Optimiser · ${body.targetRole}`.slice(0, 200),
+      origin: 'cv_optimizer',
+    });
+    if (!cvVersionId) return;
+    await getSupabase()
+      .from('cv_analysis_jobs')
+      .update({ cv_version_id: cvVersionId })
+      .eq('id', jobId);
+  } catch (err) {
+    console.error(`[cv-optimizer] could not link job ${jobId} to a cv_version:`, err);
+  }
+}
+
+async function runCvAnalysisJob(jobId: string, body: AnalyzeCvRequest, userId: string) {
   await updateJob(jobId, { status: 'running', clearError: true });
+  void linkJobToCvVersion(jobId, body, userId);
 
   try {
     const result = await analyzeCv(body);
@@ -879,11 +905,39 @@ async function runCvAnalysisJob(jobId: string, body: AnalyzeCvRequest) {
 
 export async function createCvAnalysisJob(body: AnalyzeCvRequest, userId: string): Promise<AnalyzeCvAcceptedResponse> {
   const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('cv_analysis_jobs')
-    .insert({ user_id: userId, status: 'queued' })
-    .select('id, status, submitted_at, updated_at')
-    .single();
+  // `input_json` records WHAT was analysed, so the stored result stops being an
+  // orphan (migration 018). The CV body is deliberately not in here — it lives
+  // once in `cv_versions`, reached via `cv_version_id`, which the background
+  // job fills in.
+  const insertJob = (withInput: boolean) =>
+    supabase
+      .from('cv_analysis_jobs')
+      .insert({
+        user_id: userId,
+        status: 'queued',
+        ...(withInput
+          ? {
+              input_json: {
+                targetRole: body.targetRole,
+                jobDescription: body.jobDescription?.trim() || null,
+                cvTextChars: body.currentCvText?.length ?? 0,
+              },
+            }
+          : {}),
+      })
+      .select('id, status, submitted_at, updated_at')
+      .single();
+
+  let { data, error } = await insertJob(true);
+
+  // Migrations here are applied by hand, so code can reach production before its
+  // schema does. Losing `input_json` for a while is a shame; failing every CV
+  // analysis until someone opens the SQL editor is an outage. Fall back once,
+  // loudly, and let `npm run check:migration-018` be how this gets noticed.
+  if (error && isMissingColumnError(error)) {
+    console.error('[cv-optimizer] cv_analysis_jobs.input_json is missing — run migration 018.');
+    ({ data, error } = await insertJob(false));
+  }
 
   if (error || !data) {
     const err = new Error(`Failed to create CV analysis job: ${error?.message ?? 'unknown error'}`);
@@ -892,7 +946,7 @@ export async function createCvAnalysisJob(body: AnalyzeCvRequest, userId: string
   }
 
   const jobId = data.id as string;
-  setTimeout(() => { void runCvAnalysisJob(jobId, body); }, 50);
+  setTimeout(() => { void runCvAnalysisJob(jobId, body, userId); }, 50);
 
   return {
     jobId,

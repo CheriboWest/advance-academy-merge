@@ -9,7 +9,7 @@
  */
 import { extractTextFromFile } from './outreach-extractor.service.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
-import { getSupabase } from '../lib/supabase.js';
+import { getSupabase, isMissingColumnError } from '../lib/supabase.js';
 import { embedText, embedTexts, isVoyageConfigured } from '../lib/voyage.js';
 import {
   buildBulletExtractionPrompt,
@@ -493,13 +493,33 @@ export async function backfillEmbeddings(): Promise<{ updated: number }> {
 
 // ── List + activate + delete ────────────────────────────────────────────────
 
+/**
+ * The Library's own CVs — deliberately not every row in `cv_versions`.
+ *
+ * Since migration 018 other tools park the CV they were handed in the same table
+ * so the Coaching context picker can find it. Those rows are raw text with no
+ * bullets and no gaps; listing them here would show a student "CVs" they never
+ * knowingly uploaded, each reporting 0 bullets. `origin='library'` is the line
+ * between "I added this" and "the app kept a copy". Rows predating 018 default
+ * to 'library', so nothing existing disappears.
+ */
 export async function listCvVersions(userId: string): Promise<CvVersionSummary[]> {
   const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('cv_versions')
-    .select('id, name, detected_field, is_active, created_at, source_file_path')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+  const read = (libraryOnly: boolean) => {
+    const q = supabase
+      .from('cv_versions')
+      .select('id, name, detected_field, is_active, created_at, source_file_path')
+      .eq('user_id', userId);
+    return (libraryOnly ? q.eq('origin', 'library') : q).order('created_at', { ascending: false });
+  };
+
+  let { data, error } = await read(true);
+  // Before migration 018 lands there is no `origin` column, and filtering on it
+  // would 500 the entire CV Library screen. Unfiltered is exactly the old
+  // behaviour, and pre-018 there are no auto-captured rows to hide anyway.
+  if (error && isMissingColumnError(error)) {
+    ({ data, error } = await read(false));
+  }
   if (error) throw Object.assign(new Error(error.message), { statusCode: 500 });
 
   const versions = data ?? [];

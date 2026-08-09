@@ -12,6 +12,12 @@ export interface AccountSummary {
   tier: Tier
   credits: number
   isAdmin: boolean
+  /**
+   * Coaching sessions left — a quota of its own, not part of the wallet
+   * (migration 019). Null for admins, who are never metered, and on any
+   * response predating the field.
+   */
+  coachingCredits?: number | null
 }
 
 /**

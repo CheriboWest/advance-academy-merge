@@ -16,12 +16,32 @@ import { getJobMaxRoleQueries } from '../config/job-source.js';
 import { perUserDaily } from '../lib/rate-limit.js';
 import { assertCredits, spendCredits } from '../lib/credits.js';
 import { recordToolResult } from '../services/tool-results.service.js';
+import { ensureCvVersion } from '../lib/cv-version-link.js';
+// Text-only extraction (pdf-parse / mammoth), no LLM and no CV-Optimizer state.
+// Both modules are registered by main.ts anyway, so reusing it costs nothing and
+// beats a second copy of the same twelve lines.
+import { extractFileText } from '../services/cv-optimizer.service.js';
 
 /** Short label for the history list, e.g. "Data Analyst, ML Engineer · London". */
 function dreamSummary(profile: DreamCompanyInput, roles: TargetRole[]): string {
   const titles = roles.map((r) => r.title).filter(Boolean).slice(0, 3).join(', ');
   const location = profile.location?.trim();
   return [titles || 'Dream Company', location].filter(Boolean).join(' · ');
+}
+
+/**
+ * What the roadmap step was given (migration 018). `analysis` is the reason this
+ * exists: it is a step-1 output, but the run only ever persisted step 3, so
+ * market level, core strengths, critical gaps and readiness score — the richest
+ * read available on where a student actually stands, and exactly what a coach
+ * needs before a session — were computed, shown once, and thrown away.
+ */
+function dreamInput(
+  profile: DreamCompanyInput,
+  analysis: ProfileAnalysis,
+  selectedRoles: TargetRole[],
+) {
+  return { profile, analysis, selectedRoles };
 }
 
 // Reply 429 for an out-of-credits error; return true if it handled the error.
@@ -269,12 +289,14 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
         const roadmap = await generateRoadmapWithJobs(profile!, analysis, selectedRoles);
         // Step 3 is the artifact worth reopening — the roadmap plus the live job
         // list. Recorded here rather than at step 1 so history holds the finished
-        // output, not an intermediate analysis. Best-effort: never fails the run.
+        // output; the earlier steps ride along as the run's input rather than
+        // being lost. Best-effort: never fails the run.
         await recordToolResult(
           request.userId,
           'dream',
           dreamSummary(profile!, selectedRoles),
           roadmap,
+          { input: dreamInput(profile!, analysis, selectedRoles) },
         );
         return roadmap;
       } catch (error) {
@@ -353,6 +375,7 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
           'dream',
           dreamSummary(profile!, selectedRoles),
           roadmap,
+          { input: dreamInput(profile!, analysis, selectedRoles) },
         );
       }
     },
@@ -384,6 +407,29 @@ export async function registerDreamCompanyRoutes(app: FastifyInstance) {
       try {
         const buffer = await data.toBuffer();
         const parsed = await parseDreamCompanyCv(buffer, fileName);
+        // Dream Company turns the CV into form fields and drops the document.
+        // Keep the text in `cv_versions` (migration 018) so the rest of the app —
+        // the Coaching context picker above all — can see that this student has
+        // a CV at all. Text extraction only, no LLM.
+        //
+        // Deliberately not awaited: the parse the user is waiting on has already
+        // succeeded, and pdf-parse over a 15MB upload has no business adding
+        // itself to that wait. Failures are swallowed for the same reason.
+        const userId = request.userId;
+        void (async () => {
+          try {
+            const rawText = await extractFileText(buffer, fileName);
+            await ensureCvVersion({
+              userId,
+              rawText,
+              name: `Dream Company · ${data.filename ?? 'CV'}`,
+              origin: 'dream_company',
+              sourceFilePath: data.filename ?? null,
+            });
+          } catch {
+            // Unreadable PDF, scanned image, odd DOCX — no CV to link, no harm.
+          }
+        })();
         return parsed;
       } catch (error) {
         const statusCode =

@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { authedFetch } from '@/shared/auth/authed-fetch'
 import { useFakeProgress } from '@/shared/hooks/use-fake-progress'
 import { ProgressBar } from '@/shared/hooks/progress-bar'
@@ -55,6 +56,66 @@ interface InterviewPrepScreenProps {
 
 export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
   const interview = useInterview()
+  const searchParams = useSearchParams()
+  const coachingSessionId = searchParams?.get('coaching') ?? null
+
+  // ── One-click mock from an approved coaching pack (ticket T7) ──
+  const [coachingLoad, setCoachingLoad] = useState<{
+    state: 'idle' | 'loading' | 'ready' | 'error'
+    companyName?: string
+    questionCount?: number
+    message?: string
+  }>({ state: 'idle' })
+
+  const { updateContext, setStep } = interview
+
+  useEffect(() => {
+    // Runs once per session id. The whole point is that the student arrives with
+    // the setup already done — asking them to retype the JD they gave their
+    // coach last week would defeat the "one click" entirely.
+    if (!coachingSessionId || coachingLoad.state !== 'idle') return
+    let cancelled = false
+    setCoachingLoad({ state: 'loading' })
+    ;(async () => {
+      try {
+        const res = await authedFetch(
+          `/api/coaching/sessions/${encodeURIComponent(coachingSessionId)}/mock`,
+        )
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(body?.message ?? 'Could not load that coaching pack.')
+        if (cancelled) return
+
+        const ctx = body.context as InterviewContext & { questionBank?: string[] }
+        updateContext({
+          cvText: ctx.cvText ?? '',
+          jobTitle: ctx.jobTitle ?? '',
+          jobDescription: ctx.jobDescription ?? '',
+          companyName: ctx.companyName ?? '',
+          companyUrl: ctx.companyUrl ?? '',
+          extraLinks: [],
+          questionBank: ctx.questionBank ?? [],
+          coachingSessionId,
+        })
+        setCoachingLoad({
+          state: 'ready',
+          companyName: ctx.companyName,
+          questionCount: ctx.questionBank?.length ?? 0,
+        })
+        // Straight past setup: everything it asks for is already filled in.
+        setStep('persona')
+      } catch (err) {
+        if (!cancelled) {
+          setCoachingLoad({
+            state: 'error',
+            message: err instanceof Error ? err.message : 'Could not load that coaching pack.',
+          })
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [coachingSessionId, coachingLoad.state, updateContext, setStep])
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -66,6 +127,33 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
           Practice with AI interviewers tailored to your target role and company.
         </p>
       </div>
+
+      {coachingLoad.state === 'loading' && (
+        <div className="mb-6 flex items-center gap-3 rounded-lg border bg-gray-50 p-4">
+          <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
+          <p className="text-sm text-gray-700">Loading your coach&rsquo;s prep pack…</p>
+        </div>
+      )}
+
+      {coachingLoad.state === 'ready' && (
+        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm font-medium text-blue-900">
+            Practising the questions your coach approved
+            {coachingLoad.companyName ? ` for ${coachingLoad.companyName}` : ''}
+          </p>
+          <p className="mt-0.5 text-sm text-blue-900/80">
+            {coachingLoad.questionCount} question
+            {coachingLoad.questionCount === 1 ? '' : 's'} loaded, starred ones first. Your CV, the
+            job description and the company are already filled in — pick an interviewer and start.
+          </p>
+        </div>
+      )}
+
+      {coachingLoad.state === 'error' && (
+        <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
+          {coachingLoad.message} You can still set a mock up by hand below.
+        </div>
+      )}
 
       <StepIndicator currentStep={interview.step} />
 
