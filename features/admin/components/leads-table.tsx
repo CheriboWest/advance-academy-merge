@@ -33,6 +33,37 @@ const CSV_COLUMNS: (keyof LeadRow)[] = [
   'has_account',
 ]
 
+/**
+ * What each column actually means. Six of the nine headers are one-word labels
+ * for pipeline states that are only obvious to whoever built the pipe — Consent
+ * and Confirmed in particular look like the same thing and are not: one is the
+ * tick-box on the form, the other is proof they own the inbox.
+ *
+ * Shown twice on purpose: as a `title` on the header (hover) and as a legend
+ * under the table (scannable without hunting).
+ */
+const COLUMN_HELP = {
+  Source: 'Which lead magnet captured them — "quiz" is the career quiz.',
+  Channel: 'Acquisition channel from the ?utm_source link, e.g. fb_group, share.',
+  Status: 'new = captured · confirmed = clicked the email link · unsub = opted out.',
+  Consent: 'Ticked the marketing opt-in box. Unticked means we never email them.',
+  Confirmed: 'Double opt-in: they clicked the link, so the address is real.',
+  Account: 'An account exists with this email — the lead converted to a signup.',
+} as const
+
+function ColumnLegend() {
+  return (
+    <dl className="grid gap-x-6 gap-y-1 rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-3">
+      {Object.entries(COLUMN_HELP).map(([label, help]) => (
+        <div key={label} className="flex gap-1.5">
+          <dt className="shrink-0 font-medium text-foreground">{label}</dt>
+          <dd>{help}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
 function csvCell(v: unknown): string {
   const s = v === null || v === undefined ? '' : String(v)
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
@@ -181,12 +212,18 @@ export function LeadsTable() {
                 <TableRow>
                   <TableHead>Email</TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Channel</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-center">Consent</TableHead>
-                  <TableHead className="text-center">Confirmed</TableHead>
-                  <TableHead className="text-center">Account</TableHead>
+                  <TableHead title={COLUMN_HELP.Source}>Source</TableHead>
+                  <TableHead title={COLUMN_HELP.Channel}>Channel</TableHead>
+                  <TableHead title={COLUMN_HELP.Status}>Status</TableHead>
+                  <TableHead className="text-center" title={COLUMN_HELP.Consent}>
+                    Consent
+                  </TableHead>
+                  <TableHead className="text-center" title={COLUMN_HELP.Confirmed}>
+                    Confirmed
+                  </TableHead>
+                  <TableHead className="text-center" title={COLUMN_HELP.Account}>
+                    Account
+                  </TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
@@ -225,6 +262,8 @@ export function LeadsTable() {
               </TableBody>
             </Table>
           </div>
+
+          <ColumnLegend />
         </>
       )}
     </div>
