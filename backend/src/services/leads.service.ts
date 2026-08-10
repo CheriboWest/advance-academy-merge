@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import type { LeadRow } from '@advance-academy/contracts';
 import { getSupabase } from '../lib/supabase.js';
 import { sendEmail, isEmailSendingEnabled } from '../lib/email.js';
+import { contactability, readQuizResult } from '../lib/leads/lead-facts.js';
 
 /**
  * Candidate-acquisition lead-capture pipe (CA-001).
@@ -130,20 +132,8 @@ export async function unsubscribeLead(token: string): Promise<boolean> {
   return Boolean(data);
 }
 
-export interface LeadRow {
-  id: string;
-  email: string;
-  name: string | null;
-  source: string;
-  utm_source: string | null;
-  readiness_score: number | null;
-  consent_marketing: boolean;
-  double_optin: boolean;
-  status: string;
-  created_at: string;
-  /** True when an account exists with this email — i.e. the lead converted. */
-  has_account: boolean;
-}
+// One definition, shared with the admin screen — see packages/contracts.
+export type { LeadRow };
 
 /**
  * Mark which of `emails` already own an account, matched case-insensitively.
@@ -170,6 +160,38 @@ async function emailsWithAccounts(emails: string[]): Promise<Set<string>> {
   );
 }
 
+/**
+ * Columns the admin list reads.
+ *
+ * `result` is the important addition: the quiz stores the lead's WhatsApp number
+ * and career archetype in there, and while this select omitted it the admin had
+ * an email address and nothing else to work with — the number was sitting in the
+ * database the whole time, just never fetched.
+ */
+const LIST_COLS =
+  'id, email, name, source, lead_magnet_id, result, readiness_score, ' +
+  'consent_marketing, consent_ts, double_optin, ' +
+  'utm_source, utm_medium, utm_campaign, status, created_at';
+
+/** The row as Postgres returns it, before the derived fields are worked out. */
+interface RawLeadRow {
+  id: string;
+  email: string;
+  name: string | null;
+  source: string;
+  lead_magnet_id: string | null;
+  result: unknown;
+  readiness_score: number | null;
+  consent_marketing: boolean;
+  consent_ts: string | null;
+  double_optin: boolean;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  status: string;
+  created_at: string;
+}
+
 /** Admin list (auth-gated in the route). Newest first, capped. */
 export async function listLeads(
   opts: { status?: string; source?: string; utmSource?: string; limit?: number } = {},
@@ -177,7 +199,7 @@ export async function listLeads(
   const supabase = getSupabase();
   let q = supabase
     .from(TABLE)
-    .select('id, email, name, source, utm_source, readiness_score, consent_marketing, double_optin, status, created_at')
+    .select(LIST_COLS)
     .order('created_at', { ascending: false })
     .limit(Math.min(opts.limit ?? 500, 2000));
   if (opts.status) q = q.eq('status', opts.status);
@@ -187,9 +209,32 @@ export async function listLeads(
   const { data, error } = await q;
   if (error) throw Object.assign(new Error('List failed'), { statusCode: 500, cause: error });
 
-  const rows = (data ?? []) as Omit<LeadRow, 'has_account'>[];
+  const rows = (data ?? []) as unknown as RawLeadRow[];
   const converted = await emailsWithAccounts(rows.map((r) => r.email));
-  return rows.map((r) => ({ ...r, has_account: converted.has(r.email?.trim().toLowerCase()) }));
+
+  return rows.map((r) => {
+    const has_account = converted.has(r.email?.trim().toLowerCase());
+    const quiz = readQuizResult(r.result);
+    const verdict = contactability({
+      status: r.status,
+      consent_marketing: r.consent_marketing,
+      double_optin: r.double_optin,
+      has_account,
+    });
+    // `result` itself is deliberately not forwarded: it is untyped third-party
+    // jsonb, and everything the admin screen needs from it is now a named field.
+    const { result: _raw, ...rest } = r;
+    return {
+      ...rest,
+      whatsapp: quiz.whatsapp,
+      whatsapp_digits: quiz.whatsappDigits,
+      house: quiz.house,
+      score_breakdown: quiz.scoreBreakdown,
+      contactable: verdict.contactable,
+      contact_reason: verdict.reason,
+      has_account,
+    };
+  });
 }
 
 /**

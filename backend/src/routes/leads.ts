@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { CSV_HEADER, toCsvLine } from '@advance-academy/contracts';
 import {
   captureLead,
   confirmLead,
@@ -178,22 +179,13 @@ export async function registerLeadsRoutes(app: FastifyInstance) {
       });
 
       if (q.format === 'csv') {
-        const header =
-          'id,email,name,source,utm_source,readiness_score,consent_marketing,double_optin,status,created_at,has_account';
-        const csvCell = (v: unknown) => {
-          const s = v === null || v === undefined ? '' : String(v);
-          return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-        };
-        const lines = rows.map((r) =>
-          [r.id, r.email, r.name, r.source, r.utm_source, r.readiness_score, r.consent_marketing, r.double_optin, r.status, r.created_at, r.has_account]
-            .map(csvCell)
-            .join(','),
-        );
+        const lines = [CSV_HEADER, ...rows.map(toCsvLine)];
+        // Same builder the /admin/leads download button uses — see contracts.
         return reply
           .code(200)
           .header('Content-Type', 'text/csv')
           .header('Content-Disposition', 'attachment; filename="candidate_leads.csv"')
-          .send([header, ...lines].join('\n'));
+          .send(lines.join('\n'));
       }
 
       return reply.code(200).send({ leads: rows, count: rows.length });
