@@ -4,8 +4,20 @@ import { Analytics } from '@vercel/analytics/next'
 import { AppProviders } from '@/app/providers'
 import './globals.css'
 
-const playfair = Playfair_Display({ subsets: ["latin"], weight: ["400", "600", "700"] });
-const inter = Inter({ subsets: ["latin"] });
+/*
+ * Both fonts expose a CSS variable and both variables are put on <body> below,
+ * because `--font-sans` / `--font-serif` in globals.css resolve through them.
+ * The serif previously had no variable at all and globals.css named the family
+ * literally ("Playfair Display") — that happens to match what next/font emits
+ * today, but it is an implementation detail of the loader, not a contract, and
+ * it silently degrades every heading to Times if it ever changes.
+ */
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  weight: ['400', '600', '700'],
+  variable: '--font-playfair',
+})
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
   title: 'Advance Academy | Career Acceleration Platform',
@@ -37,9 +49,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased`} style={{
-        '--font-playfair': 'var(--font-playfair)',
-      } as React.CSSProperties}>
+      <body className={`${inter.variable} ${playfair.variable} ${inter.className} antialiased`}>
         <AppProviders>{children}</AppProviders>
         <Analytics />
       </body>
