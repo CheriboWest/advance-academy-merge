@@ -316,14 +316,16 @@ export function UsersTable() {
                                 Downgrade
                               </Button>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={busy}
-                              onClick={() => patch(u.id, { isAdmin: !u.is_admin })}
-                            >
-                              {u.is_admin ? 'Revoke admin' : 'Make admin'}
-                            </Button>
+                            {/*
+                              No admin toggle here on purpose. `is_admin` is the
+                              highest privilege in the product — it opens this very
+                              screen, the coaching console and every user's data —
+                              and it sat one click away from Approve, with no
+                              confirmation. Granting it is rare and deliberate, so it
+                              belongs in the SQL editor (or ADMIN_USER_IDS), not in a
+                              row of one-click buttons. The badge beside the email
+                              still shows who holds it.
+                            */}
                           </div>
                         </TableCell>
                       </TableRow>
