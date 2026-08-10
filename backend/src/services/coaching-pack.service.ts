@@ -34,6 +34,7 @@ import type {
 } from '@advance-academy/contracts/coaching';
 import { getSupabase } from '../lib/supabase.js';
 import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
+import { firstTextBlock, parseLlmJson } from '../lib/coaching/json.js';
 import {
   assertLlmConfigured,
   createAnthropicClient,
@@ -233,10 +234,6 @@ async function loadToolFindings(
 
 // ── LLM stages ──────────────────────────────────────────────────────────────
 
-function stripJsonFences(raw: string): string {
-  return raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-}
-
 async function runStage<T>(args: {
   label: string;
   system: string;
@@ -265,21 +262,14 @@ async function runStage<T>(args: {
       step: `coaching-${label}`,
     });
   }
-  const block = response.content[0];
-  if (!block || block.type !== 'text') {
+  const text = firstTextBlock(response.content);
+  if (!text) {
     throw Object.assign(new Error(`The ${label} step returned nothing.`), {
       statusCode: 502,
       step: `coaching-${label}`,
     });
   }
-  try {
-    return JSON.parse(stripJsonFences(block.text)) as T;
-  } catch {
-    throw Object.assign(new Error(`Could not parse the ${label} step.`), {
-      statusCode: 500,
-      step: `coaching-${label}`,
-    });
-  }
+  return parseLlmJson<T>(text, `${label} step`, `coaching-${label}`);
 }
 
 // ── Normalisation (pure — unit-tested) ──────────────────────────────────────
