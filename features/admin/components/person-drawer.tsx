@@ -6,6 +6,7 @@ import type {
   PersonEvent,
   PersonLead,
 } from '@advance-academy/contracts/admin-person'
+import { relativeDay } from '@advance-academy/contracts/admin-person'
 import { houseLabel } from '@advance-academy/contracts/leads'
 import { useAdminPerson } from '../hooks/use-person'
 import { HttpClientError } from '@/shared/api/http-client'
@@ -44,17 +45,6 @@ const CONTACT_LABEL = {
 
 function when(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : '—'
-}
-
-/** "3 days ago" — the form a coach reads engagement in. */
-function ago(iso: string | null): string {
-  if (!iso) return 'never'
-  const days = Math.floor((Date.now() - Date.parse(iso)) / 86_400_000)
-  if (days <= 0) return 'today'
-  if (days === 1) return 'yesterday'
-  if (days < 30) return `${days} days ago`
-  const months = Math.floor(days / 30)
-  return months === 1 ? 'a month ago' : `${months} months ago`
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -135,7 +125,7 @@ function TimelineRow({ event }: { event: PersonEvent }) {
         </span>
       </span>
       <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground" title={when(event.at)}>
-        {ago(event.at)}
+        {relativeDay(event.at)}
       </span>
     </li>
   )
@@ -180,7 +170,7 @@ function Profile({ person }: { person: AdminPersonProfile }) {
           <>
             <div className="grid grid-cols-3 gap-2">
               {[
-                ['Last active', ago(activity.lastActiveAt)],
+                ['Last active', relativeDay(activity.lastActiveAt)],
                 ['Last 30 days', `${activity.events30d}`],
                 ['All time', `${activity.totalEvents}`],
               ].map(([label, value]) => (

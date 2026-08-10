@@ -37,6 +37,11 @@ function user(overrides: Partial<AdminUserRow> = {}): AdminUserRow {
     first_tool_used_at: null,
     reviewed_at: null,
     created_at: NOW,
+    // Derived by the user_engagement RPC (migration 021), not stored on the row.
+    // planUserUpdate never reads them; they are here to satisfy the shape.
+    last_active_at: null,
+    events_30d: 0,
+    total_events: 0,
     ...overrides,
   };
 }

@@ -13,6 +13,37 @@ import type { Contactability } from './leads.js'
  * more, which is not enough to decide whether someone is worth a coach's hour.
  */
 
+/**
+ * "3 days ago" — how an admin reads recency.
+ *
+ * Both the users table and the person drawer show the same fact (when did this
+ * person last do anything), so they format it the same way from here rather than
+ * each rolling their own. An exact timestamp belongs in a `title` next to this,
+ * not in the cell: scanning a column of dates for "who has gone quiet" is work
+ * the reader should not have to do.
+ *
+ * `now` is a parameter so the output is testable and so a whole table renders
+ * against one instant instead of drifting row by row.
+ */
+export function relativeDay(iso: string | null | undefined, now: number = Date.now()): string {
+  if (!iso) return 'never'
+  const then = Date.parse(iso)
+  if (Number.isNaN(then)) return 'never'
+
+  const days = Math.floor((now - then) / 86_400_000)
+  // Clock skew between the database and the reader's machine can put a very
+  // recent event marginally in the future; that is still "today", not "in -1 days".
+  if (days <= 0) return 'today'
+  if (days === 1) return 'yesterday'
+  if (days < 30) return `${days} days ago`
+
+  const months = Math.floor(days / 30)
+  if (months < 12) return months === 1 ? 'a month ago' : `${months} months ago`
+
+  const years = Math.floor(days / 365)
+  return years === 1 ? 'a year ago' : `${years} years ago`
+}
+
 export type PersonEventKind = 'tool' | 'interview' | 'coaching'
 
 export interface PersonEvent {

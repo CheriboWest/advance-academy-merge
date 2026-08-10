@@ -22,6 +22,17 @@ export interface AdminUserRow {
   /** Null until an admin approves or rejects the account. */
   reviewed_at: string | null
   created_at: string
+  /*
+   * Engagement, derived per request by the user_engagement RPC (migration 021)
+   * rather than stored on the row. `first_tool_used_at` above answers only
+   * "ever?"; these answer "how much, and how recently?", which is what decides
+   * whether an account is worth a coach's hour.
+   */
+  /** Newest tool run, interview or coaching booking. Null = has done nothing. */
+  last_active_at: string | null
+  /** Events in the last 30 days. Zero is a real answer, not "unknown". */
+  events_30d: number
+  total_events: number
 }
 
 export interface AdminUsersListResponse {
