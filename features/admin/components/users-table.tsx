@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useAdminUsers, useUpdateAdminUser } from '../hooks/use-admin-users'
+import { PersonDrawer } from './person-drawer'
 import { HttpClientError } from '@/shared/api/http-client'
 import type { AdminUserPatch, AdminUserRow } from '@/types/admin'
 import { Button } from '@/components/ui/button'
@@ -116,6 +117,7 @@ export function UsersTable() {
   const [search, setSearch] = useState('')
   const [tier, setTier] = useState('')
   const [status, setStatus] = useState('')
+  const [openPersonId, setOpenPersonId] = useState<string | null>(null)
 
   const filters = useMemo(
     () => ({
@@ -236,7 +238,17 @@ export function UsersTable() {
                     return (
                       <TableRow key={u.id} className={busy ? 'opacity-60' : undefined}>
                         <TableCell className="font-medium">
-                          {u.email ?? '—'}
+                          {/*
+                            The email is the way in. The rest of the row holds
+                            credit and approval buttons, so a row-wide click
+                            target would fire the drawer on every adjustment.
+                          */}
+                          <button
+                            onClick={() => setOpenPersonId(u.id)}
+                            className="text-left text-blue-900 transition-colors duration-150 hover:underline"
+                          >
+                            {u.email ?? '(no email)'}
+                          </button>
                           {u.is_admin ? (
                             <Badge variant="destructive" className="ml-2">
                               admin
@@ -337,6 +349,8 @@ export function UsersTable() {
           </div>
         </>
       )}
+
+      <PersonDrawer id={openPersonId} onClose={() => setOpenPersonId(null)} />
     </div>
   )
 }

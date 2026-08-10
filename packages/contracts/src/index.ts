@@ -10,6 +10,7 @@
  * So, from frontend code: import values from the subpath entry
  * (`@advance-academy/contracts/leads`), not from here.
  */
+export * from './admin-person.js'
 export * from './coaching.js'
 export * from './cv-optimizer.js'
 export * from './jobs.js'

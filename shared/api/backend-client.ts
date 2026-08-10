@@ -6,6 +6,7 @@ import type {
   RewriteBulletRequest,
   RewriteBulletResponse,
 } from '@advance-academy/contracts'
+import type { AdminPersonProfile } from '@advance-academy/contracts/admin-person'
 import type { DreamCompanyInput, ProfileAnalysis, TargetRole, RoadmapResponse } from '@/types/dream-company'
 import type { LeadsFilters, LeadsListResponse } from '@/types/leads'
 import type {
@@ -558,6 +559,16 @@ export function getLeadsFromBackend(filters: LeadsFilters, authToken?: string) {
     headers: authHeaders(authToken),
     timeoutMs: 15000,
   })
+}
+
+// One person's full admin profile. `id` may be a users.id or a
+// candidate_leads.id — the backend resolves whichever it is.
+export function getAdminPersonFromBackend(id: string, authToken?: string) {
+  const { backendUrl } = getServerEnv()
+  return fetchJson<{ person: AdminPersonProfile }>(
+    `${backendUrl}/api/admin/people/${encodeURIComponent(id)}`,
+    { method: 'GET', headers: authHeaders(authToken), timeoutMs: 15000 },
+  )
 }
 
 // Admin user management (sprint F4). Backend gates both on users.is_admin /

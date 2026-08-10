@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { MessageCircle } from 'lucide-react'
 import { useLeads } from '../hooks/use-leads'
+import { PersonDrawer } from './person-drawer'
 import { HttpClientError } from '@/shared/api/http-client'
 // Subpath, not the package root: the root barrel re-exports with NodeNext-style
 // `.js` specifiers that Turbopack cannot resolve. Type-only imports from the
@@ -138,6 +139,7 @@ export function LeadsTable() {
   const [source, setSource] = useState('')
   const [status, setStatus] = useState('')
   const [channel, setChannel] = useState('')
+  const [openPersonId, setOpenPersonId] = useState<string | null>(null)
 
   const filters = useMemo(
     () => ({
@@ -274,7 +276,19 @@ export function LeadsTable() {
                 ) : (
                   rows.map((r) => (
                     <TableRow key={r.id}>
-                      <TableCell className="font-medium">{r.email}</TableCell>
+                      <TableCell className="font-medium">
+                        {/*
+                          The email opens the drawer rather than the whole row:
+                          the row already holds a WhatsApp link, and a row-wide
+                          click target would swallow it.
+                        */}
+                        <button
+                          onClick={() => setOpenPersonId(r.id)}
+                          className="text-left text-blue-900 transition-colors duration-150 hover:underline"
+                        >
+                          {r.email}
+                        </button>
+                      </TableCell>
                       <TableCell>{r.name ?? '—'}</TableCell>
                       <TableCell>
                         <WhatsAppCell row={r} />
@@ -313,6 +327,8 @@ export function LeadsTable() {
           <ColumnLegend />
         </>
       )}
+
+      <PersonDrawer id={openPersonId} onClose={() => setOpenPersonId(null)} />
     </div>
   )
 }
