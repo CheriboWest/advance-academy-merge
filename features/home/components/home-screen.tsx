@@ -1,89 +1,100 @@
 'use client'
 
-import { ChevronRight, Briefcase, Target, FileText, Brain } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { OrnamentalDivider } from '@/components/ornamental-divider'
-import type { ViewName } from '@/shared/types/navigation'
+import { TOOL_GROUPS } from '@/shared/config/navigation'
+import type { NavItem, ViewName } from '@/shared/types/navigation'
 
 interface HomeScreenProps {
   onNavigate: (view: ViewName) => void
 }
 
+/**
+ * One tool card.
+ *
+ * A `<button>` rather than the `<div onClick>` this used to be: a div with a
+ * click handler is invisible to the keyboard and to screen readers, so six of
+ * the app's main entry points simply did not exist without a mouse. The hover
+ * moves border, shadow and background together — a shadow alone on a grey card
+ * is too quiet to register as a response.
+ */
+function ToolCard({ item, onNavigate }: { item: NavItem; onNavigate: (view: ViewName) => void }) {
+  const Icon = item.icon
+  return (
+    <button
+      onClick={() => onNavigate(item.view)}
+      className="group flex h-full w-full flex-col items-start rounded-xl border border-gray-200 bg-white p-6 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-yellow-500 hover:bg-yellow-500/5 hover:shadow-lg"
+    >
+      <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-yellow-500 transition-colors duration-150 group-hover:bg-blue-900">
+        <Icon className="h-5 w-5 text-blue-900 transition-colors duration-150 group-hover:text-yellow-500" />
+      </span>
+      <h3 className="mb-2 font-serif text-xl font-semibold text-blue-900">{item.label}</h3>
+      <p className="mb-4 text-sm leading-relaxed text-gray-600">{item.description}</p>
+      <span className="mt-auto inline-flex items-center gap-1 text-sm font-medium text-yellow-600">
+        Open
+        <ChevronRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5" />
+      </span>
+    </button>
+  )
+}
+
 export function HomeScreen({ onNavigate }: HomeScreenProps) {
   return (
     <>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
-        <div className="text-center mb-16">
-          <h1 className="text-5xl md:text-6xl font-serif font-bold text-blue-900 mb-6 text-balance">
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24 lg:px-8">
+        <div className="mb-16 text-center">
+          <h1 className="mb-6 text-balance font-serif text-5xl font-bold text-blue-900 md:text-6xl">
             Accelerate Your Career
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto text-balance">
-            Powered by AI-driven tools designed to help you land your dream job. From discovering perfect companies to mastering interviews.
+          <p className="mx-auto max-w-2xl text-balance text-xl text-gray-600">
+            Powered by AI-driven tools designed to help you land your dream job. From discovering
+            perfect companies to mastering interviews.
           </p>
         </div>
 
         <OrnamentalDivider />
 
-        <div className="grid md:grid-cols-2 gap-8 mb-16">
-          <div className="bg-gray-50 rounded-xl p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('companies')}>
-            <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center mb-4">
-              <Briefcase className="w-6 h-6 text-blue-900" />
-            </div>
-            <h3 className="text-2xl font-serif font-semibold text-blue-900 mb-3">Dream Company Finder</h3>
-            <p className="text-gray-600 mb-4">Discover companies that match your career goals, industry preferences, and location requirements.</p>
-            <div className="flex items-center gap-2 text-yellow-600 font-medium">
-              Explore <ChevronRight className="w-4 h-4" />
-            </div>
-          </div>
-
-          <div className="bg-gray-50 rounded-xl p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('outreach')}>
-            <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center mb-4">
-              <Target className="w-6 h-6 text-blue-900" />
-            </div>
-            <h3 className="text-2xl font-serif font-semibold text-blue-900 mb-3">Recruitment Outreach</h3>
-            <p className="text-gray-600 mb-4">Generate personalized outreach scripts for LinkedIn, email, and phone conversations with recruiters.</p>
-            <div className="flex items-center gap-2 text-yellow-600 font-medium">
-              Generate <ChevronRight className="w-4 h-4" />
-            </div>
-          </div>
-
-          <div className="bg-gray-50 rounded-xl p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('cv')}>
-            <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center mb-4">
-              <FileText className="w-6 h-6 text-blue-900" />
-            </div>
-            <h3 className="text-2xl font-serif font-semibold text-blue-900 mb-3">CV Optimizer</h3>
-            <p className="text-gray-600 mb-4">Get AI-powered analysis of your CV with expert feedback on structure, content, and impact.</p>
-            <div className="flex items-center gap-2 text-yellow-600 font-medium">
-              Optimize <ChevronRight className="w-4 h-4" />
-            </div>
-          </div>
-
-          <div className="bg-gray-50 rounded-xl p-8 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate('interview')}>
-            <div className="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center mb-4">
-              <Brain className="w-6 h-6 text-blue-900" />
-            </div>
-            <h3 className="text-2xl font-serif font-semibold text-blue-900 mb-3">Interview Prep</h3>
-            <p className="text-gray-600 mb-4">Master behavioral questions, technical interviews, and company-specific preparation strategies.</p>
-            <div className="flex items-center gap-2 text-yellow-600 font-medium">
-              Prepare <ChevronRight className="w-4 h-4" />
-            </div>
-          </div>
+        {/*
+         * One column per stage of the search, left to right, rendered from the
+         * same config as the top-bar menu. The grid used to list four tools
+         * while the bar listed eight, so CV Library and Coaching had no entry
+         * point here at all.
+         */}
+        <div className="mb-16 grid gap-x-6 gap-y-10 md:grid-cols-3">
+          {TOOL_GROUPS.map((group, index) => (
+            <section key={group.label} className="flex flex-col gap-4">
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-xs font-semibold text-yellow-600">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-blue-900">
+                  {group.label}
+                </h2>
+              </div>
+              {group.items.map((item) => (
+                <ToolCard key={item.view} item={item} onNavigate={onNavigate} />
+              ))}
+            </section>
+          ))}
         </div>
 
         <OrnamentalDivider />
 
-        <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-xl p-12 text-center text-white">
-          <h2 className="text-3xl font-serif font-bold mb-4">Ready to advance your career?</h2>
-          <p className="text-lg opacity-90 mb-6">Start with finding your dream company or optimizing your CV.</p>
-          <div className="flex gap-4 justify-center flex-wrap">
+        <div className="rounded-xl bg-gradient-to-r from-blue-900 to-blue-800 p-12 text-center text-white">
+          <h2 className="mb-4 font-serif text-3xl font-bold">Ready to advance your career?</h2>
+          <p className="mb-6 text-lg opacity-90">
+            Start with finding your dream company or optimizing your CV.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4">
             <button
               onClick={() => onNavigate('companies')}
-              className="px-6 py-3 bg-yellow-500 text-blue-900 rounded-lg font-semibold hover:bg-yellow-400 transition-colors"
+              className="rounded-lg bg-yellow-500 px-6 py-3 font-semibold text-blue-900 transition-colors duration-150 hover:bg-yellow-400"
             >
               Find Dream Companies
             </button>
             <button
               onClick={() => onNavigate('cv')}
-              className="px-6 py-3 bg-white/20 hover:bg-white/30 rounded-lg font-semibold transition-colors"
+              className="rounded-lg bg-white/20 px-6 py-3 font-semibold transition-colors duration-150 hover:bg-white/35"
             >
               Optimize Your CV
             </button>
@@ -91,9 +102,11 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
         </div>
       </div>
 
-      <footer className="bg-blue-900 text-white mt-16 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-sm opacity-75">&copy; 2024 Advance Academy. Your path to career success.</p>
+      <footer className="mt-16 bg-blue-900 py-8 text-white">
+        <div className="mx-auto max-w-7xl px-4 text-center sm:px-6 lg:px-8">
+          <p className="text-sm opacity-75">
+            &copy; {new Date().getFullYear()} Advance Academy. Your path to career success.
+          </p>
         </div>
       </footer>
     </>

@@ -36,6 +36,7 @@ import {
   searchCompanies,
 } from '../lib/companies-house.js';
 import { newCostBucket, type CostBucket } from '../lib/cost-tracker.js';
+import { firstTextBlock, parseLlmJson } from '../lib/coaching/json.js';
 import {
   assertLlmConfigured,
   createAnthropicClient,
@@ -323,10 +324,6 @@ interface RawBrief {
   missingInfo?: unknown;
 }
 
-function stripJsonFences(raw: string): string {
-  return raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-}
-
 async function synthesise(
   input: CompanyResearchInput,
   sources: SourceDocument[],
@@ -363,22 +360,15 @@ async function synthesise(
     );
   }
 
-  const block = response.content[0];
-  if (!block || block.type !== 'text') {
+  const text = firstTextBlock(response.content);
+  if (!text) {
     throw Object.assign(new Error('The company brief came back empty.'), {
       statusCode: 502,
       step: 'company-research-synthesis',
     });
   }
 
-  try {
-    return JSON.parse(stripJsonFences(block.text)) as RawBrief;
-  } catch {
-    throw Object.assign(new Error('Failed to parse the company brief.'), {
-      statusCode: 500,
-      step: 'company-research-synthesis',
-    });
-  }
+  return parseLlmJson<RawBrief>(text, 'company brief', 'company-research-synthesis');
 }
 
 // ── Entry point ─────────────────────────────────────────────────────────────

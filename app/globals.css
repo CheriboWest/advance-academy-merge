@@ -17,7 +17,16 @@
   --secondary-foreground: #0F1C2E;
   --muted: #E8EAED;
   --muted-foreground: #5A6570;
-  --accent: #D4AF37;
+  /*
+   * `--accent` is not the brand accent, despite the name. Every shadcn primitive
+   * uses it as its hover/focus tint — dropdown items, select options, ghost and
+   * outline buttons, calendar ranges, even the skeleton pulse. Holding the brand
+   * gold here meant hovering any menu item flashed a solid #D4AF37 block, which
+   * reads as a selection error rather than a hover. The brand gold still lives
+   * in `--secondary` (fills) and `--ring` (focus), which is where components
+   * actually reach for it.
+   */
+  --accent: #F1F3F5;
   --accent-foreground: #0F1C2E;
   --destructive: #DC2626;
   --destructive-foreground: #FFFFFF;
@@ -76,8 +85,8 @@
 }
 
 @theme inline {
-  --font-sans: 'Inter', 'Inter Fallback';
-  --font-serif: 'Playfair Display', 'Playfair Display Fallback';
+  --font-sans: var(--font-inter), 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-playfair), 'Playfair Display Fallback', ui-serif, Georgia, serif;
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -123,6 +132,53 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  /*
+   * Tailwind v3's preflight gave every button `cursor: pointer`; v4 dropped that
+   * rule, and the browser default for <button> is the arrow cursor. This app has
+   * ~90 hand-rolled buttons and none carries `cursor-pointer`, so the whole UI
+   * lost its first affordance: the pointer is what tells you something is
+   * clickable *before* any hover colour paints, and without it hovering feels
+   * dead or laggy even though nothing is slow.
+   *
+   * Restored here rather than as a utility on each button — a per-button class
+   * is one more thing to forget on the next one.
+   */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+
+  /*
+   * The `*` rule above sets an outline *colour* but never turns an outline on,
+   * so keyboard focus was invisible outside the shadcn components that ship
+   * their own ring. Utilities load after this layer, so anything with an
+   * explicit `focus-visible:ring-*` still wins.
+   */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Motion is decoration here — none of it carries meaning worth overriding a
+   system-level preference for. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

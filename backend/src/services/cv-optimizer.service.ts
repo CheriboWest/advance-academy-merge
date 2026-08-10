@@ -28,6 +28,7 @@ import { getCvOptimizerFeatures } from '../config/features.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
 import { getSupabase, isMissingColumnError } from '../lib/supabase.js';
 import { ensureCvVersion } from '../lib/cv-version-link.js';
+import { recordToolResult } from './tool-results.service.js';
 import { getReferenceExamples, formatReferencePatterns } from './reference-cv.service.js';
 
 interface CvAnalysisJobRow {
@@ -869,7 +870,11 @@ async function analyzeCv(body: AnalyzeCvRequest): Promise<AnalyzeCvResult> {
  * still returns immediately, and is best-effort throughout: a job that analyses
  * a CV fine but fails to link it is a job that succeeded.
  */
-async function linkJobToCvVersion(jobId: string, body: AnalyzeCvRequest, userId: string) {
+async function linkJobToCvVersion(
+  jobId: string,
+  body: AnalyzeCvRequest,
+  userId: string,
+): Promise<string | null> {
   try {
     const cvVersionId = await ensureCvVersion({
       userId,
@@ -877,23 +882,50 @@ async function linkJobToCvVersion(jobId: string, body: AnalyzeCvRequest, userId:
       name: `CV Optimiser · ${body.targetRole}`.slice(0, 200),
       origin: 'cv_optimizer',
     });
-    if (!cvVersionId) return;
+    if (!cvVersionId) return null;
     await getSupabase()
       .from('cv_analysis_jobs')
       .update({ cv_version_id: cvVersionId })
       .eq('id', jobId);
+    return cvVersionId;
   } catch (err) {
     console.error(`[cv-optimizer] could not link job ${jobId} to a cv_version:`, err);
+    return null;
   }
+}
+
+/**
+ * Short label for the history list, e.g. "Data Analyst · against a JD".
+ *
+ * The role alone is ambiguous once a student has run the same role twice, so the
+ * JD flag distinguishes the two runs that differ only by it — the request has no
+ * other field worth showing in a list.
+ */
+export function cvSummary(body: AnalyzeCvRequest): string {
+  const role = body.targetRole?.trim() || 'CV Optimiser';
+  return body.jobDescription?.trim() ? `${role} · against a JD` : role;
 }
 
 async function runCvAnalysisJob(jobId: string, body: AnalyzeCvRequest, userId: string) {
   await updateJob(jobId, { status: 'running', clearError: true });
-  void linkJobToCvVersion(jobId, body, userId);
+  // Kicked off, not awaited: the link runs alongside the analysis, and its id is
+  // only needed once the analysis has finished.
+  const linking = linkJobToCvVersion(jobId, body, userId);
 
   try {
     const result = await analyzeCv(body);
     await updateJob(jobId, { status: 'completed', result, clearError: true });
+
+    // History (migration 017). CV Optimiser was the one tool that never recorded
+    // a run, so "My history" showed Dream Company and Interview Lab only. Written
+    // after the job row so a history failure can never lose the analysis itself;
+    // `recordToolResult` swallows its own errors for the same reason.
+    // `cvText` is deliberately not in `input` — it lives in `cv_versions` and is
+    // pointed at, not copied per run.
+    await recordToolResult(userId, 'cv', cvSummary(body), result, {
+      input: { targetRole: body.targetRole, jobDescription: body.jobDescription ?? null },
+      cvVersionId: await linking,
+    });
   } catch (error) {
     await updateJob(jobId, {
       status: 'failed',
