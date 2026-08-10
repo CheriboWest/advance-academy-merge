@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { isAdminUser } from '../lib/admin.js';
 import { listUsers, updateUser, type UpdateUserPatch } from '../services/admin.service.js';
+import { getPersonProfile } from '../services/admin-person.service.js';
 import type { Tier } from '../lib/credits.js';
 
 /**
@@ -51,6 +52,26 @@ export async function registerAdminRoutes(app: FastifyInstance) {
     } catch (error) {
       request.log.error(error);
       return reply.code(500).send({ code: 'LIST_FAILED', message: 'Could not load users.' });
+    }
+  });
+
+  // ── GET /api/admin/people/:id ─────────────────────────────────────────────
+  // `:id` is a users.id or a candidate_leads.id — both admin tables link here
+  // with whatever id their row holds, and the service resolves the other half.
+  app.get<{ Params: { id: string } }>('/api/admin/people/:id', async (request, reply) => {
+    if (!(await isAdminUser(request.userId))) {
+      return reply.code(403).send({ code: 'FORBIDDEN', message: 'Admin access required.' });
+    }
+    try {
+      const person = await getPersonProfile(request.params.id);
+      return reply.code(200).send({ person });
+    } catch (error) {
+      const e = error as { statusCode?: number; message?: string };
+      if (Number(e?.statusCode) === 404) {
+        return reply.code(404).send({ code: 'NOT_FOUND', message: 'No such person.' });
+      }
+      request.log.error(error);
+      return reply.code(500).send({ code: 'LOAD_FAILED', message: 'Could not load this person.' });
     }
   });
 

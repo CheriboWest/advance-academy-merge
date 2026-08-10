@@ -2,6 +2,7 @@
 
 import { fetchJson } from '@/shared/api/http-client'
 import { getAuthHeaders } from '@/shared/auth/get-auth-headers'
+import type { AdminPersonProfile } from '@advance-academy/contracts/admin-person'
 import type { LeadsFilters, LeadsListResponse } from '@/types/leads'
 import type {
   AdminUserPatch,
@@ -44,6 +45,15 @@ export async function listAdminUsers(
     headers: await getAuthHeaders(),
     timeoutMs: 15000,
   })
+}
+
+// One person's full profile for the drawer. `id` is whichever id the row that
+// was clicked holds — a user id from /admin/users, a lead id from /admin/leads.
+export async function getAdminPerson(id: string): Promise<{ person: AdminPersonProfile }> {
+  return fetchJson<{ person: AdminPersonProfile }>(
+    `/api/admin/people/${encodeURIComponent(id)}`,
+    { method: 'GET', headers: await getAuthHeaders(), timeoutMs: 15000 },
+  )
 }
 
 export async function updateAdminUser(

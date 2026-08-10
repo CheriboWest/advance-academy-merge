@@ -1,6 +1,13 @@
 import { getSupabase, isMissingColumnError } from '../lib/supabase.js';
 import { coachingGrant, membershipGrant, type Tier } from '../lib/credits.js';
 import { invalidateUserStatus, type UserStatus } from '../lib/user-access.js';
+import {
+  attachEngagement,
+  indexEngagement,
+  NO_ENGAGEMENT,
+  type Engagement,
+  type EngagementRow,
+} from '../lib/admin/engagement.js';
 
 /**
  * Admin user management (sprint F4).
@@ -28,6 +35,11 @@ export interface AdminUserRow {
   first_tool_used_at: string | null;
   reviewed_at: string | null;
   created_at: string;
+  /** Newest tool run / interview / coaching booking. Null = has done nothing. */
+  last_active_at: string | null;
+  /** Events in the last 30 days. Zero is a real answer, not "unknown". */
+  events_30d: number;
+  total_events: number;
 }
 
 export interface ListUsersFilters {
@@ -67,7 +79,28 @@ export async function listUsers(filters: ListUsersFilters = {}): Promise<AdminUs
   if (error) {
     throw Object.assign(new Error('Could not load users'), { statusCode: 500, cause: error });
   }
-  return (data ?? []) as unknown as AdminUserRow[];
+
+  const rows = (data ?? []) as unknown as AdminUserRow[];
+  return attachEngagement(rows, await loadEngagement(rows.map((r) => r.id)));
+}
+
+/**
+ * Activity totals for the accounts on screen, in one round trip.
+ *
+ * Fails soft for the same reason the SELECT above falls back: /admin/users is
+ * how a pending signup gets approved, and it must not be the thing that breaks
+ * when migration 021 has not been applied yet. Losing the RPC costs two columns,
+ * which render as "—"/0; losing the page costs the approval queue.
+ */
+async function loadEngagement(userIds: string[]): Promise<Map<string, Engagement>> {
+  if (userIds.length === 0) return new Map();
+
+  const { data, error } = await getSupabase().rpc('user_engagement', { user_ids: userIds });
+  if (error) {
+    console.error('[admin] user_engagement RPC failed — run migration 021:', error);
+    return new Map();
+  }
+  return indexEngagement(data as EngagementRow[] | null);
 }
 
 export interface UpdateUserPatch {
@@ -215,7 +248,11 @@ export async function updateUser(
     new Date().toISOString(),
   );
 
-  if (Object.keys(updates).length === 0) return current; // nothing to do
+  if (Object.keys(updates).length === 0) {
+    // Nothing to do — but the caller still expects a complete row.
+    const held = (await loadEngagement([targetId])).get(targetId) ?? NO_ENGAGEMENT;
+    return { ...current, ...held };
+  }
 
   const write = (body: Record<string, unknown>, columns: string) =>
     supabase.from('users').update(body).eq('id', targetId).select(columns).maybeSingle();
@@ -253,5 +290,10 @@ export async function updateUser(
   );
   if (auditErr) console.error(`[admin] audit write failed for ${targetId}:`, auditErr);
 
-  return after as unknown as AdminUserRow;
+  // The UPDATE ... RETURNING has no engagement columns — they are not stored on
+  // the row. Filling them in keeps the returned shape a real AdminUserRow rather
+  // than one with two fields quietly undefined.
+  const updated = after as unknown as AdminUserRow;
+  const engagement = (await loadEngagement([targetId])).get(targetId) ?? NO_ENGAGEMENT;
+  return { ...updated, ...engagement };
 }

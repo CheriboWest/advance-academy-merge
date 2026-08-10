@@ -5,9 +5,11 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./admin-person": "./src/admin-person.ts",
     "./coaching": "./src/coaching.ts",
     "./cv-optimizer": "./src/cv-optimizer.ts",
-    "./jobs": "./src/jobs.ts"
+    "./jobs": "./src/jobs.ts",
+    "./leads": "./src/leads.ts"
   },
   "types": "./src/index.ts"
 }

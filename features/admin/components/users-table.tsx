@@ -1,7 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { relativeDay } from '@advance-academy/contracts/admin-person'
 import { useAdminUsers, useUpdateAdminUser } from '../hooks/use-admin-users'
+import { PersonDrawer } from './person-drawer'
 import { HttpClientError } from '@/shared/api/http-client'
 import type { AdminUserPatch, AdminUserRow } from '@/types/admin'
 import { Button } from '@/components/ui/button'
@@ -15,6 +17,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+
+/** One explanation for both engagement columns — they answer the same question. */
+const ENGAGEMENT_HELP =
+  'Tool runs, interview sessions and coaching bookings combined. Hover a date for the exact time and the all-time total.'
 
 const TIER_FILTERS = ['', 'trial', 'membership'] as const
 const STATUS_FILTERS = ['', 'pending', 'approved', 'rejected'] as const
@@ -116,6 +122,7 @@ export function UsersTable() {
   const [search, setSearch] = useState('')
   const [tier, setTier] = useState('')
   const [status, setStatus] = useState('')
+  const [openPersonId, setOpenPersonId] = useState<string | null>(null)
 
   const filters = useMemo(
     () => ({
@@ -218,7 +225,17 @@ export function UsersTable() {
                   <TableHead>Adjust</TableHead>
                   <TableHead className="text-center">Coaching</TableHead>
                   <TableHead className="text-center">Referrals</TableHead>
-                  <TableHead className="text-center">Used a tool</TableHead>
+                  {/*
+                    These two replace a single "Used a tool ✓/—" column. The tick
+                    could not tell an account that signed up months ago and ran
+                    one thing from one that ran a dozen this week — which is the
+                    only distinction that matters when deciding who to spend a
+                    coach's hour on.
+                  */}
+                  <TableHead title={ENGAGEMENT_HELP}>Last active</TableHead>
+                  <TableHead className="text-center" title={ENGAGEMENT_HELP}>
+                    Runs (30d)
+                  </TableHead>
                   <TableHead>Joined</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -226,7 +243,7 @@ export function UsersTable() {
               <TableBody>
                 {rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
                       No accounts match these filters.
                     </TableCell>
                   </TableRow>
@@ -236,7 +253,17 @@ export function UsersTable() {
                     return (
                       <TableRow key={u.id} className={busy ? 'opacity-60' : undefined}>
                         <TableCell className="font-medium">
-                          {u.email ?? '—'}
+                          {/*
+                            The email is the way in. The rest of the row holds
+                            credit and approval buttons, so a row-wide click
+                            target would fire the drawer on every adjustment.
+                          */}
+                          <button
+                            onClick={() => setOpenPersonId(u.id)}
+                            className="text-left text-blue-900 transition-colors duration-150 hover:underline"
+                          >
+                            {u.email ?? '(no email)'}
+                          </button>
                           {u.is_admin ? (
                             <Badge variant="destructive" className="ml-2">
                               admin
@@ -271,8 +298,26 @@ export function UsersTable() {
                         <TableCell className="text-center tabular-nums">
                           {u.referral_count}
                         </TableCell>
-                        <TableCell className="text-center">
-                          {u.first_tool_used_at ? '✓' : '—'}
+                        <TableCell
+                          className={`whitespace-nowrap ${
+                            u.last_active_at ? '' : 'text-muted-foreground'
+                          }`}
+                          // The exact moment stays available on hover; the cell
+                          // itself carries the word you scan a column for.
+                          title={
+                            u.last_active_at
+                              ? `${new Date(u.last_active_at).toLocaleString()} · ${u.total_events} all time`
+                              : 'No tool run, interview or coaching booking'
+                          }
+                        >
+                          {relativeDay(u.last_active_at)}
+                        </TableCell>
+                        <TableCell
+                          className={`text-center tabular-nums ${
+                            u.events_30d > 0 ? 'font-medium' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {u.events_30d}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-muted-foreground">
                           {new Date(u.created_at).toLocaleDateString()}
@@ -337,6 +382,8 @@ export function UsersTable() {
           </div>
         </>
       )}
+
+      <PersonDrawer id={openPersonId} onClose={() => setOpenPersonId(null)} />
     </div>
   )
 }
