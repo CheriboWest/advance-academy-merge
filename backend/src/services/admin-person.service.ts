@@ -26,12 +26,21 @@ import { toJsonQuota } from '../lib/credits.js';
 
 const EVENT_LIMIT = 100;
 
-const USER_COLS =
-  'id, email, full_name, status, tier, is_admin, credit_balance, coaching_credits, ' +
-  'referral_count, first_tool_used_at, reviewed_at, created_at';
-const USER_COLS_PRE_019 =
+/**
+ * Columns every deployed schema has.
+ *
+ * Anything added by a later migration goes in OPTIONAL_COLS instead, because
+ * this project applies migrations by hand and a deploy can land first. On an
+ * unknown-column error the read is retried with the base set only, so the drawer
+ * loses a field rather than the whole person.
+ */
+const BASE_USER_COLS =
   'id, email, full_name, status, tier, is_admin, credit_balance, ' +
   'referral_count, first_tool_used_at, reviewed_at, created_at';
+/** coaching_credits: migration 019. lead_id: migration 022. */
+const OPTIONAL_USER_COLS = ['coaching_credits', 'lead_id'];
+
+const USER_COLS = [BASE_USER_COLS, ...OPTIONAL_USER_COLS].join(', ');
 
 const LEAD_COLS =
   'id, email, name, source, lead_magnet_id, result, consent_marketing, consent_ts, ' +
@@ -46,6 +55,8 @@ interface UserRow {
   is_admin: boolean;
   credit_balance: number;
   coaching_credits?: number | null;
+  /** Migration 022. Undefined when the column is not there yet. */
+  lead_id?: string | null;
   referral_count: number;
   first_tool_used_at: string | null;
   reviewed_at: string | null;
@@ -74,28 +85,62 @@ function lower(email: string | null | undefined): string | null {
   return e ? e : null;
 }
 
-/** users, tolerating a deploy that outran migration 019. */
+/**
+ * One account, retrying without the optional columns if the schema is behind.
+ *
+ * `narrow` decides which row; everything else about the read is identical, which
+ * is why the three lookups below share this instead of repeating the fallback.
+ */
+type UserQuery = PromiseLike<{ data: unknown; error: unknown }>;
+
+async function readUser(
+  run: (cols: string) => UserQuery,
+): Promise<{ row: UserRow | null; error: unknown }> {
+  let { data, error } = await run(USER_COLS);
+  if (error && isMissingColumnError(error)) ({ data, error } = await run(BASE_USER_COLS));
+  return { row: (data as UserRow | null) ?? null, error };
+}
+
 async function findUserById(id: string): Promise<UserRow | null> {
-  const supabase = getSupabase();
-  const read = (cols: string) => supabase.from('users').select(cols).eq('id', id).maybeSingle();
-  let { data, error } = await read(USER_COLS);
-  if (error && isMissingColumnError(error)) ({ data, error } = await read(USER_COLS_PRE_019));
-  if (error) throw Object.assign(new Error('Could not load the account'), { statusCode: 500, cause: error });
-  return (data as unknown as UserRow) ?? null;
+  const { row, error } = await readUser((cols) =>
+    getSupabase().from('users').select(cols).eq('id', id).maybeSingle(),
+  );
+  if (error) {
+    throw Object.assign(new Error('Could not load the account'), { statusCode: 500, cause: error });
+  }
+  return row;
 }
 
 async function findUserByEmail(email: string): Promise<UserRow | null> {
-  const supabase = getSupabase();
-  const read = (cols: string) =>
-    supabase.from('users').select(cols).ilike('email', email).limit(1).maybeSingle();
-  let { data, error } = await read(USER_COLS);
-  if (error && isMissingColumnError(error)) ({ data, error } = await read(USER_COLS_PRE_019));
+  const { row, error } = await readUser((cols) =>
+    getSupabase().from('users').select(cols).ilike('email', email).limit(1).maybeSingle(),
+  );
   // Non-fatal: a lead is still worth showing without its account half.
   if (error) {
     console.error('[admin-person] user lookup by email failed:', error);
     return null;
   }
-  return (data as unknown as UserRow) ?? null;
+  return row;
+}
+
+/**
+ * The account explicitly linked to this lead (migration 022).
+ *
+ * Tried before the email match, and it is the only lookup that survives the
+ * person changing their email address after signing up.
+ */
+async function findUserByLeadId(leadId: string): Promise<UserRow | null> {
+  const { row, error } = await readUser((cols) =>
+    getSupabase().from('users').select(cols).eq('lead_id', leadId).limit(1).maybeSingle(),
+  );
+  if (error) {
+    // Expected before migration 022; the caller falls back to email.
+    if (!isMissingColumnError(error)) {
+      console.error('[admin-person] user lookup by lead_id failed:', error);
+    }
+    return null;
+  }
+  return row;
 }
 
 async function findLead(by: { id?: string; email?: string }): Promise<LeadRowRaw | null> {
@@ -253,12 +298,17 @@ export async function getPersonProfile(id: string): Promise<AdminPersonProfile> 
   let user = userById;
   let lead = leadById;
 
-  // Fill in the half the id did not name, matched on email.
+  // Fill in the half the id did not name. `users.lead_id` (migration 022) is the
+  // explicit link and is tried first; the email match is the fallback for rows
+  // captured before it, and for accounts created outside the funnel.
   if (user && !lead) {
-    const email = lower(user.email);
-    if (email) lead = await findLead({ email });
+    if (user.lead_id) lead = await findLead({ id: user.lead_id });
+    if (!lead) {
+      const email = lower(user.email);
+      if (email) lead = await findLead({ email });
+    }
   } else if (lead && !user) {
-    user = await findUserByEmail(lead.email);
+    user = (await findUserByLeadId(lead.id)) ?? (await findUserByEmail(lead.email));
   }
 
   if (!user && !lead) {
