@@ -1,0 +1,5 @@
+# CareerHub UK API dependencies.
+# Scaffold only — pinned in a later milestone when endpoints are implemented.
+fastapi
+uvicorn[standard]
+pydantic

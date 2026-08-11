@@ -1,0 +1,11 @@
+{
+  "name": "@careerhub/utils",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared utilities for CareerHub UK (scaffold).",
+  "types": "./src/index.ts",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
