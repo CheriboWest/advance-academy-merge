@@ -9,11 +9,7 @@ import {
   MapPin,
 } from "lucide-react";
 
-import {
-  companies,
-  getCompanyBySlug,
-  getJobsForCompany,
-} from "@/lib/mock-data";
+import { fetchActiveJobs, fetchCompanyBySlug } from "@/lib/queries";
 import { PageContainer } from "@/components/page-container";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,39 +18,39 @@ import { LeadScoreBadge } from "@/components/lead-score-badge";
 import { JobItem } from "@/components/job-item";
 import { EmptyState } from "@/components/empty-state";
 
+// Company and job data are fetched per request from Supabase.
+export const dynamic = "force-dynamic";
+
 interface CompanyPageProps {
   params: Promise<{ slug: string }>;
-}
-
-export function generateStaticParams() {
-  return companies.map((company) => ({ slug: company.slug }));
 }
 
 export async function generateMetadata({
   params,
 }: CompanyPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const company = getCompanyBySlug(slug);
 
-  if (!company) {
-    return { title: "Company not found" };
+  try {
+    const company = await fetchCompanyBySlug(slug);
+    if (!company) {
+      return { title: "Company not found" };
+    }
+    return { title: company.name };
+  } catch {
+    return { title: "Company" };
   }
-
-  return {
-    title: company.name,
-    description: company.description,
-  };
 }
 
 export default async function CompanyPage({ params }: CompanyPageProps) {
   const { slug } = await params;
-  const company = getCompanyBySlug(slug);
 
+  const company = await fetchCompanyBySlug(slug);
   if (!company) {
     notFound();
   }
 
-  const jobs = getJobsForCompany(company.id);
+  const jobs = await fetchActiveJobs(company.id);
+  const location = company.hq_location ?? company.region ?? "—";
 
   return (
     <PageContainer className="max-w-4xl space-y-8">
@@ -76,9 +72,11 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="rounded-full">
-                  {company.sector}
-                </Badge>
+                {company.sector && (
+                  <Badge variant="secondary" className="rounded-full">
+                    {company.sector}
+                  </Badge>
+                )}
                 <Badge variant="outline" className="rounded-full">
                   Public
                 </Badge>
@@ -89,7 +87,7 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <MapPin className="size-4" />
-                  {company.location}
+                  {location}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Briefcase className="size-4" />
@@ -97,35 +95,37 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
                 </span>
               </div>
             </div>
-            <LeadScoreBadge score={company.leadScore} />
+            <LeadScoreBadge score={company.lead_score ?? 0} />
           </div>
 
-          <p className="max-w-2xl text-pretty text-muted-foreground">
-            {company.description}
-          </p>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild className="rounded-xl">
-              <a
-                href={company.website}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Globe className="size-4" />
-                Visit website
-              </a>
-            </Button>
-            <Button asChild variant="outline" className="rounded-xl">
-              <a
-                href={company.careersUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ExternalLink className="size-4" />
-                Careers page
-              </a>
-            </Button>
-          </div>
+          {(company.website || company.careers_url) && (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {company.website && (
+                <Button asChild className="rounded-xl">
+                  <a
+                    href={company.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Globe className="size-4" />
+                    Visit website
+                  </a>
+                </Button>
+              )}
+              {company.careers_url && (
+                <Button asChild variant="outline" className="rounded-xl">
+                  <a
+                    href={company.careers_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="size-4" />
+                    Careers page
+                  </a>
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </section>
 

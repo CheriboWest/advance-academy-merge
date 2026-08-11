@@ -1,9 +1,18 @@
 "use client";
 
 import * as React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 
-import { locations, sectors } from "@/lib/mock-data";
+import {
+  ALL,
+  DEFAULT_SORT,
+  LOCATION_OPTIONS,
+  SECTOR_OPTIONS,
+  SORT_OPTIONS,
+  type SearchFiltersState,
+  type SortOption,
+} from "@/lib/filters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,72 +23,73 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export type SortOption = "score-desc" | "jobs-desc" | "name-asc";
+type SearchFiltersProps = SearchFiltersState;
 
-export interface SearchFiltersValue {
-  query: string;
-  location: string; // "all" or a specific location
-  sector: string; // "all" or a specific sector
-  sort: SortOption;
-}
+/**
+ * Small client component that reflects the current filters and writes changes
+ * back to the URL. The server component reads those params and fetches data —
+ * there is no client-side data fetching.
+ */
+export function SearchFilters({ q, location, sector, sort }: SearchFiltersProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = React.useTransition();
 
-export const defaultFilters: SearchFiltersValue = {
-  query: "",
-  location: "all",
-  sector: "all",
-  sort: "score-desc",
-};
+  // Local mirror of the text input; committed to the URL on submit.
+  const [query, setQuery] = React.useState(q);
+  React.useEffect(() => setQuery(q), [q]);
 
-const sortLabels: Record<SortOption, string> = {
-  "score-desc": "Lead score (high to low)",
-  "jobs-desc": "Most open jobs",
-  "name-asc": "Company name (A–Z)",
-};
+  const commit = React.useCallback(
+    (patch: Partial<SearchFiltersState>) => {
+      const params = new URLSearchParams(searchParams.toString());
 
-interface SearchFiltersProps {
-  value: SearchFiltersValue;
-  onChange: (value: SearchFiltersValue) => void;
-  /** Called when the search button is pressed or the input is submitted. */
-  onSearch?: () => void;
-}
+      const setOrDelete = (key: string, value: string, isDefault: boolean) => {
+        if (!value || isDefault) params.delete(key);
+        else params.set(key, value);
+      };
 
-export function SearchFilters({
-  value,
-  onChange,
-  onSearch,
-}: SearchFiltersProps) {
-  function update<K extends keyof SearchFiltersValue>(
-    key: K,
-    next: SearchFiltersValue[K]
-  ) {
-    onChange({ ...value, [key]: next });
-  }
+      if (patch.q !== undefined) setOrDelete("q", patch.q.trim(), false);
+      if (patch.location !== undefined)
+        setOrDelete("location", patch.location, patch.location === ALL);
+      if (patch.sector !== undefined)
+        setOrDelete("sector", patch.sector, patch.sector === ALL);
+      if (patch.sort !== undefined)
+        setOrDelete("sort", patch.sort, patch.sort === DEFAULT_SORT);
+
+      const qs = params.toString();
+      startTransition(() => {
+        router.push(qs ? `/search?${qs}` : "/search", { scroll: false });
+      });
+    },
+    [router, searchParams]
+  );
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onSearch?.();
+        commit({ q: query });
       }}
       className="rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5"
+      aria-busy={isPending}
     >
       <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search companies by name or keyword"
-            aria-label="Search companies"
-            value={value.query}
-            onChange={(event) => update("query", event.target.value)}
+            placeholder="Search companies by name"
+            aria-label="Search companies by name"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
             className="h-11 rounded-xl pl-9"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:flex lg:items-center">
           <Select
-            value={value.location}
-            onValueChange={(next) => update("location", next)}
+            value={location}
+            onValueChange={(next) => commit({ location: next })}
           >
             <SelectTrigger
               aria-label="Filter by location"
@@ -88,18 +98,18 @@ export function SearchFilters({
               <SelectValue placeholder="Location" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All locations</SelectItem>
-              {locations.map((location) => (
-                <SelectItem key={location} value={location}>
-                  {location}
+              <SelectItem value={ALL}>All locations</SelectItem>
+              {LOCATION_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select
-            value={value.sector}
-            onValueChange={(next) => update("sector", next)}
+            value={sector}
+            onValueChange={(next) => commit({ sector: next })}
           >
             <SelectTrigger
               aria-label="Filter by sector"
@@ -108,18 +118,18 @@ export function SearchFilters({
               <SelectValue placeholder="Sector" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All sectors</SelectItem>
-              {sectors.map((sector) => (
-                <SelectItem key={sector} value={sector}>
-                  {sector}
+              <SelectItem value={ALL}>All sectors</SelectItem>
+              {SECTOR_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
           <Select
-            value={value.sort}
-            onValueChange={(next) => update("sort", next as SortOption)}
+            value={sort}
+            onValueChange={(next) => commit({ sort: next as SortOption })}
           >
             <SelectTrigger
               aria-label="Sort results"
@@ -128,9 +138,9 @@ export function SearchFilters({
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
-              {(Object.keys(sortLabels) as SortOption[]).map((option) => (
-                <SelectItem key={option} value={option}>
-                  {sortLabels[option]}
+              {SORT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectContent>

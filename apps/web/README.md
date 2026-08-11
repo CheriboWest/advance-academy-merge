@@ -12,8 +12,26 @@ The public-facing student portal for CareerHub UK, built with Next.js 15
 | `/companies/[slug]`   | Company detail with links and a list of open jobs.             |
 | `/coach/login`        | Placeholder for the private coach workspace (coming soon).     |
 
-All data is in-memory mock data (`lib/mock-data.ts`) — no backend, auth, or
-real search in this milestone.
+Data for the public pages comes live from **Supabase** (read-only, anon key) —
+the `public_company_summary` view and the `jobs` table. There is no
+authentication, coach workspace, or FastAPI backend in this milestone.
+
+## Environment variables
+
+The public pages read from Supabase using two variables. Copy the example file
+and fill in your project values:
+
+```bash
+cp apps/web/.env.local.example apps/web/.env.local
+```
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
+
+Both are safe to expose to the browser (public anon key, read-only access via
+the view and RLS policies).
 
 ## Getting started
 
@@ -48,6 +66,7 @@ Runtime:
 
 ```bash
 npm install next@^15 react@^19 react-dom@^19 \
+  @supabase/supabase-js \
   framer-motion lucide-react next-themes \
   class-variance-authority clsx tailwind-merge \
   @radix-ui/react-select @radix-ui/react-separator @radix-ui/react-slot
@@ -80,18 +99,32 @@ npx shadcn@latest add button input select card badge separator
 - **Tailwind CSS v4** via `@tailwindcss/postcss` (CSS-first config in
   `app/globals.css`)
 - **shadcn/ui** (Button, Input, Select, Card, Badge, Separator)
+- **Supabase** (`@supabase/supabase-js`) for live public data
 - **Framer Motion** for entrance and hover animations
 - **Lucide React** icons
 - **next-themes** for class-based dark mode with a navbar toggle
+
+## Data layer
+
+- `lib/supabase.ts` — lazily-created Supabase client (anon key, read-only).
+- `lib/types.ts` — `CompanySummary` (the `public_company_summary` view) and
+  `Job` (the `jobs` table).
+- `lib/queries.ts` — `fetchCompanies`, `fetchCompanyBySlug`, `fetchActiveJobs`.
+- `lib/filters.ts` — filter options, defaults, and URL-param parsing.
+
+Both data pages are async **server components** (`export const dynamic =
+"force-dynamic"`); the only client component in the data path is
+`search-filters.tsx`, which just reads and writes URL search params. There is
+no client-side data fetching for the initial page load.
 
 ## Structure
 
 ```
 apps/web/
 ├── app/
-│   ├── companies/[slug]/page.tsx   # Company detail (server component)
+│   ├── companies/[slug]/page.tsx   # Company detail (async server component)
 │   ├── coach/login/page.tsx        # Coach login placeholder
-│   ├── search/page.tsx             # Public search (client component)
+│   ├── search/page.tsx             # Public search (async server component)
 │   ├── globals.css                 # Tailwind v4 + theme tokens
 │   ├── layout.tsx                  # Root layout, fonts, theme, navbar
 │   ├── not-found.tsx               # 404
@@ -104,12 +137,18 @@ apps/web/
 │   ├── lead-score-badge.tsx
 │   ├── navbar.tsx
 │   ├── page-container.tsx
-│   ├── search-filters.tsx
+│   ├── search-filters.tsx          # client: reads/writes URL params
+│   ├── search-results.tsx          # async server: runs the Supabase query
+│   ├── search-results-skeleton.tsx # Suspense loading fallback
 │   ├── theme-provider.tsx
 │   └── theme-toggle.tsx
 ├── lib/
-│   ├── mock-data.ts                # 5 companies, 8 jobs
+│   ├── filters.ts                  # filter options + URL parsing
+│   ├── queries.ts                  # Supabase data fetchers
+│   ├── supabase.ts                 # Supabase client
+│   ├── types.ts                    # CompanySummary, Job
 │   └── utils.ts                    # cn() helper
+├── .env.local.example
 ├── components.json
 ├── next.config.ts
 ├── postcss.config.mjs
