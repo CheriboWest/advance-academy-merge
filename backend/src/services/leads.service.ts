@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { LeadRow } from '@advance-academy/contracts';
-import { getSupabase } from '../lib/supabase.js';
+import { getSupabase, isMissingColumnError } from '../lib/supabase.js';
 import { sendEmail, isEmailSendingEnabled } from '../lib/email.js';
 import { contactability, readQuizResult } from '../lib/leads/lead-facts.js';
+import { convertedLeadIds, type LeadIdentity } from '../lib/leads/conversion.js';
 
 /**
  * Candidate-acquisition lead-capture pipe (CA-001).
@@ -136,28 +137,43 @@ export async function unsubscribeLead(token: string): Promise<boolean> {
 export type { LeadRow };
 
 /**
- * Mark which of `emails` already own an account, matched case-insensitively.
+ * Which of these leads already own an account. Returns lead ids.
  *
- * One extra query for the whole page rather than one per row. Supabase has no
- * case-insensitive `in`, so we lower-case both sides in JS: lead emails are
- * normalised on capture, but accounts created outside the funnel may not be.
+ * Two fixed queries for the whole page rather than one per row, on both keys at
+ * once: `users.lead_id` (migration 022) where it exists, lower-cased email
+ * everywhere else. Supabase has no case-insensitive `in`, so both sides are
+ * lower-cased in JS — lead emails are normalised on capture, but accounts
+ * created outside the funnel may not be.
  */
-async function emailsWithAccounts(emails: string[]): Promise<Set<string>> {
-  const wanted = [...new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
-  if (wanted.length === 0) return new Set();
+async function leadsWithAccounts(leads: LeadIdentity[]): Promise<Set<string>> {
+  const emails = [...new Set(leads.map((l) => l.email?.trim().toLowerCase()).filter(Boolean))];
+  const leadIds = [...new Set(leads.map((l) => l.id).filter(Boolean))];
+  if (emails.length === 0 && leadIds.length === 0) return new Set();
 
   const supabase = getSupabase();
-  const { data, error } = await supabase.from('users').select('email').in('email', wanted);
-  if (error) {
-    // Non-fatal: the lead list is still useful without the conversion column.
-    console.error('[leads] account lookup failed:', error);
-    return new Set();
+
+  // Two queries rather than one `.or()`: PostgREST's `in.(…)` list needs the
+  // values quoted by hand, and emails carry characters that make that fragile.
+  // `.in()` escapes properly, and both run in parallel anyway.
+  const [byLead, byEmail] = await Promise.all([
+    leadIds.length ? supabase.from('users').select('lead_id').in('lead_id', leadIds) : null,
+    emails.length ? supabase.from('users').select('email').in('email', emails) : null,
+  ]);
+
+  // Missing `lead_id` means migration 022 has not been applied. Expected during
+  // a deploy that outruns it; the email fallback still answers the question.
+  if (byLead?.error && !isMissingColumnError(byLead.error)) {
+    console.error('[leads] lead_id lookup failed:', byLead.error);
   }
-  return new Set(
-    (data ?? [])
-      .map((r) => (r.email as string | null)?.trim().toLowerCase())
-      .filter((e): e is string => Boolean(e)),
-  );
+  if (byEmail?.error) {
+    // Non-fatal: the lead list is still useful without the conversion column.
+    console.error('[leads] account lookup by email failed:', byEmail.error);
+  }
+
+  return convertedLeadIds(leads, {
+    leadIds: (byLead?.data ?? []).map((r) => r.lead_id as string | null),
+    emails: (byEmail?.data ?? []).map((r) => r.email as string | null),
+  });
 }
 
 /**
@@ -210,10 +226,12 @@ export async function listLeads(
   if (error) throw Object.assign(new Error('List failed'), { statusCode: 500, cause: error });
 
   const rows = (data ?? []) as unknown as RawLeadRow[];
-  const converted = await emailsWithAccounts(rows.map((r) => r.email));
+  // Keyed by lead id, not email: two leads can share an address (the table is
+  // unique on (email, source)), and only the one with an account converted.
+  const converted = await leadsWithAccounts(rows.map((r) => ({ id: r.id, email: r.email })));
 
   return rows.map((r) => {
-    const has_account = converted.has(r.email?.trim().toLowerCase());
+    const has_account = converted.has(r.id);
     const quiz = readQuizResult(r.result);
     const verdict = contactability({
       status: r.status,

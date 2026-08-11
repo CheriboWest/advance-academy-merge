@@ -107,7 +107,15 @@ export async function registerLeadsRoutes(app: FastifyInstance) {
           // Best-effort — the lead is already saved, so a mail/auth hiccup must
           // never 500 the capture; fall back to the confirm email.
           try {
-            await createTrialAndSendMagicLink(body.email as string, str(body.name), str(body.ref));
+            // `leadId` is the row captureLead just wrote — passing it here is
+            // what makes users.lead_id (migration 022) an explicit link rather
+            // than an email match reconstructed later.
+            await createTrialAndSendMagicLink(
+              body.email as string,
+              str(body.name),
+              str(body.ref),
+              leadId,
+            );
           } catch (err) {
             request.log.error(err);
             await sendConfirmEmail(body.email as string, optinToken);

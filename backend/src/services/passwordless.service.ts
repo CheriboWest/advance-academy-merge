@@ -42,10 +42,42 @@ export interface PasswordlessResult {
   emailSent: boolean;
 }
 
+/**
+ * Point an account at the lead it came from (migration 022).
+ *
+ * Deliberately separate from the tier update rather than folded into it: if the
+ * migration has not been applied, a combined statement fails on the unknown
+ * column and takes account creation down with it — which for the quiz funnel
+ * means the person gets a confirm email instead of a working login. A missing
+ * link is a cosmetic loss on two admin screens; a missing account is not.
+ *
+ * `is('lead_id', null)` means an existing account gets the link only when it has
+ * none. Someone who signed up first and did the quiz later gets joined up; a
+ * person who arrives through a second lead magnet keeps the lead that actually
+ * produced their account.
+ */
+async function linkAccountToLead(userId: string, leadId?: string | null): Promise<void> {
+  if (!leadId) return;
+  const { error } = await getSupabase()
+    .from('users')
+    .update({ lead_id: leadId })
+    .eq('id', userId)
+    .is('lead_id', null);
+  if (error) {
+    console.error(`[passwordless] could not link ${userId} to lead ${leadId} — run migration 022:`, error);
+  }
+}
+
 export async function createTrialAndSendMagicLink(
   email: string,
   name?: string | null,
   refCode?: string | null,
+  /**
+   * The lead this account came from (migration 022). Set by the quiz funnel,
+   * absent for a direct sign-up on /register — those accounts genuinely have no
+   * lead, and a null here says so.
+   */
+  leadId?: string | null,
 ): Promise<PasswordlessResult> {
   const supabase = getSupabase();
   const normalized = email.trim().toLowerCase();
@@ -71,6 +103,7 @@ export async function createTrialAndSendMagicLink(
     if (tierErr) {
       throw Object.assign(new Error('Failed to set trial tier'), { statusCode: 500, cause: tierErr });
     }
+    await linkAccountToLead(created.user.id, leadId);
     // Record who invited this new account (best-effort; ignores self/unknown code).
     // The inviter is only rewarded later, when this user actually activates.
     if (refCode) {
@@ -83,6 +116,18 @@ export async function createTrialAndSendMagicLink(
   } else if (createErr) {
     // Duplicate email is expected (returning user); anything else is worth seeing.
     console.warn(`[passwordless] createUser note for ${normalized}: ${createErr.message}`);
+    // Returning user who has now come through a lead magnet — someone who signed
+    // up on /register first and did the quiz afterwards. Best-effort; a failed
+    // lookup costs the link, not the login.
+    if (leadId) {
+      const { data: existing } = await supabase
+        .from('users')
+        .select('id')
+        .ilike('email', normalized)
+        .limit(1)
+        .maybeSingle();
+      if (existing?.id) await linkAccountToLead(existing.id as string, leadId);
+    }
   }
 
   // 3) Ask Supabase to email a magic login link (built-in delivery).
