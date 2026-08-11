@@ -1,61 +1,30 @@
-"use client";
-
 import * as React from "react";
+import type { Metadata } from "next";
 
-import { getCompaniesWithJobCounts } from "@/lib/mock-data";
-import {
-  SearchFilters,
-  defaultFilters,
-  type SearchFiltersValue,
-} from "@/components/search-filters";
-import { CompanyCard } from "@/components/company-card";
-import { EmptyState } from "@/components/empty-state";
+import { parseSearchFilters } from "@/lib/filters";
 import { PageContainer } from "@/components/page-container";
-import { Button } from "@/components/ui/button";
+import { SearchFilters } from "@/components/search-filters";
+import { SearchResults } from "@/components/search-results";
+import { SearchResultsSkeleton } from "@/components/search-results-skeleton";
 
-const allCompanies = getCompaniesWithJobCounts();
+export const metadata: Metadata = {
+  title: "Search",
+  description: "Search UK companies and jobs on CareerHub UK.",
+};
 
-function applyFilters(filters: SearchFiltersValue) {
-  const query = filters.query.trim().toLowerCase();
+// Data is fetched per request from Supabase, driven by URL search params.
+export const dynamic = "force-dynamic";
 
-  const filtered = allCompanies.filter((company) => {
-    const matchesQuery =
-      query.length === 0 ||
-      company.name.toLowerCase().includes(query) ||
-      company.description.toLowerCase().includes(query) ||
-      company.sector.toLowerCase().includes(query);
-
-    const matchesLocation =
-      filters.location === "all" || company.location === filters.location;
-
-    const matchesSector =
-      filters.sector === "all" || company.sector === filters.sector;
-
-    return matchesQuery && matchesLocation && matchesSector;
-  });
-
-  const sorted = [...filtered].sort((a, b) => {
-    switch (filters.sort) {
-      case "jobs-desc":
-        return b.openJobs - a.openJobs;
-      case "name-asc":
-        return a.name.localeCompare(b.name);
-      case "score-desc":
-      default:
-        return b.leadScore - a.leadScore;
-    }
-  });
-
-  return sorted;
+interface SearchPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default function SearchPage() {
-  const [filters, setFilters] =
-    React.useState<SearchFiltersValue>(defaultFilters);
+export default async function SearchPage({ searchParams }: SearchPageProps) {
+  const filters = parseSearchFilters(await searchParams);
 
-  // Filtering runs live as the user types; the search button is a no-op
-  // affordance that simply reasserts the current filters.
-  const results = React.useMemo(() => applyFilters(filters), [filters]);
+  // Re-key the Suspense boundary on the active filters so the skeleton shows
+  // on every filter change, not just the first load.
+  const suspenseKey = JSON.stringify(filters);
 
   return (
     <PageContainer className="space-y-8">
@@ -68,36 +37,16 @@ export default function SearchPage() {
         </p>
       </header>
 
-      <SearchFilters value={filters} onChange={setFilters} />
+      <SearchFilters
+        q={filters.q}
+        location={filters.location}
+        sector={filters.sector}
+        sort={filters.sort}
+      />
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground" aria-live="polite">
-          {results.length}{" "}
-          {results.length === 1 ? "company" : "companies"} found
-        </p>
-      </div>
-
-      {results.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {results.map((company) => (
-            <CompanyCard key={company.id} company={company} />
-          ))}
-        </div>
-      ) : (
-        <EmptyState
-          title="No companies match your filters"
-          description="Try a different search term, or reset the location and sector filters to see every employer."
-          action={
-            <Button
-              variant="outline"
-              className="rounded-xl"
-              onClick={() => setFilters(defaultFilters)}
-            >
-              Reset filters
-            </Button>
-          }
-        />
-      )}
+      <React.Suspense key={suspenseKey} fallback={<SearchResultsSkeleton />}>
+        <SearchResults filters={filters} />
+      </React.Suspense>
     </PageContainer>
   );
 }
