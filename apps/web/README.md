@@ -37,13 +37,20 @@ deterministic local template.
 
 ### Outreach generation & drafts
 
-- **Generator:** `lib/outreach.ts` is a pure, deterministic function that turns
-  a company's public context (name, location, sector, open jobs, lead score)
-  into a British-English subject and body. It calls **no LLM** and runs on the
-  client when "Generate with AI" is pressed.
+- **AI generation:** "Generate with AI" calls the FastAPI backend at
+  `POST {NEXT_PUBLIC_API_URL}/ai/outreach` (`lib/outreach-api.ts`), which uses
+  Anthropic Claude Sonnet server-side. The Anthropic API key lives only in the
+  backend and is never exposed to the frontend. The composer shows loading and
+  error states around the call; subject and body remain editable.
+- **Fallback template:** `lib/outreach.ts` keeps a pure, deterministic
+  British-English generator (no LLM). It is no longer wired into the composer
+  but is retained as a reference/offline fallback.
 - **Drafts:** stored in `outreach_emails` with `status = 'draft'`, one per
   `(coach, company)`. Opening the composer auto-loads any existing draft;
   saving updates it in place or inserts a new row (via a server action).
+
+Requires `NEXT_PUBLIC_API_URL` (see Environment variables) pointing at the
+running API (`apps/api`).
 
 ### Expected `coach_company_meta` schema
 

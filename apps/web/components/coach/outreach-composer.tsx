@@ -9,7 +9,8 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
-import { generateOutreach, type OutreachInput } from "@/lib/outreach";
+import type { OutreachInput } from "@/lib/outreach";
+import { generateOutreachViaApi } from "@/lib/outreach-api";
 import { saveDraftAction } from "@/app/coach/(workspace)/outreach/actions";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -45,13 +46,28 @@ export function OutreachComposer({
   function handleGenerate() {
     setGenerating(true);
     setFeedback(null);
-    // Brief pause purely for UX feedback — generation itself is synchronous.
-    window.setTimeout(() => {
-      const generated = generateOutreach(input);
-      setSubject(generated.subject);
-      setBody(generated.body);
-      setGenerating(false);
-    }, 400);
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 30000);
+
+    void (async () => {
+      try {
+        const generated = await generateOutreachViaApi(input, controller.signal);
+        setSubject(generated.subject);
+        setBody(generated.body);
+      } catch (error) {
+        const message =
+          error instanceof DOMException && error.name === "AbortError"
+            ? "Generation timed out. Please try again."
+            : error instanceof Error
+              ? error.message
+              : "Failed to generate outreach.";
+        setFeedback({ type: "error", message });
+      } finally {
+        window.clearTimeout(timeout);
+        setGenerating(false);
+      }
+    })();
   }
 
   function handleSave() {
