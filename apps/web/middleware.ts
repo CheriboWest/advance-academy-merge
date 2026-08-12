@@ -2,7 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 /** Coach routes that require an authenticated session. */
-const PROTECTED_PREFIXES = ["/coach/dashboard", "/coach/companies"];
+const PROTECTED_PREFIXES = [
+  "/coach/dashboard",
+  "/coach/companies",
+  "/coach/outreach",
+];
 
 export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

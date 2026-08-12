@@ -13,23 +13,37 @@ The public-facing student portal for CareerHub UK, built with Next.js 15
 | `/coach/login`        | Public  | Email/password sign-in to the coach workspace.           |
 | `/coach/dashboard`    | Coach   | KPIs, top hiring companies, and recent companies.        |
 | `/coach/companies`    | Coach   | Searchable table with per-coach starring and notes.      |
+| `/coach/outreach`     | Coach   | Companies to draft outreach for (with a "draft saved" flag). |
+| `/coach/outreach/[companyId]` | Coach | AI-assisted composer with editable subject/body and draft saving. |
 
 Public pages read live from **Supabase** (read-only, anon key) — the
 `public_company_summary` view and the `jobs` table. The **private coach
 workspace** adds Supabase Auth (email/password) and per-coach data in the
-`coach_company_meta` table, all protected by Row Level Security. No FastAPI,
-AI, or email in this milestone.
+`coach_company_meta` and `outreach_emails` tables, all protected by Row Level
+Security. No FastAPI or email sending in this milestone; "AI" generation is a
+deterministic local template.
 
 ## Coach workspace
 
 - **Auth:** Supabase Auth (email/password) via `@supabase/ssr`, with
   cookie-based sessions. `lib/supabase-server.ts` and `lib/supabase-browser.ts`
   provide the server and browser clients; sign-in/out use **server actions**.
-- **Route protection:** `middleware.ts` guards `/coach/dashboard` and
-  `/coach/companies`, redirecting unauthenticated users to `/coach/login`. The
-  workspace layout re-checks the session server-side (defence in depth).
+- **Route protection:** `middleware.ts` guards `/coach/dashboard`,
+  `/coach/companies`, and `/coach/outreach`, redirecting unauthenticated users
+  to `/coach/login`. The workspace layout re-checks the session server-side
+  (defence in depth).
 - **Security:** only the anon key is used in the app — never the service role
   key. All private reads/writes rely on RLS keyed to `auth.uid()`.
+
+### Outreach generation & drafts
+
+- **Generator:** `lib/outreach.ts` is a pure, deterministic function that turns
+  a company's public context (name, location, sector, open jobs, lead score)
+  into a British-English subject and body. It calls **no LLM** and runs on the
+  client when "Generate with AI" is pressed.
+- **Drafts:** stored in `outreach_emails` with `status = 'draft'`, one per
+  `(coach, company)`. Opening the composer auto-loads any existing draft;
+  saving updates it in place or inserts a new row (via a server action).
 
 ### Expected `coach_company_meta` schema
 
@@ -47,6 +61,26 @@ This app expects the following columns and a unique constraint on
 
 RLS policies should restrict `select`/`insert`/`update` to rows where
 `coach_user_id = auth.uid()`.
+
+### Expected `outreach_emails` schema
+
+Outreach drafts are stored in `outreach_emails`:
+
+| Column          | Type          | Notes                                     |
+| --------------- | ------------- | ----------------------------------------- |
+| `id`            | `uuid`/`id`   | Primary key                               |
+| `coach_user_id` | `uuid`        | References `auth.users.id` (`auth.uid()`) |
+| `company_id`    | `uuid`/`id`   | References the company's `id`             |
+| `recruiter_id`  | `uuid`/`id`   | Nullable — not used in this milestone     |
+| `subject`       | `text`        |                                           |
+| `body`          | `text`        |                                           |
+| `status`        | `text`        | This milestone only writes `'draft'`      |
+| `sent_at`       | `timestamptz` | Nullable — unused until email sending     |
+| `created_at`    | `timestamptz` | Defaults to `now()`                       |
+
+RLS policies should restrict `select`/`insert`/`update` to rows where
+`coach_user_id = auth.uid()`. Drafts are treated as one-per-`(coach_user_id,
+company_id)` where `status = 'draft'`.
 
 ## Environment variables
 

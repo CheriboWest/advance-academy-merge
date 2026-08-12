@@ -1,4 +1,9 @@
-import { Building2, LayoutDashboard, type LucideIcon } from "lucide-react";
+import {
+  Building2,
+  LayoutDashboard,
+  Mail,
+  type LucideIcon,
+} from "lucide-react";
 
 export interface CoachNavItem {
   href: string;
@@ -10,4 +15,5 @@ export interface CoachNavItem {
 export const coachNavItems: CoachNavItem[] = [
   { href: "/coach/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/coach/companies", label: "Companies", icon: Building2 },
+  { href: "/coach/outreach", label: "Outreach", icon: Mail },
 ];
