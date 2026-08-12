@@ -1,10 +1,13 @@
 import type { GeneratedOutreach, OutreachInput } from "@/lib/outreach";
+import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 /**
  * Call the FastAPI backend to generate an outreach email with Claude.
  *
  * The backend holds the Anthropic API key; the browser only ever talks to this
  * backend (via NEXT_PUBLIC_API_URL). The key is never exposed to the frontend.
+ * The endpoint is protected — we send the signed-in coach's Supabase access
+ * token as a Bearer token.
  */
 export async function generateOutreachViaApi(
   input: OutreachInput,
@@ -17,9 +20,21 @@ export async function generateOutreachViaApi(
     );
   }
 
+  const supabase = createSupabaseBrowserClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    throw new Error("You must be signed in to generate outreach.");
+  }
+
   const response = await fetch(`${baseUrl.replace(/\/$/, "")}/ai/outreach`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
     body: JSON.stringify({
       company_name: input.name,
       location: input.location,

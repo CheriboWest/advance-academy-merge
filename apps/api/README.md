@@ -34,7 +34,12 @@ apps/api/
 
 ## Endpoint
 
-### `POST /ai/outreach`
+### `POST /ai/outreach` (authenticated)
+
+Requires a Supabase access token: `Authorization: Bearer <token>`. The token's
+signature, expiry, and issuer (must contain `SUPABASE_URL`) are verified with
+`python-jose`; the coach's user id (`sub`) is read via the reusable
+`get_current_user` dependency. A missing or invalid token returns **401**.
 
 Request:
 
@@ -75,6 +80,8 @@ Copy `.env.example` to `.env` and fill in:
 | `ANTHROPIC_MODEL`   | ❌       | `claude-sonnet-5` | Claude Sonnet model id                  |
 | `ANTHROPIC_TIMEOUT` | ❌       | `30`              | Request timeout (seconds)               |
 | `ALLOWED_ORIGINS`   | ❌       | `http://localhost:3000` | Comma-separated CORS origins (your Vercel URL) |
+| `SUPABASE_JWT_SECRET` | ✅     | —                 | Supabase JWT secret; verifies coach access tokens |
+| `SUPABASE_URL`      | ✅       | —                 | Supabase project URL; token issuer must contain it |
 
 ## Run locally
 
