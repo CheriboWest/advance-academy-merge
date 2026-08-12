@@ -35,17 +35,18 @@ AI, or email in this milestone.
 
 The companies table stores private, per-coach metadata in `coach_company_meta`.
 This app expects the following columns and a unique constraint on
-`(coach_id, company_id)`:
+`(coach_user_id, company_id)`:
 
-| Column       | Type        | Notes                                    |
-| ------------ | ----------- | ---------------------------------------- |
-| `coach_id`   | `uuid`      | References `auth.users.id` (`auth.uid()`) |
-| `company_id` | `uuid`/`id` | References the company's `id`            |
-| `starred`    | `boolean`   |                                          |
-| `notes`      | `text`      | Nullable                                 |
+| Column          | Type        | Notes                                     |
+| --------------- | ----------- | ----------------------------------------- |
+| `coach_user_id` | `uuid`      | References `auth.users.id` (`auth.uid()`) |
+| `company_id`    | `uuid`/`id` | References the company's `id`             |
+| `starred`       | `boolean`   |                                           |
+| `hidden`        | `boolean`   |                                           |
+| `notes`         | `text`      | Nullable                                  |
 
 RLS policies should restrict `select`/`insert`/`update` to rows where
-`coach_id = auth.uid()`.
+`coach_user_id = auth.uid()`.
 
 ## Environment variables
 

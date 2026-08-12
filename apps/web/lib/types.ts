@@ -36,15 +36,14 @@ export interface Job {
 
 /**
  * A row from the `coach_company_meta` table — private, per-coach metadata for a
- * company. Protected by RLS keyed to `coach_id = auth.uid()`.
+ * company. Protected by RLS keyed to `coach_user_id = auth.uid()`.
  */
 export interface CoachCompanyMeta {
-  id?: string;
-  coach_id: string;
+  coach_user_id: string;
   company_id: string;
   starred: boolean;
+  hidden: boolean;
   notes: string | null;
-  updated_at?: string | null;
 }
 
 /** A company summary merged with the current coach's private metadata. */

@@ -10,7 +10,7 @@ export interface MetaActionResult {
 
 /**
  * Upsert the current coach's private metadata for a company. RLS ensures a
- * coach can only write their own rows; `coach_id` is set to `auth.uid()`.
+ * coach can only write their own rows; `coach_user_id` is set to `auth.uid()`.
  */
 async function upsertMeta(
   companyId: string,
@@ -28,11 +28,11 @@ async function upsertMeta(
 
   const { error } = await supabase.from("coach_company_meta").upsert(
     {
-      coach_id: user.id,
+      coach_user_id: user.id,
       company_id: companyId,
       ...patch,
     },
-    { onConflict: "coach_id,company_id" }
+    { onConflict: "coach_user_id,company_id" }
   );
 
   if (error) {
