@@ -40,7 +40,7 @@ function formatSalary(
 export function JobItem({ job }: JobItemProps) {
   const location = job.location_raw ?? job.city ?? "—";
   const salary = formatSalary(job.salary_min, job.salary_max);
-  const href = job.apply_url ?? job.url ?? null;
+  const href = job.source_url ?? null;
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/40 sm:flex-row sm:items-center sm:justify-between">

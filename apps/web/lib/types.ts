@@ -31,6 +31,5 @@ export interface Job {
   posted_at: string | null;
   is_active: boolean;
   /** Optional outbound link to the live posting, if the row provides one. */
-  apply_url?: string | null;
-  url?: string | null;
+  source_url?: string | null;
 }
