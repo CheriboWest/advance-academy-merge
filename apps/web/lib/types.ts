@@ -33,3 +33,37 @@ export interface Job {
   /** Optional outbound link to the live posting, if the row provides one. */
   source_url?: string | null;
 }
+
+/**
+ * A row from the `coach_company_meta` table — private, per-coach metadata for a
+ * company. Protected by RLS keyed to `coach_id = auth.uid()`.
+ */
+export interface CoachCompanyMeta {
+  id?: string;
+  coach_id: string;
+  company_id: string;
+  starred: boolean;
+  notes: string | null;
+  updated_at?: string | null;
+}
+
+/** A company summary merged with the current coach's private metadata. */
+export interface CoachCompanyRow {
+  company_id: string;
+  slug: string;
+  name: string;
+  location: string;
+  open_jobs: number;
+  lead_score: number;
+  starred: boolean;
+  notes: string;
+}
+
+/** Aggregated data for the coach dashboard. */
+export interface CoachDashboardData {
+  totalCompanies: number;
+  highScoreCompanies: number;
+  totalActiveJobs: number;
+  recentCompanies: CompanySummary[];
+  topHiringCompanies: CompanySummary[];
+}

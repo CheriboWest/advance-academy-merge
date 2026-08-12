@@ -5,16 +5,47 @@ The public-facing student portal for CareerHub UK, built with Next.js 15
 
 ## Pages
 
-| Route                 | Description                                                    |
-| --------------------- | -------------------------------------------------------------- |
-| `/`                   | Landing page with student and coach entry cards.               |
-| `/search`             | Public company search with location, sector, and sort filters. |
-| `/companies/[slug]`   | Company detail with links and a list of open jobs.             |
-| `/coach/login`        | Placeholder for the private coach workspace (coming soon).     |
+| Route                 | Access  | Description                                              |
+| --------------------- | ------- | -------------------------------------------------------- |
+| `/`                   | Public  | Landing page with student and coach entry cards.         |
+| `/search`             | Public  | Company search with location, sector, and sort filters.  |
+| `/companies/[slug]`   | Public  | Company detail with links and a list of open jobs.       |
+| `/coach/login`        | Public  | Email/password sign-in to the coach workspace.           |
+| `/coach/dashboard`    | Coach   | KPIs, top hiring companies, and recent companies.        |
+| `/coach/companies`    | Coach   | Searchable table with per-coach starring and notes.      |
 
-Data for the public pages comes live from **Supabase** (read-only, anon key) —
-the `public_company_summary` view and the `jobs` table. There is no
-authentication, coach workspace, or FastAPI backend in this milestone.
+Public pages read live from **Supabase** (read-only, anon key) — the
+`public_company_summary` view and the `jobs` table. The **private coach
+workspace** adds Supabase Auth (email/password) and per-coach data in the
+`coach_company_meta` table, all protected by Row Level Security. No FastAPI,
+AI, or email in this milestone.
+
+## Coach workspace
+
+- **Auth:** Supabase Auth (email/password) via `@supabase/ssr`, with
+  cookie-based sessions. `lib/supabase-server.ts` and `lib/supabase-browser.ts`
+  provide the server and browser clients; sign-in/out use **server actions**.
+- **Route protection:** `middleware.ts` guards `/coach/dashboard` and
+  `/coach/companies`, redirecting unauthenticated users to `/coach/login`. The
+  workspace layout re-checks the session server-side (defence in depth).
+- **Security:** only the anon key is used in the app — never the service role
+  key. All private reads/writes rely on RLS keyed to `auth.uid()`.
+
+### Expected `coach_company_meta` schema
+
+The companies table stores private, per-coach metadata in `coach_company_meta`.
+This app expects the following columns and a unique constraint on
+`(coach_id, company_id)`:
+
+| Column       | Type        | Notes                                    |
+| ------------ | ----------- | ---------------------------------------- |
+| `coach_id`   | `uuid`      | References `auth.users.id` (`auth.uid()`) |
+| `company_id` | `uuid`/`id` | References the company's `id`            |
+| `starred`    | `boolean`   |                                          |
+| `notes`      | `text`      | Nullable                                 |
+
+RLS policies should restrict `select`/`insert`/`update` to rows where
+`coach_id = auth.uid()`.
 
 ## Environment variables
 

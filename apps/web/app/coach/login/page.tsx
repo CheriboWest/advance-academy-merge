@@ -1,17 +1,37 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft, Construction, LockKeyhole } from "lucide-react";
+import { redirect } from "next/navigation";
+import { LockKeyhole } from "lucide-react";
 
+import { getCoachUser } from "@/lib/coach";
 import { PageContainer } from "@/components/page-container";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { LoginForm } from "@/app/coach/login/login-form";
 
 export const metadata: Metadata = {
   title: "Coach login",
-  description: "The private coach workspace for CareerHub UK.",
+  description: "Sign in to the private CareerHub UK coach workspace.",
 };
 
-export default function CoachLoginPage() {
+// Reads the session cookie, so must render dynamically.
+export const dynamic = "force-dynamic";
+
+interface CoachLoginPageProps {
+  searchParams: Promise<{ redirect?: string | string[] }>;
+}
+
+export default async function CoachLoginPage({
+  searchParams,
+}: CoachLoginPageProps) {
+  const user = await getCoachUser();
+  if (user) {
+    redirect("/coach/dashboard");
+  }
+
+  const { redirect: redirectParam } = await searchParams;
+  const redirectTo = Array.isArray(redirectParam)
+    ? redirectParam[0]
+    : redirectParam;
+
   return (
     <PageContainer className="flex justify-center">
       <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 text-center shadow-sm">
@@ -19,24 +39,19 @@ export default function CoachLoginPage() {
           <LockKeyhole className="size-7" />
         </span>
 
-        <Badge variant="secondary" className="mt-5 rounded-full gap-1">
-          <Construction className="size-3" />
-          Coming soon
+        <Badge variant="secondary" className="mt-5 rounded-full">
+          Private
         </Badge>
 
         <h1 className="mt-4 text-2xl font-bold tracking-tight">Coach login</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          The private coach workspace — lead scoring, outreach tracking, and
-          student management — is on its way. Authentication will be enabled in
-          a future milestone.
+          Sign in to manage leads, notes, and outreach in your private
+          workspace.
         </p>
 
-        <Button asChild variant="outline" className="mt-6 w-full rounded-xl">
-          <Link href="/">
-            <ArrowLeft className="size-4" />
-            Back to home
-          </Link>
-        </Button>
+        <div className="mt-6">
+          <LoginForm redirectTo={redirectTo} />
+        </div>
       </div>
     </PageContainer>
   );
