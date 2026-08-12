@@ -35,6 +35,10 @@ class Settings:
         self.request_timeout: float = float(os.getenv("ANTHROPIC_TIMEOUT", "30"))
         # Comma-separated list of allowed CORS origins (the Vercel frontend).
         self.allowed_origins: list[str] = _parse_origins(os.getenv("ALLOWED_ORIGINS"))
+        # Supabase auth: HS256 JWT secret used to verify access tokens, and the
+        # project URL the token issuer must contain.
+        self.supabase_jwt_secret: str = os.getenv("SUPABASE_JWT_SECRET", "")
+        self.supabase_url: str = os.getenv("SUPABASE_URL", "")
 
 
 @lru_cache

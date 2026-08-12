@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.auth import get_current_user
 from app.config import get_settings
 from app.schemas import OutreachRequest, OutreachResponse
 
@@ -50,7 +51,12 @@ def _build_user_prompt(req: OutreachRequest) -> str:
 
 
 @router.post("/outreach", response_model=OutreachResponse)
-def generate_outreach(req: OutreachRequest) -> OutreachResponse:
+def generate_outreach(
+    req: OutreachRequest,
+    user_id: str = Depends(get_current_user),
+) -> OutreachResponse:
+    # `user_id` is the authenticated coach's Supabase user id; its presence means
+    # the request carried a valid token (a missing/invalid one returns 401).
     settings = get_settings()
 
     if not settings.anthropic_api_key:
