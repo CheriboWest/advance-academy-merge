@@ -22,3 +22,18 @@ class OutreachResponse(BaseModel):
 
     subject: str
     body: str
+
+
+class SendEmailRequest(BaseModel):
+    """Request to send a saved outreach draft to a recipient."""
+
+    draft_id: str = Field(..., min_length=1, description="outreach_emails row id.")
+    to: str = Field(..., min_length=3, description="Recipient email address.")
+
+
+class SendEmailResponse(BaseModel):
+    """Result of sending an outreach email."""
+
+    status: str
+    sent_at: str
+    recipient_email: str

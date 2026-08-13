@@ -5,12 +5,14 @@ import {
   CheckCircle2,
   Loader2,
   Save,
+  Send,
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
 
 import type { OutreachInput } from "@/lib/outreach";
 import { generateOutreachViaApi } from "@/lib/outreach-api";
+import { sendEmailViaApi } from "@/lib/email-api";
 import { saveDraftAction } from "@/app/coach/(workspace)/outreach/actions";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,9 +41,13 @@ export function OutreachComposer({
 }: OutreachComposerProps) {
   const [subject, setSubject] = React.useState(initialSubject);
   const [body, setBody] = React.useState(initialBody);
+  const [recipient, setRecipient] = React.useState("");
   const [generating, setGenerating] = React.useState(false);
+  const [sending, setSending] = React.useState(false);
   const [feedback, setFeedback] = React.useState<Feedback>(null);
   const [saving, startSaving] = React.useTransition();
+
+  const busy = generating || saving || sending;
 
   function handleGenerate() {
     setGenerating(true);
@@ -85,6 +91,45 @@ export function OutreachComposer({
     });
   }
 
+  function handleSend() {
+    setFeedback(null);
+
+    const email = recipient.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFeedback({
+        type: "error",
+        message: "Enter a valid recipient email address.",
+      });
+      return;
+    }
+
+    setSending(true);
+    void (async () => {
+      try {
+        // Persist the current subject/body (and get a draft id) before sending.
+        const saved = await saveDraftAction(companyId, subject, body);
+        if (!saved.ok || !saved.id) {
+          setFeedback({
+            type: "error",
+            message: saved.error ?? "Could not save the draft before sending.",
+          });
+          return;
+        }
+        const result = await sendEmailViaApi(saved.id, email);
+        setFeedback({
+          type: "success",
+          message: `Email sent to ${result.recipient_email}.`,
+        });
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to send the email.";
+        setFeedback({ type: "error", message });
+      } finally {
+        setSending(false);
+      }
+    })();
+  }
+
   return (
     <section className="space-y-5 rounded-3xl border border-border bg-card p-6 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -103,7 +148,7 @@ export function OutreachComposer({
           variant="outline"
           className="rounded-xl"
           onClick={handleGenerate}
-          disabled={generating || saving}
+          disabled={busy}
         >
           {generating ? (
             <Loader2 className="size-4 animate-spin" />
@@ -123,7 +168,7 @@ export function OutreachComposer({
           value={subject}
           onChange={(event) => setSubject(event.target.value)}
           placeholder="Your outreach subject line"
-          disabled={generating || saving}
+          disabled={busy}
           className="h-11 rounded-xl"
         />
       </div>
@@ -137,8 +182,23 @@ export function OutreachComposer({
           value={body}
           onChange={(event) => setBody(event.target.value)}
           placeholder="Write or generate your outreach message"
-          disabled={generating || saving}
+          disabled={busy}
           className="min-h-72 rounded-2xl"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="recipient" className="text-sm font-medium">
+          Send to
+        </label>
+        <Input
+          id="recipient"
+          type="email"
+          value={recipient}
+          onChange={(event) => setRecipient(event.target.value)}
+          placeholder="recruiter@company.com"
+          disabled={busy}
+          className="h-11 rounded-xl"
         />
       </div>
 
@@ -161,12 +221,13 @@ export function OutreachComposer({
         </p>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex flex-col justify-end gap-3 sm:flex-row">
         <Button
           type="button"
+          variant="outline"
           className="rounded-xl"
           onClick={handleSave}
-          disabled={saving || generating}
+          disabled={busy}
         >
           {saving ? (
             <Loader2 className="size-4 animate-spin" />
@@ -174,6 +235,19 @@ export function OutreachComposer({
             <Save className="size-4" />
           )}
           {saving ? "Saving…" : "Save draft"}
+        </Button>
+        <Button
+          type="button"
+          className="rounded-xl"
+          onClick={handleSend}
+          disabled={busy}
+        >
+          {sending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Send className="size-4" />
+          )}
+          {sending ? "Sending…" : "Send email"}
         </Button>
       </div>
     </section>

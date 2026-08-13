@@ -39,6 +39,17 @@ class Settings:
         # project URL the token issuer must contain.
         self.supabase_jwt_secret: str = os.getenv("SUPABASE_JWT_SECRET", "")
         self.supabase_url: str = os.getenv("SUPABASE_URL", "")
+        # Service role key — server-side only, used to load/update drafts.
+        # Never exposed to the frontend.
+        self.supabase_service_role_key: str = os.getenv(
+            "SUPABASE_SERVICE_ROLE_KEY", ""
+        )
+        # SMTP (shared Google Workspace mailbox) for sending outreach emails.
+        self.smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+        self.smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
+        self.smtp_username: str = os.getenv("SMTP_USERNAME", "")
+        self.smtp_password: str = os.getenv("SMTP_PASSWORD", "")
+        self.smtp_from: str = os.getenv("SMTP_FROM", "")
 
 
 @lru_cache
