@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "CareerHub UK — company and job discovery platform for students, with a private coach workspace.",
+  "packageManager": "npm@10.8.2",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -14,6 +15,6 @@
     "lint": "npm run lint --workspace apps/web"
   },
   "engines": {
-    "node": ">=18.18.0"
+    "node": "20.x"
   }
 }
