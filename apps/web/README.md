@@ -13,6 +13,7 @@ The public-facing student portal for CareerHub UK, built with Next.js 15
 | `/coach/login`        | Public  | Email/password sign-in to the coach workspace.           |
 | `/coach/dashboard`    | Coach   | KPIs, top hiring companies, and recent companies.        |
 | `/coach/companies`    | Coach   | Searchable table with per-coach starring and notes.      |
+| `/coach/crawler`      | Coach   | Trigger Adzuna/Reed crawls; cache prompt, progress, stats, history. |
 | `/coach/outreach`     | Coach   | Companies to draft outreach for (with a "draft saved" flag). |
 | `/coach/outreach/[companyId]` | Coach | AI-assisted composer with editable subject/body and draft saving. |
 

@@ -2,6 +2,7 @@ import {
   Building2,
   LayoutDashboard,
   Mail,
+  Radar,
   type LucideIcon,
 } from "lucide-react";
 
@@ -15,5 +16,6 @@ export interface CoachNavItem {
 export const coachNavItems: CoachNavItem[] = [
   { href: "/coach/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/coach/companies", label: "Companies", icon: Building2 },
+  { href: "/coach/crawler", label: "Crawler", icon: Radar },
   { href: "/coach/outreach", label: "Outreach", icon: Mail },
 ];

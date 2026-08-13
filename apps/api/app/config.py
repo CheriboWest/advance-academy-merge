@@ -49,6 +49,10 @@ class Settings:
         self.smtp_username: str = os.getenv("SMTP_USERNAME", "")
         self.smtp_password: str = os.getenv("SMTP_PASSWORD", "")
         self.smtp_from: str = os.getenv("SMTP_FROM", "")
+        # Job-board crawler credentials.
+        self.adzuna_app_id: str = os.getenv("ADZUNA_APP_ID", "")
+        self.adzuna_app_key: str = os.getenv("ADZUNA_APP_KEY", "")
+        self.reed_api_key: str = os.getenv("REED_API_KEY", "")
 
 
 @lru_cache

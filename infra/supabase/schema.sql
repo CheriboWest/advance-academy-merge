@@ -1,0 +1,99 @@
+-- CareerHub UK — canonical schema mirror
+--
+-- Human-readable reference of the expected Supabase schema. The source of truth
+-- is the Supabase project; migrations live in `infra/supabase/migrations/`.
+-- Apply migrations in order, then this file should describe the resulting shape.
+
+-- Companies (public + coach)
+create table if not exists public.companies (
+  id          uuid primary key default gen_random_uuid(),
+  slug        text unique,
+  name        text,
+  website     text,
+  careers_url text,
+  sector      text,
+  region      text,
+  hq_location text,
+  description text,
+  lead_score  integer default 0,
+  created_at  timestamptz default now()
+);
+
+-- Jobs (public). content_hash is the dedup key.
+create table if not exists public.jobs (
+  id            uuid primary key default gen_random_uuid(),
+  company_id    uuid references public.companies (id),
+  title         text,
+  location_raw  text,
+  city          text,
+  salary_min    integer,
+  salary_max    integer,
+  posted_at     timestamptz,
+  is_active     boolean default true,
+  source        text,
+  source_job_id text,
+  source_url    text,
+  content_hash  text unique,
+  created_at    timestamptz default now()
+);
+
+-- Per-coach private metadata (RLS: coach_user_id = auth.uid()).
+create table if not exists public.coach_company_meta (
+  coach_user_id uuid not null,
+  company_id    uuid not null references public.companies (id),
+  starred       boolean default false,
+  hidden        boolean default false,
+  notes         text,
+  unique (coach_user_id, company_id)
+);
+
+-- Outreach drafts / sent emails (RLS: coach_user_id = auth.uid()).
+create table if not exists public.outreach_emails (
+  id              uuid primary key default gen_random_uuid(),
+  coach_user_id   uuid not null,
+  company_id      uuid,
+  recruiter_id    uuid,
+  subject         text,
+  body            text,
+  status          text default 'draft',
+  recipient_email text,
+  sent_at         timestamptz,
+  created_at      timestamptz default now()
+);
+
+-- 24h cache of normalized (query + location).
+create table if not exists public.discovery_queries (
+  id                uuid primary key default gen_random_uuid(),
+  query             text not null,
+  location          text not null,
+  last_refreshed_at timestamptz not null default now(),
+  created_at        timestamptz default now(),
+  unique (query, location)
+);
+
+-- Crawl run records + statistics.
+create table if not exists public.crawl_runs (
+  id                       uuid primary key default gen_random_uuid(),
+  status                   text not null default 'running',
+  query                    text,
+  location                 text,
+  jobs_fetched             integer default 0,
+  new_jobs                 integer default 0,
+  duplicate_jobs           integer default 0,
+  companies_discovered     integer default 0,
+  companies_updated        integer default 0,
+  lead_scores_recalculated integer default 0,
+  error                    text,
+  created_at               timestamptz default now(),
+  finished_at              timestamptz
+);
+
+-- Public view consumed by the student portal — only companies with active jobs.
+create or replace view public.public_company_summary as
+select
+  c.id, c.slug, c.name, c.website, c.careers_url,
+  c.sector, c.region, c.hq_location, c.lead_score,
+  count(j.*) filter (where j.is_active) as open_jobs
+from public.companies c
+join public.jobs j on j.company_id = c.id and j.is_active = true
+group by c.id;
