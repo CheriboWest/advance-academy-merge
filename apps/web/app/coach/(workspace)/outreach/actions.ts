@@ -7,6 +7,8 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 export interface SaveDraftResult {
   ok: boolean;
   error: string | null;
+  /** The id of the saved draft row, present when ok is true. */
+  id?: string;
 }
 
 /**
@@ -51,28 +53,38 @@ export async function saveDraftAction(
     return { ok: false, error: lookupError.message };
   }
 
+  let draftId: string;
+
   if (existing?.id) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("outreach_emails")
       .update({ subject: trimmedSubject, body: trimmedBody, status: "draft" })
-      .eq("id", existing.id);
+      .eq("id", existing.id)
+      .select("id")
+      .single();
     if (error) {
       return { ok: false, error: error.message };
     }
+    draftId = data.id as string;
   } else {
-    const { error } = await supabase.from("outreach_emails").insert({
-      coach_user_id: user.id,
-      company_id: companyId,
-      subject: trimmedSubject,
-      body: trimmedBody,
-      status: "draft",
-    });
+    const { data, error } = await supabase
+      .from("outreach_emails")
+      .insert({
+        coach_user_id: user.id,
+        company_id: companyId,
+        subject: trimmedSubject,
+        body: trimmedBody,
+        status: "draft",
+      })
+      .select("id")
+      .single();
     if (error) {
       return { ok: false, error: error.message };
     }
+    draftId = data.id as string;
   }
 
   revalidatePath("/coach/outreach");
   revalidatePath(`/coach/outreach/${companyId}`);
-  return { ok: true, error: null };
+  return { ok: true, error: null, id: draftId };
 }
