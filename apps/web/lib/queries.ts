@@ -81,7 +81,14 @@ export async function fetchCompanyBySlug(
   return (data as CompanySummary | null) ?? null;
 }
 
-/** Fetch active jobs for a company, most recently posted first. */
+/**
+ * Fetch active jobs for a company.
+ *
+ * Filters on ONLY `company_id` and `is_active = true` — no `posted_at`,
+ * `expires_at`, or other conditions — so the count here matches the active-job
+ * count exposed by `public_company_summary`. Newest-first ordering for display
+ * is applied in memory after the fetch, not as a query condition.
+ */
 export async function fetchActiveJobs(companyId: string): Promise<Job[]> {
   const supabase = getSupabaseClient();
 
@@ -89,12 +96,17 @@ export async function fetchActiveJobs(companyId: string): Promise<Job[]> {
     .from("jobs")
     .select("*")
     .eq("company_id", companyId)
-    .eq("is_active", true)
-    .order("posted_at", { ascending: false, nullsFirst: false });
+    .eq("is_active", true);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return (data ?? []) as Job[];
+  const jobs = (data ?? []) as Job[];
+
+  return jobs.sort((a, b) => {
+    const aTime = a.posted_at ? new Date(a.posted_at).getTime() : 0;
+    const bTime = b.posted_at ? new Date(b.posted_at).getTime() : 0;
+    return bTime - aTime;
+  });
 }
