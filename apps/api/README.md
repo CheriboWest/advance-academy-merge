@@ -82,7 +82,7 @@ Request:
 
 Flow: verify coach JWT → load the draft from Supabase with the **service role
 key** → confirm `coach_user_id` matches the caller → send via SMTP → update the
-row (`status = 'sent'`, `sent_at = now()`, `recipient_email = to`). Returns
+row (`status = 'sent'`, `sent_at = now()`). Returns
 `{ "status": "sent", "sent_at": "…", "recipient_email": "…" }`. A missing draft
 is 404; a draft owned by another coach is 403; an SMTP failure is 502.
 
@@ -98,8 +98,7 @@ Copy `.env.example` to `.env` and fill in:
 | `ANTHROPIC_MODEL`   | ❌       | `claude-sonnet-5` | Claude Sonnet model id                  |
 | `ANTHROPIC_TIMEOUT` | ❌       | `30`              | Request timeout (seconds)               |
 | `ALLOWED_ORIGINS`   | ❌       | `http://localhost:3000` | Comma-separated CORS origins (your Vercel URL) |
-| `SUPABASE_JWT_SECRET` | ✅     | —                 | Supabase JWT secret; verifies coach access tokens |
-| `SUPABASE_URL`      | ✅       | —                 | Supabase project URL; token issuer must contain it |
+| `SUPABASE_URL`      | ✅       | —                 | Supabase project URL; coach tokens are verified against its public JWKS, and the issuer must contain it |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | —              | Service role key; loads/updates drafts server-side (never sent to browser) |
 | `SMTP_HOST`         | ✅       | `smtp.gmail.com`  | SMTP host                               |
 | `SMTP_PORT`         | ✅       | `587`             | SMTP port (TLS/STARTTLS)                |

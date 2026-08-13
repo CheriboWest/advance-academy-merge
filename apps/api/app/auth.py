@@ -3,10 +3,17 @@
 Verifies the Supabase access token sent by the frontend as
 ``Authorization: Bearer <token>`` and exposes ``get_current_user`` as a reusable
 FastAPI dependency that returns the authenticated user's id (the ``sub`` claim).
+
+The project signs access tokens with asymmetric keys (ES256), so tokens are
+verified against the public JWKS the project publishes — there is no shared
+secret involved.
 """
 
 from __future__ import annotations
 
+from functools import lru_cache
+
+import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
@@ -29,6 +36,35 @@ def _unauthorized(detail: str) -> HTTPException:
     )
 
 
+@lru_cache(maxsize=1)
+def _jwks(supabase_url: str) -> dict[str, dict]:
+    """Return the project's public signing keys, keyed by ``kid``.
+
+    ponytail: cached for the process lifetime; a rotation is picked up by the
+    one cache_clear() retry below. Add a TTL if keys start rotating often.
+    """
+    response = httpx.get(
+        f"{supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json", timeout=10.0
+    )
+    response.raise_for_status()
+    return {key["kid"]: key for key in response.json()["keys"] if key.get("kid")}
+
+
+def _signing_key(supabase_url: str, kid: str) -> dict | None:
+    """Look up ``kid``, refetching once in case the keys were rotated."""
+    try:
+        key = _jwks(supabase_url).get(kid)
+        if key is None:
+            _jwks.cache_clear()
+            key = _jwks(supabase_url).get(kid)
+        return key
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Could not fetch the token signing keys.",
+        ) from exc
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> str:
@@ -39,7 +75,7 @@ def get_current_user(
     """
     settings = get_settings()
 
-    if not settings.supabase_jwt_secret:
+    if not settings.supabase_url:
         # Misconfiguration, not a client error.
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -52,10 +88,19 @@ def get_current_user(
     token = credentials.credentials
 
     try:
+        kid = jwt.get_unverified_header(token).get("kid")
+    except JWTError as exc:
+        raise _unauthorized("Invalid authentication token.") from exc
+
+    key = _signing_key(settings.supabase_url, kid) if kid else None
+    if key is None:
+        raise _unauthorized("Unknown token signing key.")
+
+    try:
         payload = jwt.decode(
             token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
+            key,
+            algorithms=[key.get("alg", "ES256")],
             # Supabase sets aud="authenticated"; we validate the issuer instead.
             options={"verify_aud": False},
         )

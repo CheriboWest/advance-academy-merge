@@ -110,7 +110,6 @@ async def send_email(
                 json={
                     "status": "sent",
                     "sent_at": sent_at,
-                    "recipient_email": req.to,
                 },
             )
             update.raise_for_status()
