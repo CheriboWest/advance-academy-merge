@@ -10,7 +10,7 @@ from app.crawler.models import NormalizedJob
 
 ADZUNA_URL = "https://api.adzuna.com/v1/api/jobs/gb/search/1"
 
-REQUEST_TIMEOUT = 10.0
+REQUEST_TIMEOUT = 20.0
 
 
 def _to_int(value: object) -> Optional[int]:
@@ -28,7 +28,7 @@ async def fetch(
     app_key: str,
     query: str,
     city: str,
-    limit: int = 50,
+    limit: int = 25,
 ) -> list[NormalizedJob]:
     """Fetch jobs from Adzuna. Raises on transport/HTTP errors."""
     params = {

@@ -25,22 +25,28 @@ class NormalizedJob:
 
 @dataclass
 class CrawlStats:
-    """Aggregated statistics for a crawl run."""
+    """Aggregated statistics for a crawl run.
 
-    jobs_fetched: int = 0
-    new_jobs: int = 0
+    Identities: raw_jobs = normalized_jobs + duplicate_jobs, and
+    normalized_jobs = inserted_jobs + updated_jobs.
+    """
+
+    raw_jobs: int = 0
+    normalized_jobs: int = 0
+    inserted_jobs: int = 0
+    updated_jobs: int = 0
     duplicate_jobs: int = 0
-    companies_discovered: int = 0
+    companies_created: int = 0
     companies_updated: int = 0
-    lead_scores_recalculated: int = 0
     source_errors: dict[str, str] = field(default_factory=dict)
 
     def as_columns(self) -> dict[str, int]:
         return {
-            "jobs_fetched": self.jobs_fetched,
-            "new_jobs": self.new_jobs,
+            "raw_jobs": self.raw_jobs,
+            "normalized_jobs": self.normalized_jobs,
+            "inserted_jobs": self.inserted_jobs,
+            "updated_jobs": self.updated_jobs,
             "duplicate_jobs": self.duplicate_jobs,
-            "companies_discovered": self.companies_discovered,
+            "companies_created": self.companies_created,
             "companies_updated": self.companies_updated,
-            "lead_scores_recalculated": self.lead_scores_recalculated,
         }

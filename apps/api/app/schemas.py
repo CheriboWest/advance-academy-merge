@@ -66,12 +66,13 @@ class CrawlRunStatus(BaseModel):
     status: str
     query: Optional[str] = None
     location: Optional[str] = None
-    jobs_fetched: int = 0
-    new_jobs: int = 0
+    raw_jobs: int = 0
+    normalized_jobs: int = 0
+    inserted_jobs: int = 0
+    updated_jobs: int = 0
     duplicate_jobs: int = 0
-    companies_discovered: int = 0
+    companies_created: int = 0
     companies_updated: int = 0
-    lead_scores_recalculated: int = 0
     error: Optional[str] = None
     created_at: Optional[str] = None
     finished_at: Optional[str] = None

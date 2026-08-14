@@ -44,12 +44,14 @@ class SupabaseRest:
     ) -> list[dict[str, Any]]:
         if not rows:
             return []
-        response = await client.post(
-            f"{self._rest}/{table}",
-            headers={**self._headers, "Prefer": prefer},
-            json=rows,
-            timeout=self._timeout,
-        )
+        response = await client.post( f"{self._rest}/{table}", headers={**self._headers, "Prefer": prefer}, json=rows, timeout=self._timeout, )
+        if response.status_code >= 400:
+            print(" === SUPABASE INSERT ERROR ===")
+            print("TABLE:", table)
+            print("STATUS:", response.status_code)
+            print("PAYLOAD:", rows)
+            print("RESPONSE:", response.text)
+            print("============================ ")
         response.raise_for_status()
         if prefer.startswith("return=representation"):
             return response.json()

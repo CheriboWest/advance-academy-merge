@@ -14,12 +14,13 @@ export interface CrawlRunStatus {
   status: string;
   query?: string | null;
   location?: string | null;
-  jobs_fetched: number;
-  new_jobs: number;
+  raw_jobs: number;
+  normalized_jobs: number;
+  inserted_jobs: number;
+  updated_jobs: number;
   duplicate_jobs: number;
-  companies_discovered: number;
+  companies_created: number;
   companies_updated: number;
-  lead_scores_recalculated: number;
   error?: string | null;
   created_at?: string | null;
   finished_at?: string | null;

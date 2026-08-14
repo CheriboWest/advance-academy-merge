@@ -11,7 +11,7 @@ from app.crawler.models import NormalizedJob
 
 REED_URL = "https://www.reed.co.uk/api/1.0/search"
 
-REQUEST_TIMEOUT = 10.0
+REQUEST_TIMEOUT = 20.0
 
 
 def _to_int(value: object) -> Optional[int]:
@@ -38,7 +38,7 @@ async def fetch(
     api_key: str,
     query: str,
     city: str,
-    limit: int = 50,
+    limit: int = 25,
 ) -> list[NormalizedJob]:
     """Fetch jobs from Reed. Raises on transport/HTTP errors.
 
