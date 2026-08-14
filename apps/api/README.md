@@ -86,6 +86,25 @@ row (`status = 'sent'`, `sent_at = now()`). Returns
 `{ "status": "sent", "sent_at": "…", "recipient_email": "…" }`. A missing draft
 is 404; a draft owned by another coach is 403; an SMTP failure is 502.
 
+### Crawler (authenticated)
+
+- **`POST /discover/start`** — `{ query, city, sources, force }`. Verifies the
+  coach JWT, checks the 24h cache (`discovery_queries`); returns
+  `{ cached: true, hours_ago, jobs_available }` on a fresh hit, otherwise creates
+  a `crawl_runs` row and launches a **BackgroundTask**, returning
+  `{ cached: false, run_id, status: "running" }`.
+- **`GET /discover/status/{run_id}`** — the run's status + statistics (poll until
+  `status` is `completed`/`failed`).
+- **`GET /discover/history`** — the last 10 crawl runs.
+
+Crawl pipeline: fetch from Adzuna/Reed (per-source timeouts, partial failure
+tolerated) → normalize company/title/city/salary → merge company name variants
+into one slug → upsert companies (best-effort homepage enrichment: description,
+sector, careers_url) → recompute `lead_score` → dedup jobs by `content_hash` and
+upsert into `jobs` → record stats on `crawl_runs`. Newly ingested companies with
+active jobs appear automatically in the student portal via
+`public_company_summary`.
+
 `GET /health` returns `{"status": "ok"}`.
 
 ## Environment variables
@@ -105,6 +124,9 @@ Copy `.env.example` to `.env` and fill in:
 | `SMTP_USERNAME`     | ✅       | —                 | Mailbox username                        |
 | `SMTP_PASSWORD`     | ✅       | —                 | Gmail **App Password** (not the normal password) |
 | `SMTP_FROM`         | ✅       | —                 | From address (the shared mailbox)       |
+| `ADZUNA_APP_ID`     | ✅ (crawler) | —             | Adzuna API app id                       |
+| `ADZUNA_APP_KEY`    | ✅ (crawler) | —             | Adzuna API app key                      |
+| `REED_API_KEY`      | ✅ (crawler) | —             | Reed API key                            |
 
 ## Run locally
 

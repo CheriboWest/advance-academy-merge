@@ -37,3 +37,41 @@ class SendEmailResponse(BaseModel):
     status: str
     sent_at: str
     recipient_email: str
+
+
+class DiscoverStartRequest(BaseModel):
+    """Request to start (or check the cache for) a crawl."""
+
+    query: str = Field(..., min_length=1, description="Role / keyword.")
+    city: str = Field(..., min_length=1, description="City.")
+    sources: list[str] = Field(default_factory=lambda: ["adzuna", "reed"])
+    force: bool = Field(False, description="Bypass the 24h cache and refresh now.")
+
+
+class DiscoverStartResponse(BaseModel):
+    """Either a cache hit (no crawl started) or a started run."""
+
+    cached: bool
+    run_id: Optional[str] = None
+    status: Optional[str] = None
+    last_refreshed_at: Optional[str] = None
+    hours_ago: Optional[float] = None
+    jobs_available: Optional[int] = None
+
+
+class CrawlRunStatus(BaseModel):
+    """A crawl run row + its statistics."""
+
+    id: str
+    status: str
+    query: Optional[str] = None
+    location: Optional[str] = None
+    jobs_fetched: int = 0
+    new_jobs: int = 0
+    duplicate_jobs: int = 0
+    companies_discovered: int = 0
+    companies_updated: int = 0
+    lead_scores_recalculated: int = 0
+    error: Optional[str] = None
+    created_at: Optional[str] = None
+    finished_at: Optional[str] = None

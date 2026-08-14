@@ -5,6 +5,7 @@ import { createServerClient } from "@supabase/ssr";
 const PROTECTED_PREFIXES = [
   "/coach/dashboard",
   "/coach/companies",
+  "/coach/crawler",
   "/coach/outreach",
 ];
 
