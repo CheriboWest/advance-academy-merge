@@ -66,7 +66,12 @@ export default function CrawlerPage() {
   const [run, setRun] = React.useState<CrawlRunStatus | null>(null);
   const [starting, setStarting] = React.useState(false);
   const [history, setHistory] = React.useState<CrawlRunStatus[]>([]);
-  const timerRef = React.useRef<number | null>(null);
+  const pollTimerRef = React.useRef<number | null>(null);
+  // Bumped whenever the active poll loop should be superseded. Any in-flight
+  // tick whose captured generation != the current one stops instead of
+  // rescheduling — this prevents overlapping loops from re-renders or from
+  // starting a second crawl while the first is still polling.
+  const pollGenerationRef = React.useRef(0);
 
   const selectedSources = Object.entries(sources)
     .filter(([, enabled]) => enabled)
@@ -80,42 +85,94 @@ export default function CrawlerPage() {
     }
   }, []);
 
+  // Cancel any running poll loop: clear the pending timeout and invalidate the
+  // current generation so an in-flight tick won't reschedule.
+  const stopPolling = React.useCallback(() => {
+    pollGenerationRef.current += 1;
+    if (pollTimerRef.current !== null) {
+      window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
+
   React.useEffect(() => {
     loadHistory();
     return () => {
-      if (timerRef.current) window.clearTimeout(timerRef.current);
+      stopPolling();
     };
-  }, [loadHistory]);
+  }, [loadHistory, stopPolling]);
 
   const poll = React.useCallback(
     (runId: string) => {
+      // Supersede any previous loop, then claim this generation.
+      stopPolling();
+      const generation = pollGenerationRef.current;
+      const startedAt = Date.now();
+      // Hard ceiling so a run that never reaches a terminal status (e.g. the
+      // backend fails to finalize the row) can't poll forever.
+      const MAX_POLL_MS = 120_000;
+      const DONE = new Set(["completed", "success"]);
+      const FAILED = new Set(["failed", "error"]);
+
+      const isCurrent = () => generation === pollGenerationRef.current;
+
       const tick = async () => {
+        if (!isCurrent()) return;
+
+        let status: CrawlRunStatus;
         try {
-          const status = await getCrawlStatus(runId);
-          setRun(status);
-          if (status.status === "running") {
-            timerRef.current = window.setTimeout(tick, 2000);
-          } else if (status.status === "completed") {
-            setPhase("done");
-            loadHistory();
-          } else {
-            setPhase("error");
-            setError(status.error || "The crawl failed.");
-            loadHistory();
-          }
+          status = await getCrawlStatus(runId);
         } catch (err) {
+          if (!isCurrent()) return;
+          stopPolling();
           setPhase("error");
           setError(
             err instanceof Error ? err.message : "Failed to poll crawl status."
           );
+          return;
         }
+
+        // A newer loop (or unmount) took over while we awaited — stop silently.
+        if (!isCurrent()) return;
+
+        setRun(status);
+
+        if (DONE.has(status.status)) {
+          stopPolling();
+          setPhase("done");
+          loadHistory();
+          return;
+        }
+        if (FAILED.has(status.status)) {
+          stopPolling();
+          setPhase("error");
+          setError(status.error || "The crawl failed.");
+          loadHistory();
+          return;
+        }
+
+        // Still running — stop if we've exceeded the ceiling.
+        if (Date.now() - startedAt > MAX_POLL_MS) {
+          stopPolling();
+          setPhase("error");
+          setError(
+            "The crawl is taking longer than expected. Please check back later."
+          );
+          loadHistory();
+          return;
+        }
+
+        pollTimerRef.current = window.setTimeout(tick, 2000);
       };
+
       void tick();
     },
-    [loadHistory]
+    [loadHistory, stopPolling]
   );
 
   async function begin(force: boolean) {
+    // Cancel any previous poll loop before starting a new crawl action.
+    stopPolling();
     setError(null);
     if (!query.trim() || !city.trim()) {
       setError("Enter a role/keyword and a city.");
