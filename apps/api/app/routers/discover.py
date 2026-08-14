@@ -13,6 +13,7 @@ from app.config import Settings, get_settings
 from app.crawler.normalize import normalize_query
 from app.crawler.pipeline import run_crawl
 from app.crawler.supabase_rest import SupabaseRest
+from app.crawler.timing import stage
 from app.schemas import (
     CrawlRunStatus,
     DiscoverStartRequest,
@@ -102,16 +103,17 @@ async def start_discovery(
     async with httpx.AsyncClient() as client:
         # 1. Cache check (unless forced)
         if not req.force:
-            existing = await rest.select(
-                client,
-                "discovery_queries",
-                {
-                    "query": f"eq.{normalized_query}",
-                    "location": f"eq.{normalized_city}",
-                    "select": "*",
-                    "limit": "1",
-                },
-            )
+            with stage("cache_check"):
+                existing = await rest.select(
+                    client,
+                    "discovery_queries",
+                    {
+                        "query": f"eq.{normalized_query}",
+                        "location": f"eq.{normalized_city}",
+                        "select": "*",
+                        "limit": "1",
+                    },
+                )
 
             if existing:
                 last_refreshed = existing[0].get("last_refreshed_at")
@@ -130,18 +132,19 @@ async def start_discovery(
                     )
 
         # 2. Start a run
-        created = await rest.insert(
-            client,
-            "crawl_runs",
-            [
-                {
-                    "source": "manual_discovery",
-                    "status": "running",
-                    "query": req.query,
-                    "location": req.city,
-                }
-            ],
-        )
+        with stage("create_crawl_run"):
+            created = await rest.insert(
+                client,
+                "crawl_runs",
+                [
+                    {
+                        "source": "manual_discovery",
+                        "status": "running",
+                        "query": req.query,
+                        "location": req.city,
+                    }
+                ],
+            )
 
     run_id = str(created[0]["id"])
 

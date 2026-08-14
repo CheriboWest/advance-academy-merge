@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import datetime, timezone
-from typing import Any, Iterable
+from typing import Any, Awaitable, Iterable
 
 import httpx
 
@@ -22,6 +23,7 @@ from app.crawler.normalize import (
 from app.crawler.scoring import compute_lead_score
 from app.crawler.sources import adzuna, reed
 from app.crawler.supabase_rest import SupabaseRest
+from app.crawler.timing import log_stage, stage
 
 # MVP limits.
 MAX_RAW_JOBS = 50
@@ -58,6 +60,22 @@ def _chunks(items: list[Any], size: int) -> Iterable[list[Any]]:
         yield items[i : i + size]
 
 
+async def _fetch_source(
+    name: str,
+    coro: Awaitable[list[NormalizedJob]],
+    stats: CrawlStats,
+) -> list[NormalizedJob]:
+    """Await a single source, timing it and isolating its failure."""
+    start = time.perf_counter()
+    try:
+        return await coro
+    except Exception as exc:  # noqa: BLE001 - partial failure is expected
+        stats.source_errors[name] = _safe_error(exc)
+        return []
+    finally:
+        log_stage(f"fetch:{name}", time.perf_counter() - start)
+
+
 async def _fetch_all(
     client: httpx.AsyncClient,
     settings: Any,
@@ -66,44 +84,55 @@ async def _fetch_all(
     sources: list[str],
     stats: CrawlStats,
 ) -> list[NormalizedJob]:
-    """Fetch up to MAX_RAW_JOBS across sources. Per-source failure is isolated."""
-    jobs: list[NormalizedJob] = []
+    """Fetch up to MAX_RAW_JOBS. Sources run concurrently; failures are isolated."""
+    tasks: list[Awaitable[list[NormalizedJob]]] = []
 
-    if "adzuna" in sources and len(jobs) < MAX_RAW_JOBS:
+    if "adzuna" in sources:
         if settings.adzuna_app_id and settings.adzuna_app_key:
-            try:
-                fetched = await adzuna.fetch(
-                    client,
-                    settings.adzuna_app_id,
-                    settings.adzuna_app_key,
-                    query,
-                    city,
-                    limit=PER_SOURCE_LIMIT,
+            tasks.append(
+                _fetch_source(
+                    "adzuna",
+                    adzuna.fetch(
+                        client,
+                        settings.adzuna_app_id,
+                        settings.adzuna_app_key,
+                        query,
+                        city,
+                        limit=PER_SOURCE_LIMIT,
+                    ),
+                    stats,
                 )
-                jobs.extend(fetched[:PER_SOURCE_LIMIT])
-                jobs = jobs[:MAX_RAW_JOBS]
-            except Exception as exc:  # noqa: BLE001 - partial failure is expected
-                stats.source_errors["adzuna"] = _safe_error(exc)
+            )
         else:
             stats.source_errors["adzuna"] = "Adzuna credentials not configured."
 
-    if "reed" in sources and len(jobs) < MAX_RAW_JOBS:
+    if "reed" in sources:
         if settings.reed_api_key:
-            try:
-                fetched = await reed.fetch(
-                    client,
-                    settings.reed_api_key,
-                    query,
-                    city,
-                    limit=PER_SOURCE_LIMIT,
+            tasks.append(
+                _fetch_source(
+                    "reed",
+                    reed.fetch(
+                        client,
+                        settings.reed_api_key,
+                        query,
+                        city,
+                        limit=PER_SOURCE_LIMIT,
+                    ),
+                    stats,
                 )
-                jobs.extend(fetched[:PER_SOURCE_LIMIT])
-                jobs = jobs[:MAX_RAW_JOBS]
-            except Exception as exc:  # noqa: BLE001 - partial failure is expected
-                stats.source_errors["reed"] = _safe_error(exc)
+            )
         else:
             stats.source_errors["reed"] = "Reed credentials not configured."
 
+    # Run all sources concurrently — total time is the slowest source, not the sum.
+    results = await asyncio.gather(*tasks) if tasks else []
+
+    jobs: list[NormalizedJob] = []
+    for result in results:
+        if len(jobs) >= MAX_RAW_JOBS:
+            break
+        jobs.extend(result[:PER_SOURCE_LIMIT])
+        jobs = jobs[:MAX_RAW_JOBS]
     return jobs
 
 
@@ -117,123 +146,132 @@ async def _ingest(
         return
 
     # Group jobs by canonical company slug.
-    groups: dict[str, dict[str, Any]] = {}
-    for job in jobs:
-        slug = company_slug(job.company_name)
-        group = groups.setdefault(
-            slug, {"name": canonical_company_name(job.company_name), "jobs": []}
+    with stage("group_by_company"):
+        groups: dict[str, dict[str, Any]] = {}
+        for job in jobs:
+            slug = company_slug(job.company_name)
+            group = groups.setdefault(
+                slug, {"name": canonical_company_name(job.company_name), "jobs": []}
+            )
+            group["jobs"].append(job)
+        slugs = list(groups.keys())
+
+    with stage("select_companies", f"({len(slugs)} slugs)"):
+        existing_companies = await rest.select(
+            client,
+            "companies",
+            {"slug": f"in.({_csv(slugs)})", "select": "id,slug,website,sector"},
         )
-        group["jobs"].append(job)
+        existing_by_slug = {row["slug"]: row for row in existing_companies}
 
-    slugs = list(groups.keys())
-    existing_companies = await rest.select(
-        client,
-        "companies",
-        {
-            "slug": f"in.({_csv(slugs)})",
-            "select": "id,slug,website,sector",
-        },
-    )
-    existing_by_slug = {row["slug"]: row for row in existing_companies}
+    # Enrich all companies concurrently (a no-op for those without a website).
+    with stage("enrich_companies"):
+        websites = [(existing_by_slug.get(s) or {}).get("website") for s in slugs]
+        enrichments = await asyncio.gather(
+            *[enrich_company(client, website) for website in websites]
+        )
+        enrichment_by_slug = dict(zip(slugs, enrichments))
 
-    # Build company rows (enrich + score).
-    company_rows: list[dict[str, Any]] = []
-    for slug, group in groups.items():
-        group_jobs: list[NormalizedJob] = group["jobs"]
-        prior = existing_by_slug.get(slug)
-        website = (prior or {}).get("website")
+    # Build company rows (lead scoring is in-memory/cheap).
+    with stage("score_and_build_companies"):
+        company_rows: list[dict[str, Any]] = []
+        for slug in slugs:
+            group = groups[slug]
+            group_jobs: list[NormalizedJob] = group["jobs"]
+            prior = existing_by_slug.get(slug)
+            enrichment = enrichment_by_slug.get(slug, {})
+            sector = enrichment.get("sector") or (prior or {}).get("sector")
+            score = compute_lead_score(group_jobs, sector=sector)
+            hq = normalize_city(group_jobs[0].city) if group_jobs else None
 
-        enrichment = await enrich_company(client, website)
-        sector = enrichment.get("sector") or (prior or {}).get("sector")
-        score = compute_lead_score(group_jobs, sector=sector)
-        hq = normalize_city(group_jobs[0].city) if group_jobs else None
+            row: dict[str, Any] = {
+                "slug": slug,
+                "name": group["name"],
+                "hq_location": hq,
+                "region": hq,
+                "lead_score": score,
+            }
+            if enrichment.get("description"):
+                row["description"] = enrichment["description"]
+            if sector:
+                row["sector"] = sector
+            if enrichment.get("careers_url"):
+                row["careers_url"] = enrichment["careers_url"]
 
-        row: dict[str, Any] = {
-            "slug": slug,
-            "name": group["name"],
-            "hq_location": hq,
-            "region": hq,
-            "lead_score": score,
-        }
-        if enrichment.get("description"):
-            row["description"] = enrichment["description"]
-        if sector:
-            row["sector"] = sector
-        if enrichment.get("careers_url"):
-            row["careers_url"] = enrichment["careers_url"]
+            company_rows.append(row)
+            if prior:
+                stats.companies_updated += 1
+            else:
+                stats.companies_created += 1
 
-        company_rows.append(row)
-        if prior:
-            stats.companies_updated += 1
-        else:
-            stats.companies_created += 1
-
-    upserted = await rest.upsert(
-        client,
-        "companies",
-        company_rows,
-        on_conflict="slug",
-        prefer="resolution=merge-duplicates,return=representation",
-    )
-    company_id_by_slug = {row["slug"]: row["id"] for row in upserted}
+    with stage("upsert_companies", f"({len(company_rows)} rows)"):
+        upserted = await rest.upsert(
+            client,
+            "companies",
+            company_rows,
+            on_conflict="slug",
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+        company_id_by_slug = {row["slug"]: row["id"] for row in upserted}
 
     # Build normalized job rows, deduplicating within this crawl by content_hash.
-    unique_rows: list[dict[str, Any]] = []
-    seen_hashes: set[str] = set()
-    for slug, group in groups.items():
-        company_id = company_id_by_slug.get(slug)
-        if not company_id:
-            continue
-        for job in group["jobs"]:
-            digest = content_hash(slug, job.title, job.city)
-            if digest in seen_hashes:
-                stats.duplicate_jobs += 1
+    with stage("normalize_jobs"):
+        unique_rows: list[dict[str, Any]] = []
+        seen_hashes: set[str] = set()
+        for slug in slugs:
+            company_id = company_id_by_slug.get(slug)
+            if not company_id:
                 continue
-            seen_hashes.add(digest)
-            unique_rows.append(
-                {
-                    "company_id": company_id,
-                    "title": normalize_title(job.title),
-                    "location_raw": job.location_raw or job.city,
-                    "city": normalize_city(job.city),
-                    "salary_min": job.salary_min,
-                    "salary_max": job.salary_max,
-                    "posted_at": job.posted_at,
-                    "is_active": True,
-                    "source": job.source,
-                    "source_job_id": job.source_job_id,
-                    "source_url": job.source_url,
-                    "content_hash": digest,
-                }
+            for job in groups[slug]["jobs"]:
+                digest = content_hash(slug, job.title, job.city)
+                if digest in seen_hashes:
+                    stats.duplicate_jobs += 1
+                    continue
+                seen_hashes.add(digest)
+                unique_rows.append(
+                    {
+                        "company_id": company_id,
+                        "title": normalize_title(job.title),
+                        "location_raw": job.location_raw or job.city,
+                        "city": normalize_city(job.city),
+                        "salary_min": job.salary_min,
+                        "salary_max": job.salary_max,
+                        "posted_at": job.posted_at,
+                        "is_active": True,
+                        "source": job.source,
+                        "source_job_id": job.source_job_id,
+                        "source_url": job.source_url,
+                        "content_hash": digest,
+                    }
+                )
+        stats.normalized_jobs = len(unique_rows)
+
+    # Which of the unique rows already exist (updated vs inserted)?
+    with stage("select_existing_jobs", f"({len(unique_rows)} hashes)"):
+        all_hashes = [row["content_hash"] for row in unique_rows]
+        existing_hashes: set[str] = set()
+        for chunk in _chunks(all_hashes, 100):
+            rows = await rest.select(
+                client,
+                "jobs",
+                {"content_hash": f"in.({_csv(chunk)})", "select": "content_hash"},
             )
-
-    stats.normalized_jobs = len(unique_rows)
-
-    # Which of the unique rows already exist in the DB (updated vs inserted)?
-    all_hashes = [row["content_hash"] for row in unique_rows]
-    existing_hashes: set[str] = set()
-    for chunk in _chunks(all_hashes, 100):
-        rows = await rest.select(
-            client,
-            "jobs",
-            {"content_hash": f"in.({_csv(chunk)})", "select": "content_hash"},
+            existing_hashes.update(row["content_hash"] for row in rows)
+        stats.updated_jobs = sum(
+            1 for row in unique_rows if row["content_hash"] in existing_hashes
         )
-        existing_hashes.update(row["content_hash"] for row in rows)
+        stats.inserted_jobs = len(unique_rows) - stats.updated_jobs
 
-    stats.updated_jobs = sum(
-        1 for row in unique_rows if row["content_hash"] in existing_hashes
-    )
-    stats.inserted_jobs = len(unique_rows) - stats.updated_jobs
-
-    # Upsert (insert new + refresh existing) by content_hash.
-    for chunk in _chunks(unique_rows, 100):
-        await rest.upsert(
-            client,
-            "jobs",
-            chunk,
-            on_conflict="content_hash",
-            prefer="resolution=merge-duplicates,return=minimal",
-        )
+    # Batch upsert (insert new + refresh existing) by content_hash.
+    with stage("upsert_jobs", f"({len(unique_rows)} rows)"):
+        for chunk in _chunks(unique_rows, 100):
+            await rest.upsert(
+                client,
+                "jobs",
+                chunk,
+                on_conflict="content_hash",
+                prefer="resolution=merge-duplicates,return=minimal",
+            )
 
 
 async def _execute(
@@ -247,25 +285,28 @@ async def _execute(
     normalized_city: str,
 ) -> None:
     async with httpx.AsyncClient() as client:
-        jobs = await _fetch_all(client, settings, query, city, sources, stats)
+        with stage("fetch_total"):
+            jobs = await _fetch_all(client, settings, query, city, sources, stats)
         stats.raw_jobs = len(jobs)
 
-        await _ingest(client, rest, jobs, stats)
+        with stage("ingest_total", f"({len(jobs)} raw jobs)"):
+            await _ingest(client, rest, jobs, stats)
 
         # Refresh the 24h cache marker.
-        await rest.upsert(
-            client,
-            "discovery_queries",
-            [
-                {
-                    "query": normalized_query,
-                    "location": normalized_city,
-                    "last_refreshed_at": _now_iso(),
-                }
-            ],
-            on_conflict="query,location",
-            prefer="resolution=merge-duplicates,return=minimal",
-        )
+        with stage("upsert_discovery_query"):
+            await rest.upsert(
+                client,
+                "discovery_queries",
+                [
+                    {
+                        "query": normalized_query,
+                        "location": normalized_city,
+                        "last_refreshed_at": _now_iso(),
+                    }
+                ],
+                on_conflict="query,location",
+                prefer="resolution=merge-duplicates,return=minimal",
+            )
 
 
 async def _finalize(
@@ -278,17 +319,18 @@ async def _finalize(
     """Write the terminal state to crawl_runs. Never raises."""
     try:
         async with httpx.AsyncClient() as client:
-            await rest.update(
-                client,
-                "crawl_runs",
-                {"id": f"eq.{run_id}"},
-                {
-                    "status": status,
-                    "finished_at": _now_iso(),
-                    "error": error_note,
-                    **stats.as_columns(),
-                },
-            )
+            with stage("update_crawl_run"):
+                await rest.update(
+                    client,
+                    "crawl_runs",
+                    {"id": f"eq.{run_id}"},
+                    {
+                        "status": status,
+                        "finished_at": _now_iso(),
+                        "error": error_note,
+                        **stats.as_columns(),
+                    },
+                )
     except Exception:  # noqa: BLE001 - swallow bookkeeping failures
         pass
 
@@ -304,6 +346,7 @@ async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> N
 
     status = "completed"
     error_note: str | None = None
+    started = time.perf_counter()
 
     try:
         await asyncio.wait_for(
@@ -332,3 +375,4 @@ async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> N
         error_note = _safe_error(exc)
 
     await _finalize(rest, run_id, status, error_note, stats)
+    log_stage("crawl_total", time.perf_counter() - started, f"[{status}]")
