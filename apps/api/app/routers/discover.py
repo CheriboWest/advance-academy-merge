@@ -132,18 +132,8 @@ async def start_discovery(
                     )
 
         # 2. Start a run.
-        created = await rest.insert(
-            client,
-            "crawl_runs",
-            [
-                {
-                    "status": "running",
-                    "query": normalized_query,
-                    "location": normalized_city,
-                }
-            ],
-            prefer="return=representation",
-        )
+        created = await rest.insert( client, "crawl_runs", [{ "source": "manual_discovery", "status": "running", "query": req.query, "location": req.city, }] )
+
 
     run_id = str(created[0]["id"])
     background_tasks.add_task(run_crawl, run_id, req.query, req.city, sources)
