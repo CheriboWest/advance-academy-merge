@@ -56,12 +56,13 @@ def _row_to_status(row: dict[str, Any]) -> CrawlRunStatus:
         status=str(row.get("status") or "unknown"),
         query=row.get("query"),
         location=row.get("location"),
-        jobs_fetched=_int("jobs_fetched"),
-        new_jobs=_int("new_jobs"),
+        raw_jobs=_int("raw_jobs"),
+        normalized_jobs=_int("normalized_jobs"),
+        inserted_jobs=_int("inserted_jobs"),
+        updated_jobs=_int("updated_jobs"),
         duplicate_jobs=_int("duplicate_jobs"),
-        companies_discovered=_int("companies_discovered"),
+        companies_created=_int("companies_created"),
         companies_updated=_int("companies_updated"),
-        lead_scores_recalculated=_int("lead_scores_recalculated"),
         error=row.get("error"),
         created_at=row.get("created_at"),
         finished_at=row.get("finished_at"),
@@ -78,13 +79,13 @@ async def _cached_jobs_available(
             "query": f"eq.{query}",
             "location": f"eq.{location}",
             "status": "eq.completed",
-            "select": "jobs_fetched",
+            "select": "raw_jobs",
             "order": "created_at.desc",
             "limit": "1",
         },
     )
-    if rows and isinstance(rows[0].get("jobs_fetched"), (int, float)):
-        return int(rows[0]["jobs_fetched"])
+    if rows and isinstance(rows[0].get("raw_jobs"), (int, float)):
+        return int(rows[0]["raw_jobs"])
     return 0
 
 

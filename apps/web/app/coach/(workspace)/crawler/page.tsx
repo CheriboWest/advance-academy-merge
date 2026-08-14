@@ -353,27 +353,36 @@ export default function CrawlerPage() {
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <KPICard label="Jobs fetched" value={run.jobs_fetched} icon={Briefcase} />
-            <KPICard label="New jobs inserted" value={run.new_jobs} icon={Sparkles} />
+            <KPICard label="Raw jobs" value={run.raw_jobs} icon={Briefcase} />
             <KPICard
-              label="Duplicate jobs skipped"
+              label="Normalized jobs"
+              value={run.normalized_jobs}
+              icon={Gauge}
+            />
+            <KPICard
+              label="Inserted jobs"
+              value={run.inserted_jobs}
+              icon={Sparkles}
+            />
+            <KPICard
+              label="Updated jobs"
+              value={run.updated_jobs}
+              icon={RefreshCcw}
+            />
+            <KPICard
+              label="Duplicate jobs"
               value={run.duplicate_jobs}
               icon={Copy}
             />
             <KPICard
-              label="Companies discovered"
-              value={run.companies_discovered}
+              label="Companies created"
+              value={run.companies_created}
               icon={Building2}
             />
             <KPICard
               label="Companies updated"
               value={run.companies_updated}
-              icon={RefreshCcw}
-            />
-            <KPICard
-              label="Lead scores recalculated"
-              value={run.lead_scores_recalculated}
-              icon={Gauge}
+              icon={Building2}
             />
           </div>
         </section>
@@ -394,8 +403,8 @@ export default function CrawlerPage() {
                   <th className="px-4 py-3 font-medium">Query</th>
                   <th className="px-4 py-3 font-medium">Location</th>
                   <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 text-right font-medium">Fetched</th>
-                  <th className="px-4 py-3 text-right font-medium">New</th>
+                  <th className="px-4 py-3 text-right font-medium">Raw</th>
+                  <th className="px-4 py-3 text-right font-medium">Inserted</th>
                   <th className="px-4 py-3 text-right font-medium">Dupes</th>
                   <th className="px-4 py-3 font-medium">When</th>
                 </tr>
@@ -425,10 +434,10 @@ export default function CrawlerPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
-                      {item.jobs_fetched}
+                      {item.raw_jobs}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
-                      {item.new_jobs}
+                      {item.inserted_jobs}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {item.duplicate_jobs}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
@@ -21,6 +22,12 @@ from app.crawler.normalize import (
 from app.crawler.scoring import compute_lead_score
 from app.crawler.sources import adzuna, reed
 from app.crawler.supabase_rest import SupabaseRest
+
+# MVP limits.
+MAX_RAW_JOBS = 50
+PER_SOURCE_LIMIT = 25
+# Hard ceiling so a background task can never stay "running" forever.
+OVERALL_TIMEOUT_SECONDS = 90.0
 
 
 def _now_iso() -> str:
@@ -59,27 +66,39 @@ async def _fetch_all(
     sources: list[str],
     stats: CrawlStats,
 ) -> list[NormalizedJob]:
+    """Fetch up to MAX_RAW_JOBS across sources. Per-source failure is isolated."""
     jobs: list[NormalizedJob] = []
 
-    if "adzuna" in sources:
+    if "adzuna" in sources and len(jobs) < MAX_RAW_JOBS:
         if settings.adzuna_app_id and settings.adzuna_app_key:
             try:
-                jobs += await adzuna.fetch(
+                fetched = await adzuna.fetch(
                     client,
                     settings.adzuna_app_id,
                     settings.adzuna_app_key,
                     query,
                     city,
+                    limit=PER_SOURCE_LIMIT,
                 )
+                jobs.extend(fetched[:PER_SOURCE_LIMIT])
+                jobs = jobs[:MAX_RAW_JOBS]
             except Exception as exc:  # noqa: BLE001 - partial failure is expected
                 stats.source_errors["adzuna"] = _safe_error(exc)
         else:
             stats.source_errors["adzuna"] = "Adzuna credentials not configured."
 
-    if "reed" in sources:
+    if "reed" in sources and len(jobs) < MAX_RAW_JOBS:
         if settings.reed_api_key:
             try:
-                jobs += await reed.fetch(client, settings.reed_api_key, query, city)
+                fetched = await reed.fetch(
+                    client,
+                    settings.reed_api_key,
+                    query,
+                    city,
+                    limit=PER_SOURCE_LIMIT,
+                )
+                jobs.extend(fetched[:PER_SOURCE_LIMIT])
+                jobs = jobs[:MAX_RAW_JOBS]
             except Exception as exc:  # noqa: BLE001 - partial failure is expected
                 stats.source_errors["reed"] = _safe_error(exc)
         else:
@@ -144,11 +163,10 @@ async def _ingest(
             row["careers_url"] = enrichment["careers_url"]
 
         company_rows.append(row)
-        stats.lead_scores_recalculated += 1
         if prior:
             stats.companies_updated += 1
         else:
-            stats.companies_discovered += 1
+            stats.companies_created += 1
 
     upserted = await rest.upsert(
         client,
@@ -159,8 +177,8 @@ async def _ingest(
     )
     company_id_by_slug = {row["slug"]: row["id"] for row in upserted}
 
-    # Build deduplicated job rows.
-    job_rows: list[dict[str, Any]] = []
+    # Build normalized job rows, deduplicating within this crawl by content_hash.
+    unique_rows: list[dict[str, Any]] = []
     seen_hashes: set[str] = set()
     for slug, group in groups.items():
         company_id = company_id_by_slug.get(slug)
@@ -172,7 +190,7 @@ async def _ingest(
                 stats.duplicate_jobs += 1
                 continue
             seen_hashes.add(digest)
-            job_rows.append(
+            unique_rows.append(
                 {
                     "company_id": company_id,
                     "title": normalize_title(job.title),
@@ -189,8 +207,10 @@ async def _ingest(
                 }
             )
 
-    # Skip jobs whose content_hash already exists (the dedup strategy).
-    all_hashes = [row["content_hash"] for row in job_rows]
+    stats.normalized_jobs = len(unique_rows)
+
+    # Which of the unique rows already exist in the DB (updated vs inserted)?
+    all_hashes = [row["content_hash"] for row in unique_rows]
     existing_hashes: set[str] = set()
     for chunk in _chunks(all_hashes, 100):
         rows = await rest.select(
@@ -200,24 +220,81 @@ async def _ingest(
         )
         existing_hashes.update(row["content_hash"] for row in rows)
 
-    new_rows = [row for row in job_rows if row["content_hash"] not in existing_hashes]
-    stats.duplicate_jobs += len(job_rows) - len(new_rows)
-    stats.new_jobs = len(new_rows)
+    stats.updated_jobs = sum(
+        1 for row in unique_rows if row["content_hash"] in existing_hashes
+    )
+    stats.inserted_jobs = len(unique_rows) - stats.updated_jobs
 
-    for chunk in _chunks(new_rows, 100):
+    # Upsert (insert new + refresh existing) by content_hash.
+    for chunk in _chunks(unique_rows, 100):
         await rest.upsert(
             client,
             "jobs",
             chunk,
             on_conflict="content_hash",
-            prefer="resolution=ignore-duplicates,return=minimal",
+            prefer="resolution=merge-duplicates,return=minimal",
         )
 
 
-async def run_crawl(
-    run_id: str, query: str, city: str, sources: list[str]
+async def _execute(
+    rest: SupabaseRest,
+    settings: Any,
+    query: str,
+    city: str,
+    sources: list[str],
+    stats: CrawlStats,
+    normalized_query: str,
+    normalized_city: str,
 ) -> None:
-    """Background entrypoint: run the full crawl and record results/errors."""
+    async with httpx.AsyncClient() as client:
+        jobs = await _fetch_all(client, settings, query, city, sources, stats)
+        stats.raw_jobs = len(jobs)
+
+        await _ingest(client, rest, jobs, stats)
+
+        # Refresh the 24h cache marker.
+        await rest.upsert(
+            client,
+            "discovery_queries",
+            [
+                {
+                    "query": normalized_query,
+                    "location": normalized_city,
+                    "last_refreshed_at": _now_iso(),
+                }
+            ],
+            on_conflict="query,location",
+            prefer="resolution=merge-duplicates,return=minimal",
+        )
+
+
+async def _finalize(
+    rest: SupabaseRest,
+    run_id: str,
+    status: str,
+    error_note: str | None,
+    stats: CrawlStats,
+) -> None:
+    """Write the terminal state to crawl_runs. Never raises."""
+    try:
+        async with httpx.AsyncClient() as client:
+            await rest.update(
+                client,
+                "crawl_runs",
+                {"id": f"eq.{run_id}"},
+                {
+                    "status": status,
+                    "finished_at": _now_iso(),
+                    "error": error_note,
+                    **stats.as_columns(),
+                },
+            )
+    except Exception:  # noqa: BLE001 - swallow bookkeeping failures
+        pass
+
+
+async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> None:
+    """Background entrypoint. Always finalizes crawl_runs to completed/failed."""
     settings = get_settings()
     rest = SupabaseRest(settings.supabase_url, settings.supabase_service_role_key)
     stats = CrawlStats()
@@ -225,59 +302,33 @@ async def run_crawl(
     normalized_query = normalize_query(query)
     normalized_city = normalize_query(city)
 
+    status = "completed"
+    error_note: str | None = None
+
     try:
-        async with httpx.AsyncClient() as client:
-            jobs = await _fetch_all(client, settings, query, city, sources, stats)
-            stats.jobs_fetched = len(jobs)
-
-            await _ingest(client, rest, jobs, stats)
-
-            # Refresh the 24h cache marker.
-            await rest.upsert(
-                client,
-                "discovery_queries",
-                [
-                    {
-                        "query": normalized_query,
-                        "location": normalized_city,
-                        "last_refreshed_at": _now_iso(),
-                    }
-                ],
-                on_conflict="query,location",
-                prefer="resolution=merge-duplicates,return=minimal",
+        await asyncio.wait_for(
+            _execute(
+                rest,
+                settings,
+                query,
+                city,
+                sources,
+                stats,
+                normalized_query,
+                normalized_city,
+            ),
+            timeout=OVERALL_TIMEOUT_SECONDS,
+        )
+        if stats.source_errors:
+            error_note = "; ".join(
+                f"{source}: {message}"
+                for source, message in stats.source_errors.items()
             )
-
-            note = None
-            if stats.source_errors:
-                note = "; ".join(
-                    f"{source}: {message}"
-                    for source, message in stats.source_errors.items()
-                )
-
-            await rest.update(
-                client,
-                "crawl_runs",
-                {"id": f"eq.{run_id}"},
-                {
-                    "status": "completed",
-                    "finished_at": _now_iso(),
-                    "error": note,
-                    **stats.as_columns(),
-                },
-            )
+    except asyncio.TimeoutError:
+        status = "failed"
+        error_note = "Crawl timed out."
     except Exception as exc:  # noqa: BLE001 - record failure, never raise
-        try:
-            async with httpx.AsyncClient() as client:
-                await rest.update(
-                    client,
-                    "crawl_runs",
-                    {"id": f"eq.{run_id}"},
-                    {
-                        "status": "failed",
-                        "finished_at": _now_iso(),
-                        "error": _safe_error(exc),
-                        **stats.as_columns(),
-                    },
-                )
-        except Exception:  # noqa: BLE001 - swallow bookkeeping failures
-            pass
+        status = "failed"
+        error_note = _safe_error(exc)
+
+    await _finalize(rest, run_id, status, error_note, stats)
