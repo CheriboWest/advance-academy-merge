@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from email.message import EmailMessage
 
@@ -14,6 +15,11 @@ from app.config import get_settings
 from app.schemas import SendEmailRequest, SendEmailResponse
 
 router = APIRouter(prefix="/email", tags=["email"])
+
+# The `detail` sent to the browser stays deliberately vague; the cause goes to
+# the server log instead, where it is the only way to tell an SMTP auth failure
+# from a blocked port.
+logger = logging.getLogger(__name__)
 
 
 def _rest_base(supabase_url: str) -> str:
@@ -59,6 +65,7 @@ async def send_email(
             )
             load.raise_for_status()
         except httpx.HTTPError as exc:
+            logger.exception("Loading draft %s from Supabase failed", req.draft_id)
             raise HTTPException(
                 status_code=502, detail="Could not load the draft."
             ) from exc
@@ -96,6 +103,12 @@ async def send_email(
                 timeout=20.0,
             )
         except (aiosmtplib.SMTPException, OSError, TimeoutError) as exc:
+            logger.exception(
+                "SMTP send failed via %s:%s as %s",
+                settings.smtp_host,
+                settings.smtp_port,
+                settings.smtp_username,
+            )
             raise HTTPException(
                 status_code=502, detail="Failed to send the email."
             ) from exc
@@ -115,6 +128,9 @@ async def send_email(
             update.raise_for_status()
         except httpx.HTTPError as exc:
             # The email was sent; surface the bookkeeping failure clearly.
+            logger.exception(
+                "Draft %s was emailed but could not be marked sent", req.draft_id
+            )
             raise HTTPException(
                 status_code=502,
                 detail="Email sent, but the draft status could not be updated.",
