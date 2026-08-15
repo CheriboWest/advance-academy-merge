@@ -1,12 +1,15 @@
-"""Outreach email sending via a shared Google Workspace mailbox (Gmail SMTP)."""
+"""Outreach email sending via Resend's HTTPS API.
+
+Gmail SMTP was the original transport, but Railway blocks outbound SMTP ports
+on every plan below Pro, so mail now leaves over port 443 like any other HTTP
+request and Resend speaks SMTP to the recipient on our behalf.
+"""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from email.message import EmailMessage
 
-import aiosmtplib
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -17,8 +20,8 @@ from app.schemas import SendEmailRequest, SendEmailResponse
 router = APIRouter(prefix="/email", tags=["email"])
 
 # The `detail` sent to the browser stays deliberately vague; the cause goes to
-# the server log instead, where it is the only way to tell an SMTP auth failure
-# from a blocked port.
+# the server log instead, where it is the only way to tell a rejected API key
+# from an unverified sender domain.
 logger = logging.getLogger(__name__)
 
 
@@ -38,12 +41,7 @@ async def send_email(
             status_code=500,
             detail="Server is not configured for Supabase access.",
         )
-    if not (
-        settings.smtp_host
-        and settings.smtp_username
-        and settings.smtp_password
-        and settings.smtp_from
-    ):
+    if not (settings.resend_api_key and settings.email_from):
         raise HTTPException(
             status_code=500, detail="Server is not configured for email sending."
         )
@@ -85,30 +83,21 @@ async def send_email(
         subject = draft.get("subject") or ""
         body = draft.get("body") or ""
 
-        # 3. Send the email via Gmail SMTP (STARTTLS on port 587).
-        message = EmailMessage()
-        message["From"] = settings.smtp_from
-        message["To"] = req.to
-        message["Subject"] = subject
-        message.set_content(body)
-
+        # 3. Hand the email to Resend over HTTPS, reusing the client above.
         try:
-            await aiosmtplib.send(
-                message,
-                hostname=settings.smtp_host,
-                port=settings.smtp_port,
-                username=settings.smtp_username,
-                password=settings.smtp_password,
-                start_tls=True,
-                timeout=20.0,
+            sent = await client.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+                json={
+                    "from": settings.email_from,
+                    "to": [req.to],
+                    "subject": subject,
+                    "text": body,
+                },
             )
-        except (aiosmtplib.SMTPException, OSError, TimeoutError) as exc:
-            logger.exception(
-                "SMTP send failed via %s:%s as %s",
-                settings.smtp_host,
-                settings.smtp_port,
-                settings.smtp_username,
-            )
+            sent.raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.exception("Resend rejected the email for draft %s", req.draft_id)
             raise HTTPException(
                 status_code=502, detail="Failed to send the email."
             ) from exc

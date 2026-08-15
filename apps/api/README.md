@@ -71,8 +71,9 @@ mapped to appropriate HTTP status codes.
 ### `POST /email/send` (authenticated)
 
 Requires a Supabase access token (same `get_current_user` dependency). Sends a
-saved outreach draft through the shared Google Workspace mailbox (Gmail SMTP,
-TLS on port 587).
+saved outreach draft through **Resend's HTTPS API**. Railway blocks outbound
+SMTP on every plan below Pro, so mail leaves over port 443 and Resend does the
+SMTP delivery.
 
 Request:
 
@@ -81,10 +82,10 @@ Request:
 ```
 
 Flow: verify coach JWT → load the draft from Supabase with the **service role
-key** → confirm `coach_user_id` matches the caller → send via SMTP → update the
+key** → confirm `coach_user_id` matches the caller → POST to Resend → update the
 row (`status = 'sent'`, `sent_at = now()`). Returns
 `{ "status": "sent", "sent_at": "…", "recipient_email": "…" }`. A missing draft
-is 404; a draft owned by another coach is 403; an SMTP failure is 502.
+is 404; a draft owned by another coach is 403; a send failure is 502.
 
 ### Crawler (authenticated)
 
@@ -120,11 +121,8 @@ Copy `.env.example` to `.env` and fill in:
 | `ALLOWED_ORIGIN_REGEX` | ❌    | —                 | Extra CORS origins by regex, for Vercel preview URLs. Full-matched — anchor it to your own scope |
 | `SUPABASE_URL`      | ✅       | —                 | Supabase project URL; coach tokens are verified against its public JWKS, and the issuer must contain it |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | —              | Service role key; loads/updates drafts server-side (never sent to browser) |
-| `SMTP_HOST`         | ✅       | `smtp.gmail.com`  | SMTP host                               |
-| `SMTP_PORT`         | ✅       | `587`             | SMTP port (TLS/STARTTLS)                |
-| `SMTP_USERNAME`     | ✅       | —                 | Mailbox username                        |
-| `SMTP_PASSWORD`     | ✅       | —                 | Gmail **App Password** (not the normal password) |
-| `SMTP_FROM`         | ✅       | —                 | From address (the shared mailbox)       |
+| `RESEND_API_KEY`    | ✅       | —                 | Resend API key (`re_…`); sends over HTTPS |
+| `EMAIL_FROM`        | ✅       | —                 | From address; its domain must be verified in Resend |
 | `ADZUNA_APP_ID`     | ✅ (crawler) | —             | Adzuna API app id                       |
 | `ADZUNA_APP_KEY`    | ✅ (crawler) | —             | Adzuna API app key                      |
 | `REED_API_KEY`      | ✅ (crawler) | —             | Reed API key                            |
