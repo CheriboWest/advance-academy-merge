@@ -316,27 +316,56 @@ async def _finalize(
     error_note: str | None,
     stats: CrawlStats,
 ) -> None:
-    """Write the terminal state to crawl_runs. Never raises."""
-    try:
-        async with httpx.AsyncClient() as client:
+    """Persist the terminal state to crawl_runs.
+
+    Matches the live schema: `status` is 'success'/'error', the terminal
+    timestamp column is `completed_at`. The full payload also writes the
+    per-run counts. If the full UPDATE fails (e.g. a count column is absent),
+    we log the exact error + payload and fall back to writing just the terminal
+    fields, so the status is always persisted (and the frontend can stop).
+    """
+    completed_at = _now_iso()
+    full_payload: dict[str, Any] = {
+        "status": status,
+        "completed_at": completed_at,
+        "error": error_note,
+        **stats.as_columns(),
+    }
+    minimal_payload: dict[str, Any] = {
+        "status": status,
+        "completed_at": completed_at,
+        "error": error_note,
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
             with stage("update_crawl_run"):
                 await rest.update(
-                    client,
-                    "crawl_runs",
-                    {"id": f"eq.{run_id}"},
-                    {
-                        "status": status,
-                        "finished_at": _now_iso(),
-                        "error": error_note,
-                        **stats.as_columns(),
-                    },
+                    client, "crawl_runs", {"id": f"eq.{run_id}"}, full_payload
                 )
-    except Exception:  # noqa: BLE001 - swallow bookkeeping failures
-        pass
+            return
+        except Exception as exc:  # noqa: BLE001 - do not swallow; log and fall back
+            print(
+                f"[finalize] full UPDATE failed run_id={run_id} "
+                f"payload={full_payload} error={exc!r}",
+                flush=True,
+            )
+
+        # Fallback: at minimum persist status/completed_at/error.
+        try:
+            await rest.update(
+                client, "crawl_runs", {"id": f"eq.{run_id}"}, minimal_payload
+            )
+        except Exception as exc:  # noqa: BLE001 - surface the failure loudly
+            print(
+                f"[finalize] minimal UPDATE failed run_id={run_id} "
+                f"payload={minimal_payload} error={exc!r}",
+                flush=True,
+            )
 
 
 async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> None:
-    """Background entrypoint. Always finalizes crawl_runs to completed/failed."""
+    """Background entrypoint. Always finalizes crawl_runs to success/error."""
     settings = get_settings()
     rest = SupabaseRest(settings.supabase_url, settings.supabase_service_role_key)
     stats = CrawlStats()
@@ -344,7 +373,7 @@ async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> N
     normalized_query = normalize_query(query)
     normalized_city = normalize_query(city)
 
-    status = "completed"
+    status = "success"
     error_note: str | None = None
     started = time.perf_counter()
 
@@ -368,10 +397,10 @@ async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> N
                 for source, message in stats.source_errors.items()
             )
     except asyncio.TimeoutError:
-        status = "failed"
+        status = "error"
         error_note = "Crawl timed out."
     except Exception as exc:  # noqa: BLE001 - record failure, never raise
-        status = "failed"
+        status = "error"
         error_note = _safe_error(exc)
 
     await _finalize(rest, run_id, status, error_note, stats)
