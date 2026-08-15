@@ -314,54 +314,28 @@ async def _finalize(
     run_id: str,
     status: str,
     error_note: str | None,
-    stats: CrawlStats,
 ) -> None:
     """Persist the terminal state to crawl_runs.
 
-    Matches the live schema: `status` is 'success'/'error', the terminal
-    timestamp column is `completed_at`. The full payload also writes the
-    per-run counts. If the full UPDATE fails (e.g. a count column is absent),
-    we log the exact error + payload and fall back to writing just the terminal
-    fields, so the status is always persisted (and the frontend can stop).
+    The live crawl_runs schema only guarantees the `status` and `completed_at`
+    columns (there is no `error` column and no per-run count columns), so the
+    UPDATE writes exactly those two — the smallest write that reaches a terminal
+    state. `error_note` is logged for observability but not persisted, since no
+    column exists to hold it. If the UPDATE fails, SupabaseRest.update prints the
+    PostgREST error and re-raises (surfaced loudly, never swallowed).
     """
-    completed_at = _now_iso()
-    full_payload: dict[str, Any] = {
+    payload: dict[str, Any] = {
         "status": status,
-        "completed_at": completed_at,
-        "error": error_note,
-        **stats.as_columns(),
-    }
-    minimal_payload: dict[str, Any] = {
-        "status": status,
-        "completed_at": completed_at,
-        "error": error_note,
+        "completed_at": _now_iso(),
     }
 
     async with httpx.AsyncClient() as client:
-        try:
-            with stage("update_crawl_run"):
-                await rest.update(
-                    client, "crawl_runs", {"id": f"eq.{run_id}"}, full_payload
-                )
-            return
-        except Exception as exc:  # noqa: BLE001 - do not swallow; log and fall back
-            print(
-                f"[finalize] full UPDATE failed run_id={run_id} "
-                f"payload={full_payload} error={exc!r}",
-                flush=True,
-            )
+        with stage("update_crawl_run"):
+            await rest.update(client, "crawl_runs", {"id": f"eq.{run_id}"}, payload)
 
-        # Fallback: at minimum persist status/completed_at/error.
-        try:
-            await rest.update(
-                client, "crawl_runs", {"id": f"eq.{run_id}"}, minimal_payload
-            )
-        except Exception as exc:  # noqa: BLE001 - surface the failure loudly
-            print(
-                f"[finalize] minimal UPDATE failed run_id={run_id} "
-                f"payload={minimal_payload} error={exc!r}",
-                flush=True,
-            )
+    print(f"[finalize] persisted run_id={run_id} status={status}", flush=True)
+    if error_note:
+        print(f"[finalize] run_id={run_id} note={error_note!r}", flush=True)
 
 
 async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> None:
@@ -403,5 +377,5 @@ async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> N
         status = "error"
         error_note = _safe_error(exc)
 
-    await _finalize(rest, run_id, status, error_note, stats)
+    await _finalize(rest, run_id, status, error_note)
     log_stage("crawl_total", time.perf_counter() - started, f"[{status}]")
