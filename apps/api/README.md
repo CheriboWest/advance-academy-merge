@@ -117,6 +117,7 @@ Copy `.env.example` to `.env` and fill in:
 | `ANTHROPIC_MODEL`   | ❌       | `claude-sonnet-5` | Claude Sonnet model id                  |
 | `ANTHROPIC_TIMEOUT` | ❌       | `30`              | Request timeout (seconds)               |
 | `ALLOWED_ORIGINS`   | ❌       | `http://localhost:3000` | Comma-separated CORS origins (your Vercel URL) |
+| `ALLOWED_ORIGIN_REGEX` | ❌    | —                 | Extra CORS origins by regex, for Vercel preview URLs. Full-matched — anchor it to your own scope |
 | `SUPABASE_URL`      | ✅       | —                 | Supabase project URL; coach tokens are verified against its public JWKS, and the issuer must contain it |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | —              | Service role key; loads/updates drafts server-side (never sent to browser) |
 | `SMTP_HOST`         | ✅       | `smtp.gmail.com`  | SMTP host                               |
