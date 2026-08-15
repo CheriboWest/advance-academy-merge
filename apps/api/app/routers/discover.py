@@ -179,7 +179,18 @@ async def discovery_status(
     if not rows:
         raise HTTPException(status_code=404, detail="Crawl run not found.")
 
-    return _row_to_status(rows[0])
+    # TEMPORARY diagnostics — remove after investigation.
+    row = rows[0]
+    print(
+        f"[discover-status] run_id={run_id} "
+        f"status={row.get('status')!r} "
+        f"started_at={row.get('started_at')!r} "
+        f"completed_at={row.get('completed_at')!r} "
+        f"finished_at={row.get('finished_at')!r}",
+        flush=True,
+    )
+
+    return _row_to_status(row)
 
 
 @router.get("/history", response_model=list[CrawlRunStatus])

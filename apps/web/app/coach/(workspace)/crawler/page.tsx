@@ -116,6 +116,11 @@ export default function CrawlerPage() {
 
       const isCurrent = () => generation === pollGenerationRef.current;
 
+      // TEMPORARY diagnostics — remove after investigation.
+      console.log(
+        `[crawler-poll] loop-start run_id=${runId} generation=${generation}`
+      );
+
       const tick = async () => {
         if (!isCurrent()) return;
 
@@ -134,6 +139,11 @@ export default function CrawlerPage() {
 
         // A newer loop (or unmount) took over while we awaited — stop silently.
         if (!isCurrent()) return;
+
+        // TEMPORARY diagnostics — remove after investigation.
+        console.log(`[crawler-poll] run_id=${runId}`);
+        console.log(`[crawler-poll] status=${status.status}`);
+        console.log("[crawler-poll] response=", status);
 
         setRun(status);
 
