@@ -46,12 +46,12 @@ class Settings:
         self.supabase_service_role_key: str = os.getenv(
             "SUPABASE_SERVICE_ROLE_KEY", ""
         )
-        # SMTP (shared Google Workspace mailbox) for sending outreach emails.
-        self.smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
-        self.smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
-        self.smtp_username: str = os.getenv("SMTP_USERNAME", "")
-        self.smtp_password: str = os.getenv("SMTP_PASSWORD", "")
-        self.smtp_from: str = os.getenv("SMTP_FROM", "")
+        # Outreach email goes out through Resend over HTTPS: Railway blocks
+        # outbound SMTP ports, so port 443 is the only way out.
+        self.resend_api_key: str = os.getenv("RESEND_API_KEY", "")
+        # Sender address, e.g. "Violet Dao <violet@cvadvance.com>". Its domain
+        # must be verified in Resend.
+        self.email_from: str = os.getenv("EMAIL_FROM", "")
         # Job-board crawler credentials.
         self.adzuna_app_id: str = os.getenv("ADZUNA_APP_ID", "")
         self.adzuna_app_key: str = os.getenv("ADZUNA_APP_KEY", "")
