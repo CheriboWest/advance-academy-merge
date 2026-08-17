@@ -14,7 +14,7 @@ export interface MetaActionResult {
  */
 async function upsertMeta(
   companyId: string,
-  patch: { starred?: boolean; notes?: string }
+  patch: { starred?: boolean; notes?: string; hidden?: boolean }
 ): Promise<MetaActionResult> {
   const supabase = await createSupabaseServerClient();
 
@@ -56,4 +56,17 @@ export async function saveNotesAction(
   notes: string
 ): Promise<MetaActionResult> {
   return upsertMeta(companyId, { notes });
+}
+
+/**
+ * Remove a company from the current coach's list. This is a per-coach action:
+ * it sets `hidden = true` on the coach's own `coach_company_meta` row (guarded
+ * by RLS to `auth.uid()`), so the shared `companies` record — and its
+ * visibility to students and other coaches — is never touched. Reversible by
+ * clearing the flag.
+ */
+export async function deleteCompanyAction(
+  companyId: string
+): Promise<MetaActionResult> {
+  return upsertMeta(companyId, { hidden: true });
 }
