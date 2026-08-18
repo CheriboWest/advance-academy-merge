@@ -97,7 +97,16 @@ async def send_email(
             )
             sent.raise_for_status()
         except httpx.HTTPError as exc:
-            logger.exception("Resend rejected the email for draft %s", req.draft_id)
+            # raise_for_status() carries only the status code, but Resend names
+            # the actual problem — which domain is unverified, which field is
+            # malformed — in the response body. Transport errors have no
+            # response at all, hence the isinstance check.
+            reason = (
+                exc.response.text if isinstance(exc, httpx.HTTPStatusError) else ""
+            )
+            logger.exception(
+                "Resend rejected the email for draft %s: %s", req.draft_id, reason
+            )
             raise HTTPException(
                 status_code=502, detail="Failed to send the email."
             ) from exc

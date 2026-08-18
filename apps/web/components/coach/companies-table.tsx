@@ -2,11 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Search, Star } from "lucide-react";
+import { Search, Star, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { CoachCompanyRow } from "@/lib/types";
-import { toggleStarAction } from "@/app/coach/(workspace)/companies/actions";
+import {
+  deleteCompanyAction,
+  toggleStarAction,
+} from "@/app/coach/(workspace)/companies/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LeadScoreBadge } from "@/components/lead-score-badge";
@@ -58,6 +61,26 @@ export function CompaniesTable({ rows }: CompaniesTableProps) {
     });
   }
 
+  function deleteCompany(row: CoachCompanyRow) {
+    if (
+      !window.confirm(
+        `Remove ${row.name} from your companies? This only affects your list.`
+      )
+    ) {
+      return;
+    }
+    const snapshot = data;
+    setData((prev) => prev.filter((r) => r.company_id !== row.company_id)); // optimistic
+    setPendingId(row.company_id);
+    startTransition(async () => {
+      const result = await deleteCompanyAction(row.company_id);
+      if (result.error) {
+        setData(snapshot); // revert
+      }
+      setPendingId(null);
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="relative max-w-md">
@@ -92,6 +115,9 @@ export function CompaniesTable({ rows }: CompaniesTableProps) {
                 <th className="px-4 py-3 font-medium">Lead score</th>
                 <th className="px-4 py-3 text-center font-medium">Starred</th>
                 <th className="px-4 py-3 text-right font-medium">Notes</th>
+                <th className="px-4 py-3 text-right font-medium">
+                  <span className="sr-only">Remove</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -144,6 +170,18 @@ export function CompaniesTable({ rows }: CompaniesTableProps) {
                       notes={row.notes}
                       onSaved={(notes) => patchRow(row.company_id, { notes })}
                     />
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-lg text-muted-foreground hover:text-destructive"
+                      aria-label={`Remove ${row.name} from your companies`}
+                      disabled={pendingId === row.company_id}
+                      onClick={() => deleteCompany(row)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
                   </td>
                 </tr>
               ))}

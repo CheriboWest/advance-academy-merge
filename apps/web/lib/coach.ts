@@ -92,7 +92,9 @@ export async function getCoachCompanies(): Promise<CoachCompanyRow[]> {
       .from("public_company_summary")
       .select("id, slug, name, region, hq_location, open_jobs, lead_score")
       .order("name", { ascending: true }),
-    supabase.from("coach_company_meta").select("company_id, starred, notes"),
+    supabase
+      .from("coach_company_meta")
+      .select("company_id, starred, notes, hidden"),
   ]);
 
   if (companiesResult.error) throw new Error(companiesResult.error.message);
@@ -102,22 +104,25 @@ export async function getCoachCompanies(): Promise<CoachCompanyRow[]> {
     (metaResult.data ?? []).map((meta) => [meta.company_id as string, meta])
   );
 
-  return (companiesResult.data ?? []).map((company) => {
-    const meta = metaByCompany.get(company.id as string);
-    return {
-      company_id: company.id as string,
-      slug: company.slug as string,
-      name: company.name as string,
-      location:
-        (company.hq_location as string | null) ??
-        (company.region as string | null) ??
-        "—",
-      open_jobs: (company.open_jobs as number | null) ?? 0,
-      lead_score: (company.lead_score as number | null) ?? 0,
-      starred: Boolean(meta?.starred),
-      notes: (meta?.notes as string | null) ?? "",
-    } satisfies CoachCompanyRow;
-  });
+  return (companiesResult.data ?? [])
+    // Drop companies the coach has removed from their own list.
+    .filter((company) => !metaByCompany.get(company.id as string)?.hidden)
+    .map((company) => {
+      const meta = metaByCompany.get(company.id as string);
+      return {
+        company_id: company.id as string,
+        slug: company.slug as string,
+        name: company.name as string,
+        location:
+          (company.hq_location as string | null) ??
+          (company.region as string | null) ??
+          "—",
+        open_jobs: (company.open_jobs as number | null) ?? 0,
+        lead_score: (company.lead_score as number | null) ?? 0,
+        starred: Boolean(meta?.starred),
+        notes: (meta?.notes as string | null) ?? "",
+      } satisfies CoachCompanyRow;
+    });
 }
 
 const OUTREACH_COMPANY_COLUMNS =
