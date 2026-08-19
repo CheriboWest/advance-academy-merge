@@ -1,4 +1,4 @@
-import type { User } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import type {
@@ -15,6 +15,29 @@ const COMPANY_COLUMNS =
 
 const HIGH_SCORE_THRESHOLD = 80;
 
+/**
+ * Company ids the current coach has removed from their workspace
+ * (`coach_company_meta.hidden = true`). RLS restricts these rows to the
+ * signed-in coach, so this is inherently per-coach and never affects students,
+ * other coaches, or the shared `companies` / `public_company_summary` data.
+ */
+export async function getHiddenCompanyIds(
+  supabase: SupabaseClient
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("coach_company_meta")
+    .select("company_id")
+    .eq("hidden", true);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => row.company_id as string);
+}
+
+/** PostgREST `in` list literal, e.g. `(id1,id2)`. */
+function inList(ids: string[]): string {
+  return `(${ids.join(",")})`;
+}
+
 /** The authenticated coach, or `null`. Server-side session check. */
 export async function getCoachUser(): Promise<User | null> {
   const supabase = await createSupabaseServerClient();
@@ -28,6 +51,40 @@ export async function getCoachUser(): Promise<User | null> {
 export async function getDashboardData(): Promise<CoachDashboardData> {
   const supabase = await createSupabaseServerClient();
 
+  // Exclude the coach's hidden companies from every aggregate and list. The
+  // filter is applied in-query, before any `limit`, so counts and top-N lists
+  // reflect only the coach's visible companies.
+  const hiddenIds = await getHiddenCompanyIds(supabase);
+
+  let totalQuery = supabase
+    .from("public_company_summary")
+    .select("*", { count: "exact", head: true });
+  let highScoreQuery = supabase
+    .from("public_company_summary")
+    .select("*", { count: "exact", head: true })
+    .gte("lead_score", HIGH_SCORE_THRESHOLD);
+  let jobsQuery = supabase.from("public_company_summary").select("id, open_jobs");
+  // The view exposes no timestamp column, so we approximate "recent" by id.
+  let recentQuery = supabase
+    .from("public_company_summary")
+    .select(COMPANY_COLUMNS)
+    .order("id", { ascending: false })
+    .limit(10);
+  let topHiringQuery = supabase
+    .from("public_company_summary")
+    .select(COMPANY_COLUMNS)
+    .order("open_jobs", { ascending: false, nullsFirst: false })
+    .limit(5);
+
+  if (hiddenIds.length) {
+    const notIn = inList(hiddenIds);
+    totalQuery = totalQuery.not("id", "in", notIn);
+    highScoreQuery = highScoreQuery.not("id", "in", notIn);
+    jobsQuery = jobsQuery.not("id", "in", notIn);
+    recentQuery = recentQuery.not("id", "in", notIn);
+    topHiringQuery = topHiringQuery.not("id", "in", notIn);
+  }
+
   const [
     totalResult,
     highScoreResult,
@@ -35,25 +92,11 @@ export async function getDashboardData(): Promise<CoachDashboardData> {
     recentResult,
     topHiringResult,
   ] = await Promise.all([
-    supabase
-      .from("public_company_summary")
-      .select("*", { count: "exact", head: true }),
-    supabase
-      .from("public_company_summary")
-      .select("*", { count: "exact", head: true })
-      .gte("lead_score", HIGH_SCORE_THRESHOLD),
-    supabase.from("public_company_summary").select("open_jobs"),
-    // The view exposes no timestamp column, so we approximate "recent" by id.
-    supabase
-      .from("public_company_summary")
-      .select(COMPANY_COLUMNS)
-      .order("id", { ascending: false })
-      .limit(10),
-    supabase
-      .from("public_company_summary")
-      .select(COMPANY_COLUMNS)
-      .order("open_jobs", { ascending: false, nullsFirst: false })
-      .limit(5),
+    totalQuery,
+    highScoreQuery,
+    jobsQuery,
+    recentQuery,
+    topHiringQuery,
   ]);
 
   const firstError =
@@ -81,48 +124,70 @@ export async function getDashboardData(): Promise<CoachDashboardData> {
 }
 
 /**
- * All companies merged with the current coach's private metadata (starred +
+ * Companies for the coach's list, merged with their private metadata (starred +
  * notes). The metadata query is limited to the coach's own rows by RLS.
+ *
+ * `options.hidden` selects the view:
+ *   - `false` (default) → the coach's visible companies (`hidden = false`)
+ *   - `true`            → the coach's removed companies (`hidden = true`)
+ *
+ * Filtering is done server-side against the coach's own meta rows: the meta is
+ * read first (cheap, RLS-scoped), then the `public_company_summary` query is
+ * narrowed with `id in`/`id not in` so we never pull the full company set to
+ * filter in JS.
  */
-export async function getCoachCompanies(): Promise<CoachCompanyRow[]> {
+export async function getCoachCompanies(
+  options: { hidden?: boolean } = {}
+): Promise<CoachCompanyRow[]> {
+  const hidden = options.hidden ?? false;
   const supabase = await createSupabaseServerClient();
 
-  const [companiesResult, metaResult] = await Promise.all([
-    supabase
-      .from("public_company_summary")
-      .select("id, slug, name, region, hq_location, open_jobs, lead_score")
-      .order("name", { ascending: true }),
-    supabase
-      .from("coach_company_meta")
-      .select("company_id, starred, notes, hidden"),
-  ]);
-
-  if (companiesResult.error) throw new Error(companiesResult.error.message);
-  if (metaResult.error) throw new Error(metaResult.error.message);
+  const { data: metaData, error: metaError } = await supabase
+    .from("coach_company_meta")
+    .select("company_id, starred, notes, hidden");
+  if (metaError) throw new Error(metaError.message);
 
   const metaByCompany = new Map(
-    (metaResult.data ?? []).map((meta) => [meta.company_id as string, meta])
+    (metaData ?? []).map((meta) => [meta.company_id as string, meta])
   );
+  const hiddenIds = (metaData ?? [])
+    .filter((meta) => meta.hidden)
+    .map((meta) => meta.company_id as string);
 
-  return (companiesResult.data ?? [])
-    // Drop companies the coach has removed from their own list.
-    .filter((company) => !metaByCompany.get(company.id as string)?.hidden)
-    .map((company) => {
-      const meta = metaByCompany.get(company.id as string);
-      return {
-        company_id: company.id as string,
-        slug: company.slug as string,
-        name: company.name as string,
-        location:
-          (company.hq_location as string | null) ??
-          (company.region as string | null) ??
-          "—",
-        open_jobs: (company.open_jobs as number | null) ?? 0,
-        lead_score: (company.lead_score as number | null) ?? 0,
-        starred: Boolean(meta?.starred),
-        notes: (meta?.notes as string | null) ?? "",
-      } satisfies CoachCompanyRow;
-    });
+  // The "Removed" view is exactly the hidden set — empty if nothing is hidden,
+  // so skip the companies query entirely.
+  if (hidden && hiddenIds.length === 0) return [];
+
+  let companiesQuery = supabase
+    .from("public_company_summary")
+    .select("id, slug, name, region, hq_location, open_jobs, lead_score")
+    .order("name", { ascending: true });
+
+  if (hidden) {
+    companiesQuery = companiesQuery.in("id", hiddenIds);
+  } else if (hiddenIds.length) {
+    companiesQuery = companiesQuery.not("id", "in", inList(hiddenIds));
+  }
+
+  const { data: companiesData, error: companiesError } = await companiesQuery;
+  if (companiesError) throw new Error(companiesError.message);
+
+  return (companiesData ?? []).map((company) => {
+    const meta = metaByCompany.get(company.id as string);
+    return {
+      company_id: company.id as string,
+      slug: company.slug as string,
+      name: company.name as string,
+      location:
+        (company.hq_location as string | null) ??
+        (company.region as string | null) ??
+        "—",
+      open_jobs: (company.open_jobs as number | null) ?? 0,
+      lead_score: (company.lead_score as number | null) ?? 0,
+      starred: Boolean(meta?.starred),
+      notes: (meta?.notes as string | null) ?? "",
+    } satisfies CoachCompanyRow;
+  });
 }
 
 const OUTREACH_COMPANY_COLUMNS =
@@ -140,11 +205,18 @@ export async function getOutreachCompanies(): Promise<OutreachCompany[]> {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const hiddenIds = await getHiddenCompanyIds(supabase);
+
+  let companiesQuery = supabase
+    .from("public_company_summary")
+    .select(OUTREACH_COMPANY_COLUMNS)
+    .order("name", { ascending: true });
+  if (hiddenIds.length) {
+    companiesQuery = companiesQuery.not("id", "in", inList(hiddenIds));
+  }
+
   const [companiesResult, draftsResult] = await Promise.all([
-    supabase
-      .from("public_company_summary")
-      .select(OUTREACH_COMPANY_COLUMNS)
-      .order("name", { ascending: true }),
+    companiesQuery,
     user
       ? supabase
           .from("outreach_emails")
@@ -181,6 +253,10 @@ export async function getCompanyContext(
   companyId: string
 ): Promise<OutreachCompanyContext | null> {
   const supabase = await createSupabaseServerClient();
+
+  // A company the coach has removed is treated as not found in their workspace.
+  const hiddenIds = await getHiddenCompanyIds(supabase);
+  if (hiddenIds.includes(companyId)) return null;
 
   const { data, error } = await supabase
     .from("public_company_summary")

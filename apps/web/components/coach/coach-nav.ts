@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Mail,
   Radar,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 
@@ -18,4 +19,7 @@ export const coachNavItems: CoachNavItem[] = [
   { href: "/coach/companies", label: "Companies", icon: Building2 },
   { href: "/coach/crawler", label: "Crawler", icon: Radar },
   { href: "/coach/outreach", label: "Outreach", icon: Mail },
+  // Shared search surface. Job Role Search here respects this coach's hidden
+  // companies (see lib/role-search.ts).
+  { href: "/search?mode=role", label: "Job search", icon: Search },
 ];

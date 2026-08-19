@@ -19,6 +19,15 @@ export interface CompanySummary {
   open_jobs: number | null;
 }
 
+/**
+ * A company returned by Job Role Search: a company summary plus the number of
+ * that company's active jobs whose title matched the searched role. Kept
+ * conceptually separate from `open_jobs` (total active jobs).
+ */
+export interface CompanyRoleResult extends CompanySummary {
+  matching_jobs: number;
+}
+
 /** A row from the `jobs` table. */
 export interface Job {
   id: string;

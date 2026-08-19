@@ -42,6 +42,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         location={filters.location}
         sector={filters.sector}
         sort={filters.sort}
+        mode={filters.mode}
       />
 
       <React.Suspense key={suspenseKey} fallback={<SearchResultsSkeleton />}>

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowUpRight, Briefcase, Globe, MapPin } from "lucide-react";
+import { ArrowUpRight, Briefcase, Globe, MapPin, Target } from "lucide-react";
 
 import type { CompanySummary } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,12 @@ import { LeadScoreBadge } from "@/components/lead-score-badge";
 
 interface CompanyCardProps {
   company: CompanySummary;
+  /**
+   * When set (Job Role Search), the number of this company's active jobs that
+   * matched the searched role. Rendered alongside — never in place of — the
+   * total open-jobs count.
+   */
+  matchingJobs?: number;
 }
 
 /** Strip the protocol from a URL for a cleaner display label. */
@@ -19,7 +25,7 @@ function displayHost(url: string): string {
   return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
 }
 
-export function CompanyCard({ company }: CompanyCardProps) {
+export function CompanyCard({ company, matchingJobs }: CompanyCardProps) {
   const location = company.hq_location ?? company.region ?? "—";
   const openJobs = company.open_jobs ?? 0;
 
@@ -63,6 +69,14 @@ export function CompanyCard({ company }: CompanyCardProps) {
               >
                 {displayHost(company.website)}
               </a>
+            </div>
+          )}
+          {matchingJobs !== undefined && (
+            <div className="flex items-center gap-2 font-medium text-foreground">
+              <Target className="size-4 shrink-0 text-primary" />
+              <span>
+                {matchingJobs} matching {matchingJobs === 1 ? "job" : "jobs"}
+              </span>
             </div>
           )}
           <div className="flex items-center gap-2 text-muted-foreground">

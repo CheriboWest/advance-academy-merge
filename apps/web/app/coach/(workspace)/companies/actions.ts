@@ -41,6 +41,7 @@ async function upsertMeta(
 
   revalidatePath("/coach/companies");
   revalidatePath("/coach/dashboard");
+  revalidatePath("/coach/outreach");
   return { error: null };
 }
 
@@ -69,4 +70,16 @@ export async function deleteCompanyAction(
   companyId: string
 ): Promise<MetaActionResult> {
   return upsertMeta(companyId, { hidden: true });
+}
+
+/**
+ * Inverse of {@link deleteCompanyAction}: restore a company the coach removed by
+ * clearing `hidden` on their own `coach_company_meta` row (RLS-guarded to
+ * `auth.uid()`). Starred state, notes, and any outreach drafts are preserved —
+ * only the `hidden` flag changes.
+ */
+export async function restoreCompanyAction(
+  companyId: string
+): Promise<MetaActionResult> {
+  return upsertMeta(companyId, { hidden: false });
 }

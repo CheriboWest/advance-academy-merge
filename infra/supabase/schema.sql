@@ -37,6 +37,12 @@ create table if not exists public.jobs (
   created_at    timestamptz default now()
 );
 
+-- Trigram index backing Job Role Search (`title ILIKE '%role%'`). See
+-- migration 0003_job_title_search.sql.
+create extension if not exists pg_trgm;
+create index if not exists jobs_title_trgm
+  on public.jobs using gin (title gin_trgm_ops);
+
 -- Per-coach private metadata (RLS: coach_user_id = auth.uid()).
 create table if not exists public.coach_company_meta (
   coach_user_id uuid not null,

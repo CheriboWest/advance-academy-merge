@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Search, Star, Trash2 } from "lucide-react";
+import { RotateCcw, Search, Star, Trash2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { CoachCompanyRow } from "@/lib/types";
 import {
   deleteCompanyAction,
+  restoreCompanyAction,
   toggleStarAction,
 } from "@/app/coach/(workspace)/companies/actions";
 import { Button } from "@/components/ui/button";
@@ -18,10 +19,13 @@ import { NotesDialog } from "@/components/coach/notes-dialog";
 
 interface CompaniesTableProps {
   rows: CoachCompanyRow[];
+  /** "all" shows a Remove action per row; "removed" shows Restore. */
+  view?: "all" | "removed";
 }
 
 /** Searchable table of companies with per-coach starring and private notes. */
-export function CompaniesTable({ rows }: CompaniesTableProps) {
+export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
+  const removed = view === "removed";
   const [data, setData] = React.useState(rows);
   const [query, setQuery] = React.useState("");
   const [pendingId, setPendingId] = React.useState<string | null>(null);
@@ -81,6 +85,19 @@ export function CompaniesTable({ rows }: CompaniesTableProps) {
     });
   }
 
+  function restoreCompany(row: CoachCompanyRow) {
+    const snapshot = data;
+    setData((prev) => prev.filter((r) => r.company_id !== row.company_id)); // optimistic
+    setPendingId(row.company_id);
+    startTransition(async () => {
+      const result = await restoreCompanyAction(row.company_id);
+      if (result.error) {
+        setData(snapshot); // revert
+      }
+      setPendingId(null);
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="relative max-w-md">
@@ -100,10 +117,21 @@ export function CompaniesTable({ rows }: CompaniesTableProps) {
       </p>
 
       {filtered.length === 0 ? (
-        <EmptyState
-          title="No companies match your search"
-          description="Try a different company name or location."
-        />
+        data.length === 0 ? (
+          <EmptyState
+            title={removed ? "No removed companies" : "No companies yet"}
+            description={
+              removed
+                ? "Companies you remove from your list will appear here, ready to restore."
+                : "Run the crawler to discover companies, then manage them here."
+            }
+          />
+        ) : (
+          <EmptyState
+            title="No companies match your search"
+            description="Try a different company name or location."
+          />
+        )
       ) : (
         <div className="overflow-x-auto rounded-3xl border border-border bg-card shadow-sm">
           <table className="w-full min-w-[720px] text-sm">
@@ -116,7 +144,7 @@ export function CompaniesTable({ rows }: CompaniesTableProps) {
                 <th className="px-4 py-3 text-center font-medium">Starred</th>
                 <th className="px-4 py-3 text-right font-medium">Notes</th>
                 <th className="px-4 py-3 text-right font-medium">
-                  <span className="sr-only">Remove</span>
+                  <span className="sr-only">Actions</span>
                 </th>
               </tr>
             </thead>
@@ -172,16 +200,30 @@ export function CompaniesTable({ rows }: CompaniesTableProps) {
                     />
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-lg text-muted-foreground hover:text-destructive"
-                      aria-label={`Remove ${row.name} from your companies`}
-                      disabled={pendingId === row.company_id}
-                      onClick={() => deleteCompany(row)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    {removed ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-lg"
+                        aria-label={`Restore ${row.name} to your companies`}
+                        disabled={pendingId === row.company_id}
+                        onClick={() => restoreCompany(row)}
+                      >
+                        <RotateCcw className="size-4" />
+                        Restore
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="rounded-lg text-muted-foreground hover:text-destructive"
+                        aria-label={`Remove ${row.name} from your companies`}
+                        disabled={pendingId === row.company_id}
+                        onClick={() => deleteCompany(row)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}
