@@ -124,48 +124,70 @@ export async function getDashboardData(): Promise<CoachDashboardData> {
 }
 
 /**
- * All companies merged with the current coach's private metadata (starred +
+ * Companies for the coach's list, merged with their private metadata (starred +
  * notes). The metadata query is limited to the coach's own rows by RLS.
+ *
+ * `options.hidden` selects the view:
+ *   - `false` (default) → the coach's visible companies (`hidden = false`)
+ *   - `true`            → the coach's removed companies (`hidden = true`)
+ *
+ * Filtering is done server-side against the coach's own meta rows: the meta is
+ * read first (cheap, RLS-scoped), then the `public_company_summary` query is
+ * narrowed with `id in`/`id not in` so we never pull the full company set to
+ * filter in JS.
  */
-export async function getCoachCompanies(): Promise<CoachCompanyRow[]> {
+export async function getCoachCompanies(
+  options: { hidden?: boolean } = {}
+): Promise<CoachCompanyRow[]> {
+  const hidden = options.hidden ?? false;
   const supabase = await createSupabaseServerClient();
 
-  const [companiesResult, metaResult] = await Promise.all([
-    supabase
-      .from("public_company_summary")
-      .select("id, slug, name, region, hq_location, open_jobs, lead_score")
-      .order("name", { ascending: true }),
-    supabase
-      .from("coach_company_meta")
-      .select("company_id, starred, notes, hidden"),
-  ]);
-
-  if (companiesResult.error) throw new Error(companiesResult.error.message);
-  if (metaResult.error) throw new Error(metaResult.error.message);
+  const { data: metaData, error: metaError } = await supabase
+    .from("coach_company_meta")
+    .select("company_id, starred, notes, hidden");
+  if (metaError) throw new Error(metaError.message);
 
   const metaByCompany = new Map(
-    (metaResult.data ?? []).map((meta) => [meta.company_id as string, meta])
+    (metaData ?? []).map((meta) => [meta.company_id as string, meta])
   );
+  const hiddenIds = (metaData ?? [])
+    .filter((meta) => meta.hidden)
+    .map((meta) => meta.company_id as string);
 
-  return (companiesResult.data ?? [])
-    // Drop companies the coach has removed from their own list.
-    .filter((company) => !metaByCompany.get(company.id as string)?.hidden)
-    .map((company) => {
-      const meta = metaByCompany.get(company.id as string);
-      return {
-        company_id: company.id as string,
-        slug: company.slug as string,
-        name: company.name as string,
-        location:
-          (company.hq_location as string | null) ??
-          (company.region as string | null) ??
-          "—",
-        open_jobs: (company.open_jobs as number | null) ?? 0,
-        lead_score: (company.lead_score as number | null) ?? 0,
-        starred: Boolean(meta?.starred),
-        notes: (meta?.notes as string | null) ?? "",
-      } satisfies CoachCompanyRow;
-    });
+  // The "Removed" view is exactly the hidden set — empty if nothing is hidden,
+  // so skip the companies query entirely.
+  if (hidden && hiddenIds.length === 0) return [];
+
+  let companiesQuery = supabase
+    .from("public_company_summary")
+    .select("id, slug, name, region, hq_location, open_jobs, lead_score")
+    .order("name", { ascending: true });
+
+  if (hidden) {
+    companiesQuery = companiesQuery.in("id", hiddenIds);
+  } else if (hiddenIds.length) {
+    companiesQuery = companiesQuery.not("id", "in", inList(hiddenIds));
+  }
+
+  const { data: companiesData, error: companiesError } = await companiesQuery;
+  if (companiesError) throw new Error(companiesError.message);
+
+  return (companiesData ?? []).map((company) => {
+    const meta = metaByCompany.get(company.id as string);
+    return {
+      company_id: company.id as string,
+      slug: company.slug as string,
+      name: company.name as string,
+      location:
+        (company.hq_location as string | null) ??
+        (company.region as string | null) ??
+        "—",
+      open_jobs: (company.open_jobs as number | null) ?? 0,
+      lead_score: (company.lead_score as number | null) ?? 0,
+      starred: Boolean(meta?.starred),
+      notes: (meta?.notes as string | null) ?? "",
+    } satisfies CoachCompanyRow;
+  });
 }
 
 const OUTREACH_COMPANY_COLUMNS =
