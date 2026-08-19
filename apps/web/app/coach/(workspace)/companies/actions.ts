@@ -41,6 +41,7 @@ async function upsertMeta(
 
   revalidatePath("/coach/companies");
   revalidatePath("/coach/dashboard");
+  revalidatePath("/coach/outreach");
   return { error: null };
 }
 
