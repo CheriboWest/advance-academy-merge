@@ -21,7 +21,7 @@ const HIGH_SCORE_THRESHOLD = 80;
  * signed-in coach, so this is inherently per-coach and never affects students,
  * other coaches, or the shared `companies` / `public_company_summary` data.
  */
-async function getHiddenCompanyIds(
+export async function getHiddenCompanyIds(
   supabase: SupabaseClient
 ): Promise<string[]> {
   const { data, error } = await supabase

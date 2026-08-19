@@ -6,13 +6,16 @@ import { Search } from "lucide-react";
 
 import {
   ALL,
+  DEFAULT_MODE,
   DEFAULT_SORT,
   LOCATION_OPTIONS,
   SECTOR_OPTIONS,
   SORT_OPTIONS,
   type SearchFiltersState,
+  type SearchMode,
   type SortOption,
 } from "@/lib/filters";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,7 +33,18 @@ type SearchFiltersProps = SearchFiltersState;
  * back to the URL. The server component reads those params and fetches data —
  * there is no client-side data fetching.
  */
-export function SearchFilters({ q, location, sector, sort }: SearchFiltersProps) {
+const MODE_OPTIONS: ReadonlyArray<{ value: SearchMode; label: string }> = [
+  { value: "company", label: "Company" },
+  { value: "role", label: "Job role" },
+];
+
+export function SearchFilters({
+  q,
+  location,
+  sector,
+  sort,
+  mode,
+}: SearchFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = React.useTransition();
@@ -55,6 +69,8 @@ export function SearchFilters({ q, location, sector, sort }: SearchFiltersProps)
         setOrDelete("sector", patch.sector, patch.sector === ALL);
       if (patch.sort !== undefined)
         setOrDelete("sort", patch.sort, patch.sort === DEFAULT_SORT);
+      if (patch.mode !== undefined)
+        setOrDelete("mode", patch.mode, patch.mode === DEFAULT_MODE);
 
       const qs = params.toString();
       startTransition(() => {
@@ -70,16 +86,51 @@ export function SearchFilters({ q, location, sector, sort }: SearchFiltersProps)
         event.preventDefault();
         commit({ q: query });
       }}
-      className="rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5"
+      className="space-y-3 rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-5"
       aria-busy={isPending}
     >
+      {/* Search-by mode toggle */}
+      <div
+        className="inline-flex rounded-xl border border-border p-1 text-sm"
+        role="group"
+        aria-label="Search by"
+      >
+        {MODE_OPTIONS.map((option) => {
+          const active = option.value === mode;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={active}
+              onClick={() => commit({ mode: option.value })}
+              className={cn(
+                "rounded-lg px-3 py-1.5 font-medium transition-colors",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search companies by name"
-            aria-label="Search companies by name"
+            placeholder={
+              mode === "role"
+                ? "Search by job title (e.g. Marketing Executive)"
+                : "Search companies by name"
+            }
+            aria-label={
+              mode === "role"
+                ? "Search companies by job title"
+                : "Search companies by name"
+            }
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="h-11 rounded-xl pl-9"

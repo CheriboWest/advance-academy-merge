@@ -24,6 +24,11 @@ export const SECTOR_OPTIONS = [
   "Healthcare",
 ] as const;
 
+/** Whether the text query searches company names or job roles/titles. */
+export type SearchMode = "company" | "role";
+
+export const DEFAULT_MODE: SearchMode = "company";
+
 export type SortOption = "score_desc" | "jobs_desc" | "name_asc";
 
 export const SORT_OPTIONS: ReadonlyArray<{ value: SortOption; label: string }> =
@@ -45,6 +50,7 @@ export interface SearchFiltersState {
   location: string; // a LOCATION_OPTIONS value or ALL
   sector: string; // a SECTOR_OPTIONS value or ALL
   sort: SortOption;
+  mode: SearchMode; // "company" (name search) or "role" (job-title search)
 }
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
@@ -64,5 +70,8 @@ export function parseSearchFilters(params: RawSearchParams): SearchFiltersState 
     SORT_VALUES.includes(rawSort as SortOption) ? rawSort : DEFAULT_SORT
   ) as SortOption;
 
-  return { q, location, sector, sort };
+  const mode: SearchMode =
+    firstValue(params.mode) === "role" ? "role" : DEFAULT_MODE;
+
+  return { q, location, sector, sort, mode };
 }
