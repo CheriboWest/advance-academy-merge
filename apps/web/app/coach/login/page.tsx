@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { LockKeyhole } from "lucide-react";
 
 import { getCoachUser } from "@/lib/coach";
 import { PageContainer } from "@/components/page-container";
-import { Badge } from "@/components/ui/badge";
 import { LoginForm } from "@/app/coach/login/login-form";
 
 export const metadata: Metadata = {
@@ -33,25 +31,15 @@ export default async function CoachLoginPage({
     : redirectParam;
 
   return (
-    <PageContainer className="flex justify-center">
-      <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 text-center shadow-sm">
-        <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <LockKeyhole className="size-7" />
-        </span>
+    <PageContainer className="max-w-md py-20">
+      <p className="label-caps">Private · staff only</p>
+      <h1 className="mt-3 text-4xl">Coach login</h1>
+      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+        Sign in to manage leads, notes, and outreach in your private workspace.
+      </p>
 
-        <Badge variant="secondary" className="mt-5 rounded-full">
-          Private
-        </Badge>
-
-        <h1 className="mt-4 text-2xl font-bold tracking-tight">Coach login</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Sign in to manage leads, notes, and outreach in your private
-          workspace.
-        </p>
-
-        <div className="mt-6">
-          <LoginForm redirectTo={redirectTo} />
-        </div>
+      <div className="mt-8 border-t-2 border-foreground pt-8">
+        <LoginForm redirectTo={redirectTo} />
       </div>
     </PageContainer>
   );

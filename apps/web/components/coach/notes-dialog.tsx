@@ -60,7 +60,7 @@ export function NotesDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="rounded-lg">
+        <Button variant="ghost" size="sm">
           <NotebookPen className="size-4" />
           {hasNotes ? "Notes" : "Add note"}
         </Button>
@@ -93,14 +93,14 @@ export function NotesDialog({
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button variant="outline" className="rounded-xl" disabled={pending}>
+            <Button variant="outline" disabled={pending}>
               Cancel
             </Button>
           </DialogClose>
           <Button
             onClick={handleSave}
             disabled={pending}
-            className="rounded-xl"
+           
           >
             {pending && <Loader2 className="size-4 animate-spin" />}
             {pending ? "Saving…" : "Save notes"}

@@ -6,7 +6,7 @@ import { fetchCompanies } from "@/lib/queries";
 import { fetchCompaniesByRole } from "@/lib/role-search";
 import type { SearchFiltersState } from "@/lib/filters";
 import type { CompanyRoleResult, CompanySummary } from "@/lib/types";
-import { CompanyCard } from "@/components/company-card";
+import { CompanyRow } from "@/components/company-row";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 
@@ -21,7 +21,7 @@ function ErrorState({ message }: { message: string }) {
       title="We couldn't load companies"
       description={message}
       action={
-        <Button asChild variant="outline" className="rounded-xl">
+        <Button asChild variant="outline">
           <Link href="/search">Try again</Link>
         </Button>
       }
@@ -29,7 +29,7 @@ function ErrorState({ message }: { message: string }) {
   );
 }
 
-function ResultsGrid({
+function ResultsList({
   count,
   children,
 }: {
@@ -37,11 +37,14 @@ function ResultsGrid({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted-foreground" aria-live="polite">
+    <div>
+      <p
+        className="label-caps border-b-2 border-foreground pb-3"
+        aria-live="polite"
+      >
         {count} {count === 1 ? "company" : "companies"} found
       </p>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">{children}</div>
+      <ul className="divide-y divide-border">{children}</ul>
     </div>
   );
 }
@@ -78,7 +81,7 @@ async function RoleResults({ filters }: SearchResultsProps) {
         title="No companies are hiring for this role"
         description="No active jobs match that title with the current filters. Try a broader title, or reset the sector and location filters."
         action={
-          <Button asChild variant="outline" className="rounded-xl">
+          <Button asChild variant="outline">
             <Link href="/search?mode=role">Reset filters</Link>
           </Button>
         }
@@ -87,15 +90,13 @@ async function RoleResults({ filters }: SearchResultsProps) {
   }
 
   return (
-    <ResultsGrid count={companies.length}>
+    <ResultsList count={companies.length}>
       {companies.map((company) => (
-        <CompanyCard
-          key={company.id}
-          company={company}
-          matchingJobs={company.matching_jobs}
-        />
+        <li key={company.id}>
+          <CompanyRow company={company} matchingJobs={company.matching_jobs} />
+        </li>
       ))}
-    </ResultsGrid>
+    </ResultsList>
   );
 }
 
@@ -120,7 +121,7 @@ async function CompanyResults({ filters }: SearchResultsProps) {
         title="No companies match your filters"
         description="Try a different search term, or reset the location and sector filters to see every employer."
         action={
-          <Button asChild variant="outline" className="rounded-xl">
+          <Button asChild variant="outline">
             <Link href="/search">Reset filters</Link>
           </Button>
         }
@@ -129,17 +130,19 @@ async function CompanyResults({ filters }: SearchResultsProps) {
   }
 
   return (
-    <ResultsGrid count={companies.length}>
+    <ResultsList count={companies.length}>
       {companies.map((company) => (
-        <CompanyCard key={company.id} company={company} />
+        <li key={company.id}>
+          <CompanyRow company={company} />
+        </li>
       ))}
-    </ResultsGrid>
+    </ResultsList>
   );
 }
 
 /**
  * Async server component that runs the Supabase query for the current filters
- * and renders the result grid, plus empty and error states. Wrapped in a
+ * and renders the result list, plus empty and error states. Wrapped in a
  * Suspense boundary by the page so a skeleton shows while it loads.
  */
 export async function SearchResults({ filters }: SearchResultsProps) {

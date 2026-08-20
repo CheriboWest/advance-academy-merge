@@ -8,7 +8,7 @@ interface LeadScoreBadgeProps {
 }
 
 /**
- * Numeric score pill used across company cards and detail pages.
+ * Numeric score shown as an editorial statistic — caption above, figure below.
  *
  * Deliberately shows ONLY the numerical score — no tier label, reasoning, or
  * signal breakdown. The value is produced by the backend hiring-signal score
@@ -17,12 +17,11 @@ interface LeadScoreBadgeProps {
 export function LeadScoreBadge({ score, className }: LeadScoreBadgeProps) {
   return (
     <span
-      className={cn(
-        "inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-medium text-foreground tabular-nums",
-        className
-      )}
+      className={cn("flex flex-col items-end leading-none", className)}
+      title={`Hiring signal score: ${score}`}
     >
-      {score}
+      <span className="label-caps">Score</span>
+      <span className="mt-1 font-display text-2xl tabular-nums">{score}</span>
     </span>
   );
 }

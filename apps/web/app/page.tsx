@@ -1,137 +1,111 @@
-"use client";
-
 import Link from "next/link";
-import { motion } from "framer-motion";
-import { ArrowRight, LockKeyhole, Search, Users } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
+import { POPULAR_ROLES, ALL, DEFAULT_SORT } from "@/lib/filters";
+import { fetchCompanies, fetchPublicStats } from "@/lib/queries";
+import type { CompanySummary } from "@/lib/types";
 import { PageContainer } from "@/components/page-container";
+import { HeroSearch } from "@/components/hero-search";
+import { CompanyRow } from "@/components/company-row";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.05 },
-  },
-};
+// Headline counts and the hiring list are read per request from Supabase.
+export const dynamic = "force-dynamic";
 
-const item = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
-};
+const numberFormat = new Intl.NumberFormat("en-GB");
 
-export default function HomePage() {
+/**
+ * Landing data is proof, not chrome: if Supabase is unreachable the hero and
+ * its shortcuts must still render, so both reads collapse to nothing on error.
+ */
+async function loadLanding() {
+  try {
+    const [stats, hiring] = await Promise.all([
+      fetchPublicStats(),
+      fetchCompanies({
+        q: "",
+        location: ALL,
+        sector: ALL,
+        sort: DEFAULT_SORT,
+        mode: "company",
+      }),
+    ]);
+    return { stats, hiring: hiring.slice(0, 6) };
+  } catch {
+    return { stats: null, hiring: [] as CompanySummary[] };
+  }
+}
+
+export default async function HomePage() {
+  const { stats, hiring } = await loadLanding();
+
   return (
-    <PageContainer>
-      <motion.section
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="mx-auto flex max-w-3xl flex-col items-center text-center"
-      >
-        <motion.div variants={item}>
-          <Badge
-            variant="secondary"
-            className="rounded-full px-3 py-1 text-xs font-medium"
-          >
-            CareerHub UK
-          </Badge>
-        </motion.div>
+    <>
+      <PageContainer as="section" className="pt-14 sm:pt-20">
+        <p className="label-caps">UK graduate & early-career hiring</p>
 
-        <motion.h1
-          variants={item}
-          className="mt-5 text-balance text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl"
-        >
-          Find UK employers faster
-        </motion.h1>
+        <h1 className="mt-5 max-w-4xl text-balance text-5xl leading-[0.95] sm:text-6xl md:text-7xl">
+          Which UK companies are hiring right now
+          <span className="text-highlight"> — and how to reach them.</span>
+        </h1>
 
-        <motion.p
-          variants={item}
-          className="mt-4 max-w-xl text-pretty text-lg text-muted-foreground"
-        >
-          Search companies and jobs, or manage outreach as a coach.
-        </motion.p>
-      </motion.section>
+        <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
+          Search live roles by company or job title, see who is actually
+          recruiting, and go straight to their careers page. No account needed.
+        </p>
 
-      <motion.section
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="mx-auto mt-12 grid max-w-4xl gap-6 sm:mt-16 md:grid-cols-2"
-      >
-        {/* Student card */}
-        <motion.article
-          variants={item}
-          whileHover={{ y: -4 }}
-          transition={{ type: "spring", stiffness: 300, damping: 24 }}
-          className="flex flex-col justify-between gap-6 rounded-3xl border border-border bg-card p-8 shadow-sm transition-shadow hover:shadow-md"
-        >
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <Search className="size-6" />
-              </span>
-              <Badge className="rounded-full">Public</Badge>
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-xl font-semibold tracking-tight">
-                For students
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Browse UK companies and open roles, filter by location and
-                sector, and jump straight to careers pages — no account needed.
-              </p>
-            </div>
+        <div className="mt-10 max-w-3xl">
+          <HeroSearch />
+
+          <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2">
+            <span className="label-caps mr-1">Or jump to</span>
+            {POPULAR_ROLES.map((role) => (
+              <Link
+                key={role}
+                href={`/search?mode=role&q=${encodeURIComponent(role)}`}
+                className="rounded-sm border border-border px-3 py-1.5 text-sm transition-colors hover:border-foreground hover:bg-foreground hover:text-background"
+              >
+                {role}
+              </Link>
+            ))}
           </div>
-          <Button asChild size="lg" className="w-full rounded-xl">
-            <Link href="/search">
-              Search jobs
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-        </motion.article>
 
-        {/* Coach card */}
-        <motion.article
-          variants={item}
-          whileHover={{ y: -4 }}
-          transition={{ type: "spring", stiffness: 300, damping: 24 }}
-          className="flex flex-col justify-between gap-6 rounded-3xl border border-border bg-card p-8 shadow-sm transition-shadow hover:shadow-md"
-        >
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="flex size-12 items-center justify-center rounded-2xl bg-muted text-foreground">
-                <Users className="size-6" />
-              </span>
-              <Badge variant="secondary" className="rounded-full gap-1">
-                <LockKeyhole className="size-3" />
-                Private
-              </Badge>
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-xl font-semibold tracking-tight">
-                For coaches
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Track leads, prioritise employers by score, and manage student
-                outreach in a dedicated workspace. Coming soon.
-              </p>
-            </div>
+          {stats && stats.companies > 0 && (
+            <p className="mt-6 text-sm text-muted-foreground">
+              <span className="font-medium tabular-nums text-foreground">
+                {numberFormat.format(stats.companies)}
+              </span>{" "}
+              companies ·{" "}
+              <span className="font-medium tabular-nums text-foreground">
+                {numberFormat.format(stats.liveJobs)}
+              </span>{" "}
+              live roles indexed
+            </p>
+          )}
+        </div>
+      </PageContainer>
+
+      {hiring.length > 0 && (
+        <PageContainer as="section" className="mt-20">
+          <div className="flex items-end justify-between gap-4 border-b-2 border-foreground pb-3">
+            <h2 className="text-2xl sm:text-3xl">Hiring now</h2>
+            <Button asChild variant="link" size="sm">
+              <Link href="/search">
+                All employers
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
           </div>
-          <Button
-            asChild
-            size="lg"
-            variant="outline"
-            className="w-full rounded-xl"
-          >
-            <Link href="/coach/login">
-              Coach login
-              <ArrowRight className="size-4" />
-            </Link>
-          </Button>
-        </motion.article>
-      </motion.section>
-    </PageContainer>
+
+          <ul className="divide-y divide-border">
+            {hiring.map((company) => (
+              <li key={company.id}>
+                <CompanyRow company={company} />
+              </li>
+            ))}
+          </ul>
+        </PageContainer>
+      )}
+    </>
   );
 }

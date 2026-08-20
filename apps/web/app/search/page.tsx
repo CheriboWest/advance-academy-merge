@@ -27,15 +27,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const suspenseKey = JSON.stringify(filters);
 
   return (
-    <PageContainer className="space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          Search UK employers
-        </h1>
-        <p className="text-muted-foreground">
+    <>
+      <PageContainer as="header" className="py-10">
+        <p className="label-caps">Employer directory</p>
+        <h1 className="mt-3 text-4xl sm:text-5xl">Search UK employers</h1>
+        <p className="mt-3 max-w-xl text-muted-foreground">
           Explore companies hiring across the UK and find your next role.
         </p>
-      </header>
+      </PageContainer>
 
       <SearchFilters
         q={filters.q}
@@ -45,9 +44,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         mode={filters.mode}
       />
 
-      <React.Suspense key={suspenseKey} fallback={<SearchResultsSkeleton />}>
-        <SearchResults filters={filters} />
-      </React.Suspense>
-    </PageContainer>
+      <PageContainer className="pt-6">
+        <React.Suspense key={suspenseKey} fallback={<SearchResultsSkeleton />}>
+          <SearchResults filters={filters} />
+        </React.Suspense>
+      </PageContainer>
+    </>
   );
 }

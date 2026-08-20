@@ -11,7 +11,10 @@ interface KPICardProps {
   className?: string;
 }
 
-/** Compact metric card used across the coach dashboard. */
+/**
+ * One metric in the dashboard's statistics band. Cells are separated by rules
+ * from the containing grid rather than each being its own floating card.
+ */
 export function KPICard({
   label,
   value,
@@ -20,20 +23,15 @@ export function KPICard({
   className,
 }: KPICardProps) {
   return (
-    <div
-      className={cn(
-        "flex flex-col gap-3 rounded-3xl border border-border bg-card p-6 shadow-sm",
-        className
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Icon className="size-5" />
-        </span>
-      </div>
-      <p className="text-3xl font-bold tracking-tight tabular-nums">{value}</p>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    <div className={cn("px-0 py-5 sm:px-6 sm:first:pl-0", className)}>
+      <p className="label-caps flex items-center gap-2">
+        <Icon className="size-3.5" />
+        {label}
+      </p>
+      <p className="mt-2 font-display text-4xl leading-none tabular-nums">
+        {value}
+      </p>
+      {hint && <p className="mt-2 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }

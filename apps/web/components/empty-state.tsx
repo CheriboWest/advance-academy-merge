@@ -11,7 +11,7 @@ interface EmptyStateProps {
   className?: string;
 }
 
-/** Friendly placeholder shown when a list or search returns no results. */
+/** Placeholder shown when a list or search returns no results. */
 export function EmptyState({
   title,
   description,
@@ -20,22 +20,19 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center justify-center rounded-3xl border border-dashed border-border bg-card/50 px-6 py-16 text-center",
-        className
-      )}
-    >
-      <div className="flex size-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
-        <Icon className="size-7" />
+    <div className={cn("border-y border-border py-14", className)}>
+      <div className="flex max-w-xl gap-4">
+        <Icon className="mt-1 size-5 shrink-0 text-muted-foreground" />
+        <div>
+          <h3 className="text-xl">{title}</h3>
+          {description && (
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              {description}
+            </p>
+          )}
+          {action && <div className="mt-5">{action}</div>}
+        </div>
       </div>
-      <h3 className="mt-5 text-lg font-semibold">{title}</h3>
-      {description && (
-        <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-          {description}
-        </p>
-      )}
-      {action && <div className="mt-6">{action}</div>}
     </div>
   );
 }

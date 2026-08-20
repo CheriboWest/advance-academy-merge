@@ -2,7 +2,6 @@ import * as React from "react";
 import { ArrowUpRight, Banknote, CalendarDays, MapPin } from "lucide-react";
 
 import type { Job } from "@/lib/types";
-import { Button } from "@/components/ui/button";
 
 interface JobItemProps {
   job: Job;
@@ -37,22 +36,21 @@ function formatSalary(
   return null;
 }
 
-export function JobItem({ job }: JobItemProps) {
+function JobBody({ job }: JobItemProps) {
   const location = job.location_raw ?? job.city ?? "—";
   const salary = formatSalary(job.salary_min, job.salary_max);
-  const href = job.source_url ?? null;
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/40 sm:flex-row sm:items-center sm:justify-between">
-      <div className="space-y-2">
-        <h3 className="font-semibold tracking-tight">{job.title}</h3>
+    <>
+      <div className="min-w-0 space-y-1.5">
+        <h3 className="text-lg">{job.title}</h3>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <MapPin className="size-4" />
             {location}
           </span>
           {salary && (
-            <span className="flex items-center gap-1.5">
+            <span className="flex items-center gap-1.5 tabular-nums">
               <Banknote className="size-4" />
               {salary}
             </span>
@@ -65,19 +63,35 @@ export function JobItem({ job }: JobItemProps) {
           )}
         </div>
       </div>
+      <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium">
+        View job
+        <ArrowUpRight className="size-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+      </span>
+    </>
+  );
+}
 
-      {href && (
-        <Button
-          asChild
-          variant="outline"
-          className="w-full shrink-0 rounded-xl sm:w-auto"
-        >
-          <a href={href} target="_blank" rel="noopener noreferrer">
-            View job
-            <ArrowUpRight className="size-4" />
-          </a>
-        </Button>
-      )}
-    </div>
+export function JobItem({ job }: JobItemProps) {
+  const href = job.source_url ?? null;
+
+  // Without a source URL there is nothing to open — render the same row, but
+  // not as a link.
+  if (!href) {
+    return (
+      <div className="flex flex-col gap-3 border-l-2 border-transparent py-5 pl-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <JobBody job={job} />
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group flex flex-col gap-3 border-l-2 border-transparent py-5 pl-3 transition-[background-color,border-color,padding] hover:border-l-primary hover:bg-muted hover:pl-5 focus-visible:border-l-primary focus-visible:bg-muted focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+    >
+      <JobBody job={job} />
+    </a>
   );
 }

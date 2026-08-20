@@ -1,24 +1,27 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import Link from "next/link";
+import { Instrument_Serif, Inter_Tight } from "next/font/google";
 
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Navbar } from "@/components/navbar";
 import { PageContainer } from "@/components/page-container";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const displaySerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  weight: "400",
+  style: ["normal", "italic"],
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const bodySans = Inter_Tight({
+  variable: "--font-inter-tight",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "CareerHub UK — Find UK employers faster",
+    default: "CareerHub UK — Which UK companies are hiring right now",
     template: "%s · CareerHub UK",
   },
   description:
@@ -33,7 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en-GB" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-dvh bg-background font-sans antialiased`}
+        className={`${displaySerif.variable} ${bodySans.variable} min-h-dvh bg-background font-sans antialiased`}
       >
         <ThemeProvider
           attribute="class"
@@ -43,11 +46,19 @@ export default function RootLayout({
         >
           <div className="flex min-h-dvh flex-col">
             <Navbar />
-            <main className="flex-1 py-8 sm:py-12">{children}</main>
-            <footer className="border-t border-border/60 py-8">
-              <PageContainer className="flex flex-col items-center justify-between gap-2 text-sm text-muted-foreground sm:flex-row">
+            <main className="flex-1 pb-16">{children}</main>
+            <footer className="border-t border-border">
+              <PageContainer className="flex flex-col gap-2 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                 <p>© {new Date().getFullYear()} CareerHub UK</p>
-                <p>Built for students exploring UK employers.</p>
+                <div className="flex items-center gap-4">
+                  <span>Built for students exploring UK employers.</span>
+                  <Link
+                    href="/coach/login"
+                    className="underline decoration-border underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground"
+                  >
+                    Coach sign-in
+                  </Link>
+                </div>
               </PageContainer>
             </footer>
           </div>

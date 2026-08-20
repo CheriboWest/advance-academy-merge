@@ -28,7 +28,7 @@ export default async function CoachCompaniesPage({
   const removed = view === "removed";
 
   const tabs = (
-    <nav className="inline-flex rounded-xl border border-border bg-card p-1 text-sm">
+    <nav className="flex gap-6 border-b border-border text-sm">
       {TABS.map((tab) => {
         const active = tab.key === (removed ? "removed" : "all");
         return (
@@ -37,10 +37,10 @@ export default async function CoachCompaniesPage({
             href={tab.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-lg px-3 py-1.5 font-medium transition-colors",
+              "border-b-2 pb-2 font-medium transition-colors",
               active
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
             )}
           >
             {tab.label}
@@ -60,7 +60,7 @@ export default async function CoachCompaniesPage({
     return (
       <div className="space-y-4">
         <header className="space-y-1">
-          <h2 className="text-xl font-semibold tracking-tight">Companies</h2>
+          <h2 className="text-xl">Companies</h2>
         </header>
         {tabs}
         <EmptyState

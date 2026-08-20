@@ -7,7 +7,7 @@ The public-facing student portal for CareerHub UK, built with Next.js 15
 
 | Route                 | Access  | Description                                              |
 | --------------------- | ------- | -------------------------------------------------------- |
-| `/`                   | Public  | Landing page with student and coach entry cards.         |
+| `/`                   | Public  | Landing page: hero search, role shortcuts, live counts, hiring list. |
 | `/search`             | Public  | Company search with location, sector, and sort filters.  |
 | `/companies/[slug]`   | Public  | Company detail with links and a list of open jobs.       |
 | `/coach/login`        | Public  | Email/password sign-in to the coach workspace.           |
@@ -161,10 +161,11 @@ variables. The following components are vendored under `components/ui`:
 
 ```bash
 npx shadcn@latest init
-npx shadcn@latest add button input select card badge separator
+npx shadcn@latest add button input select textarea badge separator dialog
 ```
 
-> The generated component sources are committed directly, so the app builds
+> The generated component sources are committed directly and then retuned to
+> the Editorial UK theme (sharp radii, no drop shadows), so the app builds
 > without re-running the shadcn CLI.
 
 ## Tech stack
@@ -172,9 +173,10 @@ npx shadcn@latest add button input select card badge separator
 - **Next.js 15** (App Router) + **TypeScript** (strict)
 - **Tailwind CSS v4** via `@tailwindcss/postcss` (CSS-first config in
   `app/globals.css`)
-- **shadcn/ui** (Button, Input, Select, Card, Badge, Separator)
+- **shadcn/ui** (Button, Input, Select, Textarea, Badge, Separator, Dialog)
 - **Supabase** (`@supabase/supabase-js`) for live public data
-- **Framer Motion** for entrance and hover animations
+- **CSS transitions** for hover and press states; `tw-animate-css` for the
+  Radix enter/exit animations. No animation library.
 - **Lucide React** icons
 - **next-themes** for class-based dark mode with a navbar toggle
 
@@ -205,7 +207,7 @@ apps/web/
 │   └── page.tsx                    # Landing page
 ├── components/
 │   ├── ui/                         # shadcn primitives
-│   ├── company-card.tsx
+│   ├── company-row.tsx
 │   ├── empty-state.tsx
 │   ├── job-item.tsx
 │   ├── lead-score-badge.tsx

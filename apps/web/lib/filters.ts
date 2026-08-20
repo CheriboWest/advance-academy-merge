@@ -75,3 +75,17 @@ export function parseSearchFilters(params: RawSearchParams): SearchFiltersState 
 
   return { q, location, sector, sort, mode };
 }
+
+/**
+ * Landing-page shortcuts into Job Role Search. UI presets, like the option
+ * lists above — not data, and deliberately not derived from the database so
+ * the landing page renders even when Supabase is unreachable.
+ */
+export const POPULAR_ROLES = [
+  "Marketing Executive",
+  "Data Analyst",
+  "Graduate Scheme",
+  "Software Engineer",
+  "Finance Assistant",
+  "Project Coordinator",
+] as const;
