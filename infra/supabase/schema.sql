@@ -103,3 +103,14 @@ select
 from public.companies c
 join public.jobs j on j.company_id = c.id and j.is_active = true
 group by c.id;
+
+-- Permanent company deletion (see migration 0004_company_permanent_delete.sql
+-- for the body and the grants). One transaction:
+--   jobs               → deleted   (shared crawler data)
+--   coach_company_meta → deleted   (per-coach stars/notes/hidden, every coach)
+--   outreach_emails    → unlinked  (company_id = null; coach content is kept)
+--   companies          → deleted
+-- Raises if any other table references companies.id. Executable by
+-- `service_role` only — the API server, never the browser or a coach session.
+-- create function public.delete_companies_permanently(p_company_ids uuid[])
+--   returns jsonb language plpgsql security definer;

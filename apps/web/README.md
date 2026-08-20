@@ -12,7 +12,7 @@ The public-facing student portal for CareerHub UK, built with Next.js 15
 | `/companies/[slug]`   | Public  | Company detail with links and a list of open jobs.       |
 | `/coach/login`        | Public  | Email/password sign-in to the coach workspace.           |
 | `/coach/dashboard`    | Coach   | KPIs, top hiring companies, and recent companies.        |
-| `/coach/companies`    | Coach   | Searchable table with per-coach starring and notes.      |
+| `/coach/companies`    | Coach   | Searchable table with per-coach starring, notes, hide/restore, and permanent (global) deletion. |
 | `/coach/crawler`      | Coach   | Trigger Adzuna/Reed crawls; cache prompt, progress, stats, history. |
 | `/coach/outreach`     | Coach   | Companies to draft outreach for (with a "draft saved" flag). |
 | `/coach/outreach/[companyId]` | Coach | AI-assisted composer with editable subject/body and draft saving. |
@@ -34,7 +34,43 @@ deterministic local template.
   to `/coach/login`. The workspace layout re-checks the session server-side
   (defence in depth).
 - **Security:** only the anon key is used in the app — never the service role
-  key. All private reads/writes rely on RLS keyed to `auth.uid()`.
+  key. All private reads/writes rely on RLS keyed to `auth.uid()`. The one
+  privileged operation, permanent company deletion, is delegated to the API
+  (see below), which holds the service role key server-side.
+
+### Removing vs. deleting a company
+
+The companies table has two destructive-looking actions that mean very different
+things. They are deliberately separate:
+
+| Action | Scope | Reversible | Mechanism |
+| ------ | ----- | ---------- | --------- |
+| **Remove from my list** (eye icon) | This coach only | Yes — the "Removed" tab restores it | `coach_company_meta.hidden = true` (`hideCompanyAction`) |
+| **Delete permanently** (trash icon, and "Delete selected (N)") | Everyone: all coaches, students, public search, detail pages | **No** | The `companies` row and its jobs are deleted from the database |
+
+The "Removed" tab lists hidden companies **only**. A permanently deleted company
+does not appear there — it no longer exists.
+
+Permanent deletion never runs in the browser and never runs with the coach's own
+database credentials:
+
+1. `deleteCompaniesPermanentlyAction` (a server action) validates and
+   de-duplicates the ids, authenticates the coach, and forwards their Supabase
+   access token.
+2. `POST {NEXT_PUBLIC_API_URL}/companies/delete` verifies that token and calls
+   the Postgres function `delete_companies_permanently(uuid[])` with the
+   **service role key**, which lives only in the API server's environment.
+3. The function deletes dependants and the company in **one transaction** —
+   jobs and `coach_company_meta` are deleted, `outreach_emails` are kept with
+   `company_id` cleared, so a coach never loses their own drafts or sent-mail
+   record.
+
+Single-row and bulk deletion call the same action with an array of one or many,
+and both go through the same confirmation dialog. Rows are removed from the
+table only after the server reports which ids it actually deleted, and the route
+is then refreshed so the dashboard, outreach list, and public pages reflect the
+new company set. Requires migration
+`infra/supabase/migrations/0004_company_permanent_delete.sql`.
 
 ### Outreach generation & drafts
 
@@ -102,10 +138,13 @@ cp apps/web/.env.local.example apps/web/.env.local
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_API_URL=https://your-api.up.railway.app
 ```
 
-Both are safe to expose to the browser (public anon key, read-only access via
-the view and RLS policies).
+The Supabase pair is safe to expose to the browser (public anon key, read-only
+access via the view and RLS policies). `NEXT_PUBLIC_API_URL` points at
+`apps/api` and is required for AI generation, email sending, the crawler, and
+permanent company deletion.
 
 ## Getting started
 

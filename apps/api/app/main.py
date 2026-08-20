@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.config import get_settings
-from app.routers import ai, discover, email
+from app.routers import ai, companies, discover, email
 
 
 def create_app() -> FastAPI:
@@ -33,6 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(ai.router)
     app.include_router(email.router)
     app.include_router(discover.router)
+    app.include_router(companies.router)
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:

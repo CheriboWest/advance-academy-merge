@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -76,3 +77,36 @@ class CrawlRunStatus(BaseModel):
     error: Optional[str] = None
     created_at: Optional[str] = None
     finished_at: Optional[str] = None
+
+
+# Bulk deletion is one transaction on the database; the cap keeps a single
+# request (and the URL-free JSON body it produces) to a sane size.
+MAX_COMPANIES_PER_DELETE = 200
+
+
+class DeleteCompaniesRequest(BaseModel):
+    """Companies to permanently delete. Ids are validated as UUIDs by Pydantic."""
+
+    company_ids: list[UUID] = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_COMPANIES_PER_DELETE,
+        description="Company ids to delete permanently, for everyone.",
+    )
+
+
+class DeleteCompaniesResponse(BaseModel):
+    """Outcome of a permanent deletion, reported per company id.
+
+    `requested` counts the ids after de-duplication, so
+    `deleted_companies + len(missing_company_ids) == requested` always holds —
+    a partial result is visible rather than implied.
+    """
+
+    requested: int
+    deleted_companies: int
+    deleted_company_ids: list[str] = Field(default_factory=list)
+    missing_company_ids: list[str] = Field(default_factory=list)
+    deleted_jobs: int = 0
+    deleted_coach_meta: int = 0
+    unlinked_outreach_emails: int = 0
