@@ -13,18 +13,18 @@ interface CompanyContextCardProps {
 /** Read-only context panel for a company on the outreach composer page. */
 export function CompanyContextCard({ company }: CompanyContextCardProps) {
   return (
-    <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+    <section className="rounded-sm border border-border bg-card p-6">
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               {company.sector && (
-                <Badge variant="secondary" className="rounded-full">
+                <Badge variant="secondary">
                   {company.sector}
                 </Badge>
               )}
             </div>
-            <h2 className="text-2xl font-bold tracking-tight">
+            <h2 className="text-2xl">
               {company.name}
             </h2>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">

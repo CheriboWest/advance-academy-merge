@@ -3,15 +3,15 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Menu, Search, UserRound, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const navLinks = [
-  { href: "/search", label: "Search", icon: Search },
-  { href: "/coach/login", label: "Coach", icon: UserRound },
+  { href: "/search", label: "Search" },
+  { href: "/coach/login", label: "Coach" },
 ] as const;
 
 export function Navbar() {
@@ -22,43 +22,37 @@ export function Navbar() {
   React.useEffect(() => setOpen(false), [pathname]);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-40 w-full border-b border-border bg-background">
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link
-          href="/"
-          className="flex items-center gap-2 font-semibold tracking-tight"
-        >
-          <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Compass className="size-5" />
+        <Link href="/" className="group flex items-baseline gap-1.5">
+          <span className="font-display text-2xl leading-none tracking-tight">
+            CareerHub
           </span>
-          <span className="text-base sm:text-lg">CareerHub UK</span>
+          <span className="label-caps text-foreground/70 transition-colors group-hover:text-highlight">
+            UK
+          </span>
         </Link>
 
-        {/* Desktop navigation */}
-        <nav className="hidden items-center gap-1 md:flex">
-          {navLinks.map(({ href, label, icon: Icon }) => {
+        {/* Desktop navigation — active state is a rule under the word, not a pill. */}
+        <nav className="hidden items-center gap-7 md:flex">
+          {navLinks.map(({ href, label }) => {
             const active = pathname === href || pathname.startsWith(`${href}/`);
             return (
-              <Button
+              <Link
                 key={href}
-                asChild
-                variant="ghost"
-                size="sm"
+                href={href}
                 className={cn(
-                  "gap-2 text-muted-foreground",
-                  active && "text-foreground"
+                  "border-b-2 py-1 text-sm font-medium transition-colors",
+                  active
+                    ? "border-primary text-foreground"
+                    : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
                 )}
               >
-                <Link href={href}>
-                  <Icon className="size-4" />
-                  {label}
-                </Link>
-              </Button>
+                {label}
+              </Link>
             );
           })}
-          <div className="ml-1">
-            <ThemeToggle />
-          </div>
+          <ThemeToggle />
         </nav>
 
         {/* Mobile controls */}
@@ -78,9 +72,9 @@ export function Navbar() {
 
       {/* Mobile menu */}
       {open && (
-        <div className="border-t border-border/60 md:hidden">
-          <nav className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-4 py-3 sm:px-6">
-            {navLinks.map(({ href, label, icon: Icon }) => {
+        <nav className="border-t border-border md:hidden">
+          <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
+            {navLinks.map(({ href, label }) => {
               const active =
                 pathname === href || pathname.startsWith(`${href}/`);
               return (
@@ -88,17 +82,16 @@ export function Navbar() {
                   key={href}
                   href={href}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-                    active && "bg-accent text-accent-foreground"
+                    "flex items-center border-b border-border py-3.5 text-sm font-medium transition-colors last:border-b-0",
+                    active ? "text-foreground" : "text-muted-foreground"
                   )}
                 >
-                  <Icon className="size-4" />
                   {label}
                 </Link>
               );
             })}
-          </nav>
-        </div>
+          </div>
+        </nav>
       )}
     </header>
   );

@@ -131,10 +131,10 @@ export function OutreachComposer({
   }
 
   return (
-    <section className="space-y-5 rounded-3xl border border-border bg-card p-6 shadow-sm">
+    <section className="space-y-5 rounded-sm border border-border bg-card p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-lg font-semibold tracking-tight">
+          <h3 className="text-lg">
             Outreach draft
           </h3>
           <p className="text-sm text-muted-foreground">
@@ -146,7 +146,7 @@ export function OutreachComposer({
         <Button
           type="button"
           variant="outline"
-          className="rounded-xl"
+         
           onClick={handleGenerate}
           disabled={busy}
         >
@@ -169,7 +169,7 @@ export function OutreachComposer({
           onChange={(event) => setSubject(event.target.value)}
           placeholder="Your outreach subject line"
           disabled={busy}
-          className="h-11 rounded-xl"
+          className="h-11"
         />
       </div>
 
@@ -183,7 +183,7 @@ export function OutreachComposer({
           onChange={(event) => setBody(event.target.value)}
           placeholder="Write or generate your outreach message"
           disabled={busy}
-          className="min-h-72 rounded-2xl"
+          className="min-h-72"
         />
       </div>
 
@@ -198,7 +198,7 @@ export function OutreachComposer({
           onChange={(event) => setRecipient(event.target.value)}
           placeholder="recruiter@company.com"
           disabled={busy}
-          className="h-11 rounded-xl"
+          className="h-11"
         />
       </div>
 
@@ -206,9 +206,9 @@ export function OutreachComposer({
         <p
           role="status"
           className={cn(
-            "flex items-center gap-2 rounded-xl border px-3 py-2 text-sm",
+            "flex items-center gap-2 rounded-sm border px-3 py-2 text-sm",
             feedback.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/50 dark:text-emerald-300"
+              ? "border-primary/40 bg-primary/10 text-foreground"
               : "border-destructive/30 bg-destructive/10 text-destructive"
           )}
         >
@@ -225,7 +225,7 @@ export function OutreachComposer({
         <Button
           type="button"
           variant="outline"
-          className="rounded-xl"
+         
           onClick={handleSave}
           disabled={busy}
         >
@@ -238,7 +238,7 @@ export function OutreachComposer({
         </Button>
         <Button
           type="button"
-          className="rounded-xl"
+         
           onClick={handleSend}
           disabled={busy}
         >

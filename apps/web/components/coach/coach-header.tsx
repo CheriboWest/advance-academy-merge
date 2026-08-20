@@ -29,43 +29,43 @@ export function CoachHeader({ email }: CoachHeaderProps) {
   React.useEffect(() => setMenuOpen(false), [pathname]);
 
   return (
-    <div className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden"
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((prev) => !prev)}
-        >
-          {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-        </Button>
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Coach workspace
-          </p>
-          <h1 className="text-xl font-bold tracking-tight">
-            {titleForPath(pathname)}
-          </h1>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-3 sm:justify-end">
-        <span className="truncate text-sm text-muted-foreground" title={email}>
-          {email}
-        </span>
-        <form action={signOutAction}>
-          <Button type="submit" variant="outline" size="sm" className="rounded-xl">
-            <LogOut className="size-4" />
-            Sign out
+    <div className="border-b-2 border-foreground pb-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="-ml-2 md:hidden"
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((prev) => !prev)}
+          >
+            {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </Button>
-        </form>
+          <div>
+            <p className="label-caps">Coach workspace</p>
+            <h1 className="mt-1 text-3xl leading-none">
+              {titleForPath(pathname)}
+            </h1>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 sm:justify-end">
+          <span className="truncate text-sm text-muted-foreground" title={email}>
+            {email}
+          </span>
+          <form action={signOutAction}>
+            <Button type="submit" variant="outline" size="sm">
+              <LogOut className="size-4" />
+              Sign out
+            </Button>
+          </form>
+        </div>
       </div>
 
       {/* Mobile navigation drawer */}
       {menuOpen && (
-        <nav className="flex flex-col gap-1 border-t border-border pt-3 md:hidden">
+        <nav className="mt-4 flex flex-col border-t border-border md:hidden">
           {coachNavItems.map(({ href, label, icon: Icon }) => {
             const active =
               pathname === href || pathname.startsWith(`${href}/`);
@@ -74,8 +74,10 @@ export function CoachHeader({ email }: CoachHeaderProps) {
                 key={href}
                 href={href}
                 className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground",
-                  active && "bg-primary/10 text-primary"
+                  "flex items-center gap-3 border-b border-border py-3 text-sm transition-colors last:border-b-0",
+                  active
+                    ? "font-medium text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
                 <Icon className="size-4" />

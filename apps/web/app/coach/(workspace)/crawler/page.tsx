@@ -222,7 +222,7 @@ export default function CrawlerPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h2 className="text-xl font-semibold tracking-tight">Job crawler</h2>
+        <h2 className="text-xl">Job crawler</h2>
         <p className="text-sm text-muted-foreground">
           Discover companies and roles from Adzuna and Reed. Results feed the
           shared database — review companies on the{" "}
@@ -237,7 +237,7 @@ export default function CrawlerPage() {
       </header>
 
       {/* Form */}
-      <section className="space-y-5 rounded-3xl border border-border bg-card p-6 shadow-sm">
+      <section className="space-y-5 rounded-sm border border-border bg-card p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label htmlFor="query" className="text-sm font-medium">
@@ -249,7 +249,7 @@ export default function CrawlerPage() {
               onChange={(event) => setQuery(event.target.value)}
               placeholder="e.g. Software Engineer"
               disabled={busy}
-              className="h-11 rounded-xl"
+              className="h-11"
             />
           </div>
           <div className="space-y-2">
@@ -262,7 +262,7 @@ export default function CrawlerPage() {
               onChange={(event) => setCity(event.target.value)}
               placeholder="e.g. London"
               disabled={busy}
-              className="h-11 rounded-xl"
+              className="h-11"
             />
           </div>
         </div>
@@ -274,7 +274,7 @@ export default function CrawlerPage() {
               <label
                 key={source.key}
                 className={cn(
-                  "flex cursor-pointer items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm",
+                  "flex cursor-pointer items-center gap-2 rounded-sm border border-border px-3 py-2 text-sm",
                   sources[source.key] && "border-primary/40 bg-primary/5"
                 )}
               >
@@ -298,7 +298,7 @@ export default function CrawlerPage() {
         {error && phase !== "running" && (
           <p
             role="alert"
-            className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            className="flex items-center gap-2 rounded-sm border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
           >
             <TriangleAlert className="size-4 shrink-0" />
             {error}
@@ -308,7 +308,7 @@ export default function CrawlerPage() {
         <div className="flex justify-end">
           <Button
             type="button"
-            className="rounded-xl"
+           
             onClick={() => begin(false)}
             disabled={busy}
           >
@@ -324,13 +324,11 @@ export default function CrawlerPage() {
 
       {/* Cached prompt */}
       {phase === "cached" && cached && (
-        <section className="space-y-4 rounded-3xl border border-border bg-card p-6 shadow-sm">
+        <section className="space-y-4 rounded-sm border border-border bg-card p-6">
           <div className="flex items-start gap-3">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Clock className="size-5" />
-            </span>
+            <Clock className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
             <div>
-              <h3 className="font-semibold tracking-tight">
+              <h3 className="text-lg">
                 Using cached results
               </h3>
               <p className="text-sm text-muted-foreground">
@@ -346,14 +344,14 @@ export default function CrawlerPage() {
             <Button
               type="button"
               variant="outline"
-              className="rounded-xl"
+             
               onClick={() => setPhase("cached-accepted")}
             >
               Use cached
             </Button>
             <Button
               type="button"
-              className="rounded-xl"
+             
               onClick={() => begin(true)}
             >
               <RefreshCcw className="size-4" />
@@ -365,7 +363,7 @@ export default function CrawlerPage() {
 
       {/* Cached accepted */}
       {phase === "cached-accepted" && cached && (
-        <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-800 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
+        <section className="rounded-sm border border-primary/40 bg-primary/10 p-6 text-foreground">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
               <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
@@ -374,7 +372,7 @@ export default function CrawlerPage() {
                 companies on the Companies page.
               </p>
             </div>
-            <Button asChild size="sm" className="shrink-0 rounded-xl">
+            <Button asChild size="sm" className="shrink-0">
               <Link href="/coach/companies">
                 Companies
                 <ArrowRight className="size-4" />
@@ -386,7 +384,7 @@ export default function CrawlerPage() {
 
       {/* Running */}
       {phase === "running" && (
-        <section className="flex items-center gap-3 rounded-3xl border border-border bg-card p-6 shadow-sm">
+        <section className="flex items-center gap-3 rounded-sm border border-border bg-card p-6">
           <Loader2 className="size-5 animate-spin text-primary" />
           <div>
             <p className="font-medium">Crawling…</p>
@@ -401,10 +399,10 @@ export default function CrawlerPage() {
       {phase === "done" && run && (
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold tracking-tight">
+            <h3 className="text-lg">
               Crawl complete
             </h3>
-            <Button asChild size="sm" variant="outline" className="rounded-xl">
+            <Button asChild size="sm" variant="outline">
               <Link href="/coach/companies">
                 Review companies
                 <ArrowRight className="size-4" />
@@ -413,7 +411,7 @@ export default function CrawlerPage() {
           </div>
 
           {run.error && (
-            <p className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+            <p className="flex items-center gap-2 rounded-sm border border-highlight/40 bg-highlight/10 px-3 py-2 text-sm text-foreground">
               <TriangleAlert className="size-4 shrink-0" />
               Some sources reported issues: {run.error}
             </p>
@@ -457,13 +455,13 @@ export default function CrawlerPage() {
 
       {/* History */}
       <section className="space-y-4">
-        <h3 className="text-lg font-semibold tracking-tight">Recent crawls</h3>
+        <h3 className="text-lg">Recent crawls</h3>
         {history.length === 0 ? (
-          <p className="rounded-3xl border border-dashed border-border bg-card/50 px-6 py-8 text-center text-sm text-muted-foreground">
+          <p className="rounded-sm border border-dashed border-border bg-card/50 px-6 py-8 text-center text-sm text-muted-foreground">
             No crawls yet. Run one above to get started.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-3xl border border-border bg-card shadow-sm">
+          <div className="overflow-x-auto rounded-sm border border-border bg-card">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -495,7 +493,7 @@ export default function CrawlerPage() {
                               ? "destructive"
                               : "outline"
                         }
-                        className="rounded-full"
+                       
                       >
                         {item.status}
                       </Badge>

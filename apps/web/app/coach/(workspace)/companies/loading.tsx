@@ -2,8 +2,8 @@ export default function CompaniesLoading() {
   return (
     <div className="space-y-4">
       <div className="h-4 w-72 animate-pulse rounded bg-muted" />
-      <div className="h-11 w-full max-w-md animate-pulse rounded-xl bg-muted" />
-      <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+      <div className="h-11 w-full max-w-md animate-pulse rounded-sm bg-muted" />
+      <div className="overflow-hidden rounded-sm border border-border bg-card">
         {Array.from({ length: 8 }).map((_, index) => (
           <div
             key={index}
@@ -11,7 +11,7 @@ export default function CompaniesLoading() {
           >
             <div className="h-4 w-40 animate-pulse rounded bg-muted" />
             <div className="h-4 w-24 animate-pulse rounded bg-muted" />
-            <div className="ml-auto h-6 w-24 animate-pulse rounded-full bg-muted" />
+            <div className="ml-auto h-6 w-24 animate-pulse rounded-sm bg-muted" />
           </div>
         ))}
       </div>

@@ -108,7 +108,7 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search by company or location"
           aria-label="Search companies"
-          className="h-11 rounded-xl pl-9"
+          className="h-11 pl-9"
         />
       </div>
 
@@ -133,7 +133,7 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
           />
         )
       ) : (
-        <div className="overflow-x-auto rounded-3xl border border-border bg-card shadow-sm">
+        <div className="overflow-x-auto rounded-sm border border-border bg-card">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -175,7 +175,7 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="rounded-lg"
+                     
                       aria-pressed={row.starred}
                       aria-label={row.starred ? "Unstar company" : "Star company"}
                       disabled={pendingId === row.company_id}
@@ -185,7 +185,7 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
                         className={cn(
                           "size-4",
                           row.starred
-                            ? "fill-amber-400 text-amber-400"
+                            ? "fill-highlight text-highlight"
                             : "text-muted-foreground"
                         )}
                       />
@@ -204,7 +204,7 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-lg"
+                       
                         aria-label={`Restore ${row.name} to your companies`}
                         disabled={pendingId === row.company_id}
                         onClick={() => restoreCompany(row)}
@@ -216,7 +216,7 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="rounded-lg text-muted-foreground hover:text-destructive"
+                        className="text-muted-foreground hover:text-destructive"
                         aria-label={`Remove ${row.name} from your companies`}
                         disabled={pendingId === row.company_id}
                         onClick={() => deleteCompany(row)}

@@ -29,16 +29,16 @@ export function OutreachList({ companies }: OutreachListProps) {
       {companies.map((company) => (
         <article
           key={company.company_id}
-          className="flex h-full flex-col justify-between gap-6 rounded-3xl border border-border bg-card p-6 shadow-sm transition-shadow hover:shadow-md"
+          className="flex h-full flex-col justify-between gap-6 rounded-sm border border-border bg-card p-6 transition-shadow hover:shadow-md"
         >
           <div className="flex flex-col gap-4">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
-                <h3 className="text-lg font-semibold leading-tight tracking-tight">
+                <h3 className="text-lg leading-tight">
                   {company.name}
                 </h3>
                 {company.hasDraft && (
-                  <Badge variant="secondary" className="rounded-full font-normal">
+                  <Badge variant="secondary">
                     Draft saved
                   </Badge>
                 )}
@@ -61,7 +61,7 @@ export function OutreachList({ companies }: OutreachListProps) {
             </dl>
           </div>
 
-          <Button asChild className="w-full rounded-xl">
+          <Button asChild className="w-full">
             <Link href={`/coach/outreach/${company.company_id}`}>
               {company.hasDraft ? (
                 <>

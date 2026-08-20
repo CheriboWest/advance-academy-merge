@@ -1,16 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  Briefcase,
-  Building2,
-  Flame,
-  MapPin,
-  TrendingUp,
-} from "lucide-react";
+import { Briefcase, Building2, Flame, MapPin, TrendingUp } from "lucide-react";
 
 import { getDashboardData } from "@/lib/coach";
 import { KPICard } from "@/components/coach/kpi-card";
-import { CompanyCard } from "@/components/company-card";
+import { CompanyRow } from "@/components/company-row";
 import { LeadScoreBadge } from "@/components/lead-score-badge";
 import { EmptyState } from "@/components/empty-state";
 
@@ -22,9 +16,9 @@ export default async function CoachDashboardPage() {
   const data = await getDashboardData();
 
   return (
-    <div className="space-y-8">
-      {/* KPIs */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="space-y-12">
+      {/* Statistics band */}
+      <section className="grid grid-cols-1 border-y border-border sm:grid-cols-2 sm:divide-x sm:divide-border lg:grid-cols-4">
         <KPICard
           label="Total companies"
           value={data.totalCompanies.toLocaleString("en-GB")}
@@ -50,38 +44,39 @@ export default async function CoachDashboardPage() {
       </section>
 
       {/* Top hiring companies */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold tracking-tight">
-            Top hiring companies
-          </h2>
-        </div>
+      <section>
+        <h2 className="border-b-2 border-foreground pb-3 text-2xl">
+          Top hiring companies
+        </h2>
 
         {data.topHiringCompanies.length > 0 ? (
-          <ol className="grid gap-3">
+          <ol className="divide-y divide-border">
             {data.topHiringCompanies.map((company, index) => (
               <li key={company.id}>
                 <Link
                   href={`/companies/${company.slug}`}
-                  className="flex items-center gap-4 rounded-3xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/40"
+                  className="group flex items-center gap-4 border-l-2 border-transparent py-4 pl-3 transition-[background-color,border-color,padding] hover:border-l-primary hover:bg-muted hover:pl-5"
                 >
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-semibold tabular-nums text-primary">
-                    {index + 1}
+                  <span className="font-display text-xl tabular-nums text-muted-foreground">
+                    {String(index + 1).padStart(2, "0")}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{company.name}</p>
+                    <p className="truncate text-lg">{company.name}</p>
                     <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
                       <MapPin className="size-3.5" />
                       {company.hq_location ?? company.region ?? "—"}
                     </p>
                   </div>
-                  <LeadScoreBadge score={company.lead_score ?? 0} />
-                  <div className="hidden shrink-0 text-right sm:block">
-                    <p className="text-lg font-semibold tabular-nums">
+                  <div className="hidden shrink-0 text-right leading-none sm:block">
+                    <span className="label-caps">Open roles</span>
+                    <span className="mt-1 block font-display text-2xl tabular-nums">
                       {company.open_jobs ?? 0}
-                    </p>
-                    <p className="text-xs text-muted-foreground">open jobs</p>
+                    </span>
                   </div>
+                  <LeadScoreBadge
+                    score={company.lead_score ?? 0}
+                    className="shrink-0"
+                  />
                 </Link>
               </li>
             ))}
@@ -96,17 +91,19 @@ export default async function CoachDashboardPage() {
       </section>
 
       {/* Recent companies */}
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold tracking-tight">
+      <section>
+        <h2 className="border-b-2 border-foreground pb-3 text-2xl">
           Recent companies
         </h2>
 
         {data.recentCompanies.length > 0 ? (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <ul className="divide-y divide-border">
             {data.recentCompanies.map((company) => (
-              <CompanyCard key={company.id} company={company} />
+              <li key={company.id}>
+                <CompanyRow company={company} />
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
           <EmptyState
             icon={Building2}

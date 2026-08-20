@@ -36,7 +36,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           placeholder="coach@careerhub.uk"
           required
           disabled={pending}
-          className="h-11 rounded-xl"
+          className="h-11"
         />
       </div>
 
@@ -52,14 +52,14 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           placeholder="••••••••"
           required
           disabled={pending}
-          className="h-11 rounded-xl"
+          className="h-11"
         />
       </div>
 
       {state.error && (
         <p
           role="alert"
-          className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="flex items-center gap-2 rounded-sm border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           <TriangleAlert className="size-4 shrink-0" />
           {state.error}
@@ -69,7 +69,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       <Button
         type="submit"
         disabled={pending}
-        className="h-11 w-full rounded-xl"
+        className="h-11 w-full"
       >
         {pending ? (
           <>

@@ -27,8 +27,9 @@ careerhub/
 
 - **Frontend:** Next.js 15 (App Router) + TypeScript
 - **Styling:** Tailwind CSS v4
-- **Components:** shadcn/ui
-- **Animations:** Framer Motion
+- **Components:** shadcn/ui primitives on a custom "Editorial UK" theme
+- **Type:** Instrument Serif (display) + Inter Tight (body)
+- **Animations:** CSS transitions + `tw-animate-css` (no animation library)
 - **Icons:** Lucide React
 - **Package manager:** npm
 - **Backend:** FastAPI (scaffold only for this milestone)
