@@ -77,8 +77,8 @@ export default async function CoachCompaniesPage({
       <header className="space-y-1">
         <p className="text-sm text-muted-foreground">
           {removed
-            ? "Companies you removed from your list. Restore any to bring it back — your notes and stars are kept."
-            : "Star companies and keep private notes — visible only to you."}
+            ? "Companies you removed from your list — hidden from your workspace only, and still visible to students and other coaches. Restore any to bring it back; your notes and stars are kept."
+            : "Star companies and keep private notes — visible only to you. Removing a company hides it from your list; the trash button deletes it from the database for everyone."}
         </p>
       </header>
       {tabs}
