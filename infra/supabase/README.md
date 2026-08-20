@@ -24,6 +24,7 @@ infra/supabase/
 | `0002_crawl_run_stats.sql` | Additional `crawl_runs` statistics columns |
 | `0003_job_title_search.sql` | `pg_trgm` + GIN index backing Job Role Search |
 | `0004_company_permanent_delete.sql` | `delete_companies_permanently(uuid[])` — transactional, `service_role`-only permanent company deletion |
+| `0005_crawl_run_stats_columns.sql` | `crawl_runs` columns the crawler writes: `source`, `started_at`/`completed_at`, `error`, and the seven per-run job/company counts |
 
 All migrations are additive and idempotent: re-running one is a no-op.
 
