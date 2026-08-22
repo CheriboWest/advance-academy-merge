@@ -147,6 +147,20 @@ Requires migration `infra/supabase/migrations/0004_company_permanent_delete.sql`
   `status` is `completed`/`failed`).
 - **`GET /discover/history`** — the last 10 crawl runs.
 
+**Crawl statistics.** The pipeline counts raw / normalized / inserted / updated
+/ duplicate jobs and created / updated companies into a single `CrawlStats`
+object, and persists it to that run's `crawl_runs` row in the **same UPDATE**
+that sets the terminal `status`. One statement matters: the coach's UI stops
+polling as soon as it sees a terminal status, so writing the status first and
+the counts second would leave a window where a finished crawl renders zeros.
+`GET /discover/status/{run_id}` reads those columns straight back — nothing is
+recomputed or aggregated from `jobs`/`companies`.
+
+Requires migration `infra/supabase/migrations/0005_crawl_run_stats_columns.sql`.
+Without it the database has nowhere to store the counts; the pipeline falls back
+to a status-only write (so the run still finishes) and logs a message naming the
+migration.
+
 Crawl pipeline: fetch from Adzuna/Reed (per-source timeouts, partial failure
 tolerated) → normalize company/title/city/salary → merge company name variants
 into one slug → upsert companies (best-effort homepage enrichment: description,
@@ -208,6 +222,7 @@ python test_auth.py        # JWKS token verification
 python test_cors.py        # CORS configuration
 python test_scoring.py     # lead scoring
 python test_companies.py   # permanent company deletion endpoint
+python test_crawl_stats.py # crawl statistics reach the right crawl_runs row
 ```
 
 `test_companies.py` stubs the Supabase call, so it needs no network and no
