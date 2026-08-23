@@ -12,6 +12,10 @@
     # Ingest a CSV you already have
     python scripts/import_sponsor_register.py --file ./worker-register.csv
 
+    # Show exactly the rows the importer would send as batch 552, with their
+    # payload sizes. Read-only: no credentials needed, nothing is written.
+    python scripts/import_sponsor_register.py --file ./register.csv --inspect-batch 552
+
     # Download the current edition from GOV.UK and ingest it
     python scripts/import_sponsor_register.py
 
@@ -33,7 +37,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config import get_settings  # noqa: E402
 from app.crawler.supabase_rest import SupabaseRest  # noqa: E402
-from app.sponsors.importer import RegisterValidationError, run_import  # noqa: E402
+from app.sponsors.importer import (  # noqa: E402
+    UPSERT_CHUNK,
+    RegisterValidationError,
+    run_import,
+)
+from app.sponsors.inspection import BatchOutOfRange, render_batch  # noqa: E402
 from app.sponsors.parser import (  # noqa: E402
     CsvParseError,
     decode_detail,
@@ -70,6 +79,34 @@ def _validate(path: Path) -> int:
     print(render(report))
     print("\n(nothing was written — this is a read-only check)")
     return 0 if report.ok else 1
+
+
+def _inspect(path: Path, batch_number: int, chunk_size: int) -> int:
+    """Print one batch of the file as the importer would send it. Writes nothing."""
+    try:
+        text, _encoding = decode_detail(path.read_bytes())
+        parsed = parse_register_detail(text)
+    except CsvParseError as exc:
+        print(f"\n{exc}\n", file=sys.stderr)
+        return 3
+
+    # Deduplicated, because that is the list the importer batches: batch numbers
+    # only line up with a failing run if the same rows were dropped first.
+    records, _duplicates = deduplicate(parsed.records)
+    try:
+        print(
+            render_batch(
+                records,
+                batch_number,
+                chunk_size=chunk_size,
+                file_name=path.name,
+                total_rows=parsed.data_lines,
+            )
+        )
+    except BatchOutOfRange as exc:
+        print(f"\n{exc}\n", file=sys.stderr)
+        return 2
+    return 0
 
 
 async def _ingest(path: Path | None, force: bool) -> int:
@@ -115,6 +152,14 @@ def main() -> int:
     parser.add_argument("--force", action="store_true",
                         help="Import even if the safety checks fail. Only after "
                              "inspecting the validation report.")
+    parser.add_argument("--inspect-batch", type=int, metavar="N",
+                        help="Print the rows and payload sizes of import batch "
+                             "N. Read-only: writes nothing, needs no credentials.")
+    parser.add_argument("--batch-size", type=int, default=UPSERT_CHUNK,
+                        metavar="N",
+                        help=f"Batch size --inspect-batch numbers by "
+                             f"(default {UPSERT_CHUNK}). Only change this if the "
+                             f"failing run used a different SPONSOR_UPSERT_CHUNK.")
     parser.add_argument("--verbose", action="store_true", help="Debug logging.")
     args = parser.parse_args()
 
@@ -122,6 +167,18 @@ def main() -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)-8s %(name)s: %(message)s",
     )
+
+    if args.inspect_batch is not None:
+        if not args.file:
+            print("--inspect-batch needs --file.", file=sys.stderr)
+            return 2
+        if not args.file.exists():
+            print(f"No such file: {args.file}", file=sys.stderr)
+            return 2
+        if args.batch_size < 1:
+            print("--batch-size must be at least 1.", file=sys.stderr)
+            return 2
+        return _inspect(args.file, args.inspect_batch, args.batch_size)
 
     if args.dry_run or args.validate:
         if not args.file:

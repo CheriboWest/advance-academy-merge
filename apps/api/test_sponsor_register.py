@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from app.sponsors.importer import ingest_records, run_import
-from app.sponsors.models import ImportStats
+from app.sponsors.models import ImportStats, SponsorRecord
 from app.sponsors.normalize import (
     natural_key,
     normalize_organisation_name,
@@ -152,6 +152,38 @@ check("town normalization is case and whitespace insensitive",
 check("type and rating are parsed", parse_type_rating("Worker (A rating)") == ("Worker", "A"))
 check("an unparseable type/rating yields nulls, not a guess",
       parse_type_rating("Worker") == (None, None))
+
+# The wording the register actually publishes today. A pattern written for the
+# older "(A rating)" spelling matched none of these and stored two NULLs for
+# every row in the file.
+for published, expected in (
+    ("Worker (A (Premium))", ("Worker", "A (Premium)")),
+    ("Worker (A (SME+))", ("Worker", "A (SME+)")),
+    ("Temporary Worker (A (Premium))", ("Temporary Worker", "A (Premium)")),
+    ("Temporary Worker (A (SME+))", ("Temporary Worker", "A (SME+)")),
+    ("Worker (UK Expansion Worker: Provisional )",
+     ("Worker", "UK Expansion Worker: Provisional")),
+):
+    check(f"the published value {published!r} is split correctly",
+          parse_type_rating(published) == expected,
+          f"got {parse_type_rating(published)}")
+
+check("the old wording still parses the same way it always did",
+      parse_type_rating("Temporary Worker (A rating)") == ("Temporary Worker", "A"))
+check("a bare grade is upper-cased so editions agree",
+      parse_type_rating("worker (a rating)")[1] == "A")
+check("a rating phrase keeps the register's own capitalisation",
+      parse_type_rating("Worker (UK Expansion Worker: Provisional )")[1]
+      == "UK Expansion Worker: Provisional")
+check("unbalanced brackets are refused rather than half-parsed",
+      parse_type_rating("Worker (A (Premium)") == (None, None))
+check("the published value itself is never rewritten",
+      SponsorRecord(
+          organisation_name="X", town_city=None, county=None,
+          type_rating="Worker (A (SME+))", route=None,
+          licence_type="Worker", rating="A (SME+)",
+          normalized_name="x", normalized_town=None, natural_key="k",
+      ).as_row("u", None)["type_rating"] == "Worker (A (SME+))")
 check("natural key separates routes for one organisation",
       natural_key("acme", "london", "GL", "Worker (A rating)", "Skilled Worker")
       != natural_key("acme", "london", "GL", "Worker (A rating)", "Creative Worker"))

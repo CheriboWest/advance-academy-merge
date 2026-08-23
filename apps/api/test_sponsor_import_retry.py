@@ -191,8 +191,13 @@ except httpx.ReadTimeout:
     raised = True
 
 check("SCENARIO 2: the import fails", raised)
-check("SCENARIO 2: the batch was attempted exactly the retry limit",
-      rest.timeouts_raised == BATCH_MAX_ATTEMPTS, f"got {rest.timeouts_raised}")
+# The fail plan is keyed on the batch, so batch 3 and every chunk it is split
+# into fail: the retry budget is spent, then the halves are tried and fail too,
+# all the way down to the split floor. Splitting itself is covered in
+# test_sponsor_import_split.py; what matters here is that the full retry budget
+# came first and that the import still ends up refusing to continue.
+check("SCENARIO 2: the batch got its whole retry budget, then was narrowed",
+      rest.timeouts_raised > BATCH_MAX_ATTEMPTS, f"got {rest.timeouts_raised}")
 check("SCENARIO 2: the run is marked error",
       rest.imports[-1]["status"] == "error", f"got {rest.imports[-1]['status']}")
 check("SCENARIO 2: the error detail is kept",
