@@ -62,6 +62,17 @@ class FakeRest:
     async def select(self, client, table, params=None):
         params = params or {}
         self.requests.append(f"select:{table}")
+        if table == "sponsor_register_imports":
+            # The importer reads the previous successful edition's row count to
+            # size-check the new one. Without this the comparison silently never
+            # runs and the shrink guard looks like it passed.
+            rows = list(self.imports)
+            status = params.get("status")
+            if status and status.startswith("eq."):
+                rows = [r for r in rows if r.get("status") == status[3:]]
+            if (params.get("order") or "").startswith("started_at.desc"):
+                rows = list(reversed(rows))
+            return [dict(r) for r in rows][: int(params.get("limit", "50"))]
         if table == "sponsor_licences":
             offset = int(params.get("offset", "0"))
             limit = int(params.get("limit", "1000"))
@@ -102,9 +113,19 @@ class FakeRest:
         return None
 
 
-def ingest(rest: FakeRest, csv_bytes: bytes) -> ImportStats:
+def ingest(rest: FakeRest, csv_bytes: bytes, force: bool = True) -> ImportStats:
+    """Ingest the fixture.
+
+    `force=True` by default: the fixture is deliberately dense with edge cases
+    (a fifth of its lines are rejected or duplicated), which the pre-import
+    safety gate refuses on purpose. These checks are about ingestion mechanics —
+    the gate itself is covered in test_sponsor_validation.py.
+    """
     _, stats = asyncio.run(
-        run_import(rest, client=object(), csv_bytes=csv_bytes, source_url=SOURCE_URL)
+        run_import(
+            rest, client=object(), csv_bytes=csv_bytes,
+            source_url=SOURCE_URL, force=force,
+        )
     )
     return stats
 

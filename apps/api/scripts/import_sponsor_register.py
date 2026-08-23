@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """Run the sponsor-register importer from the command line.
 
-    # Download the current edition from GOV.UK and ingest it
-    python scripts/import_sponsor_register.py
+    # Validate a manually downloaded edition without writing anything.
+    # --validate is an alias of --dry-run: both parse the whole file, normalize,
+    # run every uniqueness and safety check, print the report, and touch no
+    # database. There is one code path, so the thing you validate is exactly the
+    # thing that would be imported.
+    python scripts/import_sponsor_register.py --file ./register.csv --dry-run
+    python scripts/import_sponsor_register.py --file ./register.csv --validate
 
-    # Ingest a CSV you already have (an archived edition, or an offline run)
+    # Ingest a CSV you already have
     python scripts/import_sponsor_register.py --file ./worker-register.csv
 
-    # Parse and report without writing anything
-    python scripts/import_sponsor_register.py --file ./register.csv --dry-run
+    # Download the current edition from GOV.UK and ingest it
+    python scripts/import_sponsor_register.py
 
 Needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment (or in
 apps/api/.env) unless --dry-run is used. Safe to run repeatedly: rows are keyed
@@ -28,29 +33,46 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config import get_settings  # noqa: E402
 from app.crawler.supabase_rest import SupabaseRest  # noqa: E402
-from app.sponsors.importer import run_import  # noqa: E402
-from app.sponsors.parser import decode, deduplicate, parse_register  # noqa: E402
+from app.sponsors.importer import RegisterValidationError, run_import  # noqa: E402
+from app.sponsors.parser import (  # noqa: E402
+    CsvParseError,
+    decode_detail,
+    deduplicate,
+    parse_register_detail,
+)
+from app.sponsors.validation import build_report, render  # noqa: E402
 
 
-def _dry_run(path: Path) -> int:
-    records, rejections, data_lines = parse_register(decode(path.read_bytes()))
-    records, duplicates = deduplicate(records)
+def _validate(path: Path) -> int:
+    """Parse and check the file, printing the report. Writes nothing."""
+    try:
+        text, encoding = decode_detail(path.read_bytes())
+        parsed = parse_register_detail(text)
+    except CsvParseError as exc:
+        print(f"\n{exc}\n", file=sys.stderr)
+        return 3
 
-    print(f"rows downloaded : {data_lines}")
-    print(f"rows parsed     : {len(records)}")
-    print(f"rows rejected   : {len(rejections) + duplicates} "
-          f"({len(rejections)} unparseable, {duplicates} in-file duplicates)")
-    for rejected in rejections[:20]:
-        print(f"  line {rejected.line_number}: {rejected.reason} — {rejected.raw}")
-    print("\nfirst 5 records:")
-    for record in records[:5]:
-        print(f"  {record.organisation_name} | {record.town_city} | "
-              f"{record.licence_type or '-'} {record.rating or '-'} | {record.route}")
-    print("\n(dry run — nothing was written)")
-    return 0
+    records, duplicates = deduplicate(parsed.records)
+    report = build_report(
+        file_name=path.name,
+        encoding=encoding,
+        header_line=parsed.header_line,
+        header_row=parsed.header_row,
+        column_map=parsed.column_map,
+        records=records,
+        rejections=parsed.rejections,
+        data_lines=parsed.data_lines,
+        duplicates=duplicates,
+        # No database here, so the previous edition is unknown; the size
+        # comparison runs during the real import, which can read it.
+        previous_rows_parsed=None,
+    )
+    print(render(report))
+    print("\n(nothing was written — this is a read-only check)")
+    return 0 if report.ok else 1
 
 
-async def _ingest(path: Path | None) -> int:
+async def _ingest(path: Path | None, force: bool) -> int:
     settings = get_settings()
     if not (settings.supabase_url and settings.supabase_service_role_key):
         print("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.", file=sys.stderr)
@@ -60,7 +82,23 @@ async def _ingest(path: Path | None) -> int:
     csv_bytes = path.read_bytes() if path else None
     source_url = str(path) if path else None
 
-    run_id, stats = await run_import(rest, csv_bytes=csv_bytes, source_url=source_url)
+    try:
+        run_id, stats = await run_import(
+            rest, csv_bytes=csv_bytes, source_url=source_url, force=force
+        )
+    except RegisterValidationError as exc:
+        print(render(exc.report), file=sys.stderr)
+        print(
+            "\nImport REFUSED. Nothing was written and the stored register is "
+            "unchanged.\nRe-run with --force only if you have inspected the "
+            "file and the edition is genuinely this size.",
+            file=sys.stderr,
+        )
+        return 4
+    except CsvParseError as exc:
+        print(f"\n{exc}\n", file=sys.stderr)
+        return 3
+
     print(f"import {run_id or '(unrecorded)'} finished")
     for key, value in stats.as_columns().items():
         print(f"  {key:16} {value}")
@@ -71,7 +109,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--file", type=Path, help="Ingest this CSV instead of downloading.")
     parser.add_argument("--dry-run", action="store_true",
-                        help="Parse and report without writing to the database.")
+                        help="Parse, validate and report. Writes nothing.")
+    parser.add_argument("--validate", action="store_true",
+                        help="Alias of --dry-run; identical behaviour.")
+    parser.add_argument("--force", action="store_true",
+                        help="Import even if the safety checks fail. Only after "
+                             "inspecting the validation report.")
     parser.add_argument("--verbose", action="store_true", help="Debug logging.")
     args = parser.parse_args()
 
@@ -80,13 +123,16 @@ def main() -> int:
         format="%(levelname)-8s %(name)s: %(message)s",
     )
 
-    if args.dry_run:
+    if args.dry_run or args.validate:
         if not args.file:
-            print("--dry-run needs --file.", file=sys.stderr)
+            print("--dry-run/--validate needs --file.", file=sys.stderr)
             return 2
-        return _dry_run(args.file)
+        if not args.file.exists():
+            print(f"No such file: {args.file}", file=sys.stderr)
+            return 2
+        return _validate(args.file)
 
-    return asyncio.run(_ingest(args.file))
+    return asyncio.run(_ingest(args.file, args.force))
 
 
 if __name__ == "__main__":

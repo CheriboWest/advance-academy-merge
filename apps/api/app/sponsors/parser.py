@@ -13,7 +13,8 @@ from __future__ import annotations
 import csv
 import io
 import re
-from typing import Iterable, Iterator, Optional
+from dataclasses import dataclass, field
+from typing import Iterable, Optional
 
 from app.sponsors.models import RejectedRow, SponsorRecord
 from app.sponsors.normalize import (
@@ -54,16 +55,26 @@ class CsvParseError(ValueError):
     """The file could not be parsed as the sponsor register at all."""
 
 
-def decode(payload: bytes) -> str:
-    """Decode the downloaded bytes, tolerating GOV.UK's encoding drift."""
+def decode_detail(payload: bytes) -> tuple[str, str]:
+    """Decode the bytes and report WHICH encoding succeeded.
+
+    The encoding is worth surfacing: a file that only decodes as latin-1 has
+    almost certainly changed shape, since GOV.UK has published UTF-8 and
+    Windows-1252 but never anything that needs the last-resort fallback.
+    """
     for encoding in _ENCODINGS:
         try:
-            return payload.decode(encoding)
+            return payload.decode(encoding), encoding
         except UnicodeDecodeError:
             continue
     # Unreachable: latin-1 maps every byte. Kept so a future edit to _ENCODINGS
     # cannot silently produce None.
     raise CsvParseError("Could not decode the register file.")
+
+
+def decode(payload: bytes) -> str:
+    """Decode the downloaded bytes, tolerating GOV.UK's encoding drift."""
+    return decode_detail(payload)[0]
 
 
 def _header_key(value: str) -> str:
@@ -99,6 +110,18 @@ def map_headers(header: Iterable[str]) -> dict[str, int]:
     return positions
 
 
+@dataclass
+class ParseResult:
+    """Everything one parse learned about the file, for the validation report."""
+
+    records: list[SponsorRecord] = field(default_factory=list)
+    rejections: list[RejectedRow] = field(default_factory=list)
+    data_lines: int = 0
+    header_line: int = 0
+    header_row: list[str] = field(default_factory=list)
+    column_map: dict[str, str] = field(default_factory=dict)
+
+
 def parse_register(
     text: str,
 ) -> tuple[list[SponsorRecord], list[RejectedRow], int]:
@@ -107,6 +130,17 @@ def parse_register(
     Returns `(records, rejections, data_line_count)`. `data_line_count` counts
     every non-blank line after the header, so `rows_downloaded` reflects the file
     rather than what survived parsing.
+    """
+    result = parse_register_detail(text)
+    return result.records, result.rejections, result.data_lines
+
+
+def parse_register_detail(text: str) -> ParseResult:
+    """Parse the register, reporting how the file was interpreted.
+
+    Same work as `parse_register`, but it also returns which line the header was
+    found on and which source column each field was read from — the two things
+    needed to tell "parsed correctly" from "parsed the wrong columns".
     """
     # GOV.UK has published a preamble line above the header in some editions, so
     # the header is located rather than assumed to be line 1.
@@ -123,9 +157,21 @@ def parse_register(
         except CsvParseError:
             continue
     if positions is None:
+        seen = rows[0] if rows else []
         raise CsvParseError(
-            "No header row with an organisation-name column was found in the "
-            "first 10 lines of the register file."
+            "Unrecognised sponsor-register CSV schema.\n"
+            f"Detected columns: {seen}\n"
+            "Expected aliases for: organisation_name, town_city, county, "
+            "type_rating, route\n"
+            "Recognised spellings per field:\n"
+            + "\n".join(
+                f"  {target}: "
+                + ", ".join(sorted(a for a, t in _HEADER_ALIASES.items() if t == target))
+                for target in (
+                    "organisation_name", "town_city", "county", "type_rating", "route"
+                )
+            )
+            + "\n(comparison ignores case, spaces and punctuation)"
         )
 
     records: list[SponsorRecord] = []
@@ -186,7 +232,20 @@ def parse_register(
             )
         )
 
-    return records, rejections, data_lines
+    header_row = rows[header_index] if header_index >= 0 else []
+    return ParseResult(
+        records=records,
+        rejections=rejections,
+        data_lines=data_lines,
+        header_line=header_index + 1,
+        header_row=header_row,
+        column_map={
+            field_name: (
+                header_row[index] if index < len(header_row) else f"column {index}"
+            )
+            for field_name, index in sorted(positions.items(), key=lambda kv: kv[1])
+        },
+    )
 
 
 def deduplicate(records: list[SponsorRecord]) -> tuple[list[SponsorRecord], int]:

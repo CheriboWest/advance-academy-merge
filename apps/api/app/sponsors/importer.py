@@ -21,9 +21,18 @@ import httpx
 from app.crawler.supabase_rest import SupabaseRest
 from app.sponsors import govuk
 from app.sponsors.models import ImportStats, SponsorRecord
-from app.sponsors.parser import decode, deduplicate, parse_register
+from app.sponsors.parser import decode_detail, deduplicate, parse_register_detail
+from app.sponsors.validation import ValidationReport, build_report, render
 
 logger = logging.getLogger("careerhub.sponsors.importer")
+
+
+class RegisterValidationError(RuntimeError):
+    """A parsed file failed the pre-import safety checks. Nothing was written."""
+
+    def __init__(self, report: ValidationReport) -> None:
+        super().__init__("; ".join(report.failures))
+        self.report = report
 
 # PostgREST request sizing. The register runs to tens of thousands of rows, so
 # writes are chunked; reads page through the whole table.
@@ -129,6 +138,11 @@ async def ingest_records(
             stats.rows_updated += 1
             to_write.append(row)
 
+    # Stage the whole edition first. If any chunk raises, the exception
+    # propagates and the withdrawal below never runs — the stored register keeps
+    # every row it had, some merely refreshed. Withdrawal is the only
+    # irreversible-looking step, so it is the last thing that happens and it
+    # happens only after every new row is safely in place.
     for chunk in _chunks(to_write, UPSERT_CHUNK):
         await rest.upsert(
             client,
@@ -162,12 +176,32 @@ async def ingest_records(
     stats.rows_withdrawn = len(withdrawn)
 
 
+async def previous_successful_rows(
+    client: httpx.AsyncClient, rest: SupabaseRest
+) -> Optional[int]:
+    """`rows_parsed` from the last successful import, for the size comparison."""
+    rows = await rest.select(
+        client,
+        IMPORTS_TABLE,
+        {
+            "select": "rows_parsed",
+            "status": "eq.success",
+            "order": "started_at.desc",
+            "limit": "1",
+        },
+    )
+    if rows and isinstance(rows[0].get("rows_parsed"), (int, float)):
+        return int(rows[0]["rows_parsed"])
+    return None
+
+
 async def run_import(
     rest: SupabaseRest,
     *,
     client: Optional[httpx.AsyncClient] = None,
     csv_bytes: Optional[bytes] = None,
     source_url: Optional[str] = None,
+    force: bool = False,
 ) -> tuple[str, ImportStats]:
     """Ingest the current register. Returns `(import_run_id, stats)`.
 
@@ -175,6 +209,12 @@ async def run_import(
     downloaded edition); otherwise the current CSV is located on GOV.UK and
     downloaded. Every run records a `sponsor_register_imports` row, including
     failures — an import that dies is visible rather than silent.
+
+    The parsed file is validated before a single register row is written. A file
+    that parses into the wrong shape — a renamed column, a truncated download —
+    is the dangerous case: it would import a handful of rows and withdraw the
+    rest of the register. `force=True` overrides the checks for a genuinely
+    smaller edition a human has inspected.
     """
     stats = ImportStats()
     owns_client = client is None
@@ -204,23 +244,37 @@ async def run_import(
             )
             csv_bytes = await govuk.download_csv(client, resolved_url)
 
-        text = decode(csv_bytes)
-        records, rejections, data_lines = parse_register(text)
-        records, duplicates = deduplicate(records)
+        text, encoding = decode_detail(csv_bytes)
+        parsed = parse_register_detail(text)
+        records, duplicates = deduplicate(parsed.records)
 
-        stats.rows_downloaded = data_lines
+        stats.rows_downloaded = parsed.data_lines
         stats.rows_parsed = len(records)
-        stats.rows_rejected = len(rejections) + duplicates
-        stats.rejections = rejections
+        stats.rows_rejected = len(parsed.rejections) + duplicates
+        stats.rejections = parsed.rejections
 
-        logger.info(
-            "Register parsed: %d lines, %d records, %d rejected, %d in-file duplicates",
-            data_lines, len(records), len(rejections), duplicates,
+        report = build_report(
+            file_name=source_url or resolved_url,
+            encoding=encoding,
+            header_line=parsed.header_line,
+            header_row=parsed.header_row,
+            column_map=parsed.column_map,
+            records=records,
+            rejections=parsed.rejections,
+            data_lines=parsed.data_lines,
+            duplicates=duplicates,
+            previous_rows_parsed=await previous_successful_rows(client, rest),
         )
-        for rejected in rejections[:20]:
+        logger.info("Register validation:\n%s", render(report, forced=force))
+
+        # The gate. Nothing has touched `sponsor_licences` yet, so refusing here
+        # leaves the stored register exactly as it was.
+        if not report.ok and not force:
+            raise RegisterValidationError(report)
+        if not report.ok:
             logger.warning(
-                "Rejected line %d: %s (%s)",
-                rejected.line_number, rejected.reason, rejected.raw,
+                "Register validation failed but --force was supplied; importing "
+                "anyway: %s", "; ".join(report.failures),
             )
 
         await ingest_records(

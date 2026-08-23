@@ -272,10 +272,52 @@ existed.
 
 ```bash
 cd apps/api
-python scripts/import_sponsor_register.py                       # download + ingest
-python scripts/import_sponsor_register.py --file register.csv   # ingest a local file
-python scripts/import_sponsor_register.py --file register.csv --dry-run
+
+# 1. Validate a manually downloaded edition. Writes nothing.
+python scripts/import_sponsor_register.py --file register.csv --validate
+
+# 2. Import it once the report says "safe to import".
+python scripts/import_sponsor_register.py --file register.csv
+
+# 3. Or download the current edition from GOV.UK and ingest it.
+python scripts/import_sponsor_register.py
 ```
+
+`--validate` and `--dry-run` are the same flag: both parse the whole file,
+normalize, run every uniqueness and safety check, print the report and touch no
+database. They share one code path with the real import, so what you validate is
+exactly what would be written — a second flag with its own logic could drift
+from the importer and validate something the importer does not do.
+
+#### Import safety
+
+The dangerous file is not one that fails to parse — that raises and writes
+nothing. It is one that parses successfully into the **wrong shape**: GOV.UK
+renames a column, most rows lose their organisation name, the import "succeeds"
+with 400 rows instead of 60,000, and the withdrawal step marks the real register
+as no longer current.
+
+So a parsed edition is validated before a single register row is written, and
+the import is refused unless:
+
+| Check | Threshold |
+| --- | --- |
+| Rows parsed | > 0 |
+| Organisation name present | every accepted row |
+| Route present | every accepted row |
+| Rejection rate | < 2% |
+| Shrink vs the last successful edition | < 20% |
+
+`--force` overrides all of them, for a genuinely smaller edition a human has
+inspected. The thresholds live in `app/sponsors/validation.py`.
+
+**Withdrawal ordering.** Parsing and validation complete before any write; the
+new edition is upserted in full; only then are rows absent from it marked
+`is_current = false`. If any step raises, withdrawal never runs and the stored
+register keeps every row it had. Verified by tests that refuse a shrunken, an
+empty and an unparseable edition and then assert the stored rows are untouched.
+
+Verification queries for after an import: `infra/supabase/verify_sponsor_import.sql`.
 
 `GET /health` returns `{"status": "ok"}`.
 
@@ -336,6 +378,7 @@ python test_companies.py   # permanent company deletion endpoint
 python test_sponsor_register.py   # sponsor-register ingestion (fixture CSV)
 python test_sponsor_matching.py   # candidate search + entity resolution
 python test_sponsor_worker.py     # automatic resolution, retries, batching
+python test_sponsor_validation.py # import validation + withdrawal safety
 ```
 
 `test_companies.py` stubs the Supabase call, so it needs no network and no
