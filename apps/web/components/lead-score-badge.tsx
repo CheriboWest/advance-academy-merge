@@ -21,7 +21,7 @@ export function LeadScoreBadge({ score, className }: LeadScoreBadgeProps) {
       title={`Hiring signal score: ${score}`}
     >
       <span className="label-caps">Score</span>
-      <span className="mt-1 font-display text-2xl tabular-nums">{score}</span>
+      <span className="mt-1 font-display text-2xl tabular-nums text-foreground">{score}</span>
     </span>
   );
 }

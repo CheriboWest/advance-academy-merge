@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Briefcase, ExternalLink, Globe, MapPin } from "lucide-react";
+import {
+  ArrowLeft,
+  Briefcase,
+  Building2,
+  ExternalLink,
+  Globe,
+  MapPin,
+} from "lucide-react";
 
 import { fetchActiveJobs, fetchCompanyBySlug } from "@/lib/queries";
 import { PageContainer } from "@/components/page-container";
@@ -56,12 +63,17 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
         </Button>
 
         {/* Company masthead */}
-        <header className="mt-6 border-b-2 border-foreground pb-8">
+        <header className="card-surface mt-6 p-6 sm:p-8">
           <div className="flex items-start justify-between gap-6">
             <div className="min-w-0">
-              {company.sector && (
-                <Badge variant="outline">{company.sector}</Badge>
-              )}
+              <div className="flex items-center gap-3">
+                <span className="icon-tile">
+                  <Building2 className="size-5" />
+                </span>
+                {company.sector && (
+                  <Badge variant="outline">{company.sector}</Badge>
+                )}
+              </div>
               <h1 className="mt-3 text-balance text-4xl leading-[1.02] sm:text-6xl">
                 {company.name}
               </h1>
@@ -82,7 +94,12 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
           {(company.website || company.careers_url) && (
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               {company.careers_url && (
-                <Button asChild size="xl" className="hidden sm:inline-flex">
+                <Button
+                  asChild
+                  size="xl"
+                  variant="highlight"
+                  className="hidden sm:inline-flex"
+                >
                   <a
                     href={company.careers_url}
                     target="_blank"
@@ -115,13 +132,13 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
 
         {/* Open jobs */}
         <section className="mt-10">
-          <div className="flex items-baseline justify-between gap-3 border-b border-border pb-3">
+          <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-2xl">Open jobs</h2>
             <span className="label-caps tabular-nums">{jobs.length} live</span>
           </div>
 
           {jobs.length > 0 ? (
-            <ul className="divide-y divide-border">
+            <ul className="mt-5 space-y-3">
               {jobs.map((job) => (
                 <li key={job.id}>
                   <JobItem job={job} />
@@ -140,8 +157,8 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
 
       {/* The money action, pinned within thumb reach on mobile. */}
       {company.careers_url && (
-        <div className="sticky bottom-0 z-30 border-t border-border bg-background p-3 sm:hidden">
-          <Button asChild size="xl" className="w-full">
+        <div className="sticky bottom-0 z-30 border-t border-border bg-card p-3 sm:hidden">
+          <Button asChild size="xl" variant="highlight" className="w-full">
             <a
               href={company.careers_url}
               target="_blank"

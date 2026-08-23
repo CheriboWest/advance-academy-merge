@@ -4,7 +4,8 @@ import { Briefcase, Building2, Flame, MapPin, TrendingUp } from "lucide-react";
 
 import { getDashboardData } from "@/lib/coach";
 import { KPICard } from "@/components/coach/kpi-card";
-import { CompanyRow } from "@/components/company-row";
+import { CompanyCard } from "@/components/company-card";
+import { SectionHeading } from "@/components/section-heading";
 import { LeadScoreBadge } from "@/components/lead-score-badge";
 import { EmptyState } from "@/components/empty-state";
 
@@ -18,7 +19,7 @@ export default async function CoachDashboardPage() {
   return (
     <div className="space-y-12">
       {/* Statistics band */}
-      <section className="grid grid-cols-1 border-y border-border sm:grid-cols-2 sm:divide-x sm:divide-border lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KPICard
           label="Total companies"
           value={data.totalCompanies.toLocaleString("en-GB")}
@@ -45,19 +46,18 @@ export default async function CoachDashboardPage() {
 
       {/* Top hiring companies */}
       <section>
-        <h2 className="border-b-2 border-foreground pb-3 text-2xl">
-          Top hiring companies
-        </h2>
+        <SectionHeading index={1}>Priority targets</SectionHeading>
+        <h2 className="mt-2 text-2xl">Top hiring companies</h2>
 
         {data.topHiringCompanies.length > 0 ? (
-          <ol className="divide-y divide-border">
+          <ol className="mt-5 space-y-3">
             {data.topHiringCompanies.map((company, index) => (
               <li key={company.id}>
                 <Link
                   href={`/companies/${company.slug}`}
-                  className="group flex items-center gap-4 border-l-2 border-transparent py-4 pl-3 transition-[background-color,border-color,padding] hover:border-l-primary hover:bg-muted hover:pl-5"
+                  className="card-interactive group flex items-center gap-4 p-4"
                 >
-                  <span className="font-display text-xl tabular-nums text-muted-foreground">
+                  <span className="font-display text-xl tabular-nums text-highlight-ink">
                     {String(index + 1).padStart(2, "0")}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -92,15 +92,14 @@ export default async function CoachDashboardPage() {
 
       {/* Recent companies */}
       <section>
-        <h2 className="border-b-2 border-foreground pb-3 text-2xl">
-          Recent companies
-        </h2>
+        <SectionHeading index={2}>Latest additions</SectionHeading>
+        <h2 className="mt-2 text-2xl">Recent companies</h2>
 
         {data.recentCompanies.length > 0 ? (
-          <ul className="divide-y divide-border">
+          <ul className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {data.recentCompanies.map((company) => (
               <li key={company.id}>
-                <CompanyRow company={company} />
+                <CompanyCard company={company} />
               </li>
             ))}
           </ul>
@@ -108,7 +107,7 @@ export default async function CoachDashboardPage() {
           <EmptyState
             icon={Building2}
             title="No companies yet"
-            description="Companies added to CareerHub UK will show up here."
+            description="Companies added to Advance Academy will show up here."
           />
         )}
       </section>

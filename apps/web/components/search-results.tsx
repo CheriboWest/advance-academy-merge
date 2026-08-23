@@ -6,7 +6,7 @@ import { fetchCompanies } from "@/lib/queries";
 import { fetchCompaniesByRole } from "@/lib/role-search";
 import type { SearchFiltersState } from "@/lib/filters";
 import type { CompanyRoleResult, CompanySummary } from "@/lib/types";
-import { CompanyRow } from "@/components/company-row";
+import { CompanyCard } from "@/components/company-card";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 
@@ -39,12 +39,12 @@ function ResultsList({
   return (
     <div>
       <p
-        className="label-caps border-b-2 border-foreground pb-3"
+        className="label-caps border-b border-border pb-3"
         aria-live="polite"
       >
         {count} {count === 1 ? "company" : "companies"} found
       </p>
-      <ul className="divide-y divide-border">{children}</ul>
+      <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>
     </div>
   );
 }
@@ -93,7 +93,7 @@ async function RoleResults({ filters }: SearchResultsProps) {
     <ResultsList count={companies.length}>
       {companies.map((company) => (
         <li key={company.id}>
-          <CompanyRow company={company} matchingJobs={company.matching_jobs} />
+          <CompanyCard company={company} matchingJobs={company.matching_jobs} />
         </li>
       ))}
     </ResultsList>
@@ -133,7 +133,7 @@ async function CompanyResults({ filters }: SearchResultsProps) {
     <ResultsList count={companies.length}>
       {companies.map((company) => (
         <li key={company.id}>
-          <CompanyRow company={company} />
+          <CompanyCard company={company} />
         </li>
       ))}
     </ResultsList>

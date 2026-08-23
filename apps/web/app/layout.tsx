@@ -21,8 +21,8 @@ const bodySans = Inter_Tight({
 
 export const metadata: Metadata = {
   title: {
-    default: "CareerHub UK — Which UK companies are hiring right now",
-    template: "%s · CareerHub UK",
+    default: "Advance Academy — Which UK companies are hiring right now",
+    template: "%s · Advance Academy",
   },
   description:
     "Search UK companies and jobs, or manage outreach as a coach. A company and job discovery platform for students.",
@@ -40,25 +40,24 @@ export default function RootLayout({
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="light"
           disableTransitionOnChange
         >
           <div className="flex min-h-dvh flex-col">
             <Navbar />
             <main className="flex-1 pb-16">{children}</main>
-            <footer className="border-t border-border">
-              <PageContainer className="flex flex-col gap-2 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                <p>© {new Date().getFullYear()} CareerHub UK</p>
-                <div className="flex items-center gap-4">
-                  <span>Built for students exploring UK employers.</span>
-                  <Link
-                    href="/coach/login"
-                    className="underline decoration-border underline-offset-4 transition-colors hover:text-foreground hover:decoration-foreground"
-                  >
-                    Coach sign-in
-                  </Link>
-                </div>
+            <footer className="mt-auto bg-primary text-primary-foreground">
+              <PageContainer className="flex flex-col items-center gap-2 py-8 text-center text-sm sm:flex-row sm:justify-center sm:gap-6">
+                <p>
+                  © {new Date().getFullYear()} Advance Academy. Your path to
+                  career success.
+                </p>
+                <Link
+                  href="/coach/login"
+                  className="underline decoration-current/40 underline-offset-4 transition-[text-decoration-color] hover:decoration-current"
+                >
+                  Coach sign-in
+                </Link>
               </PageContainer>
             </footer>
           </div>

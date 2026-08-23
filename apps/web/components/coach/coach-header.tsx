@@ -29,7 +29,7 @@ export function CoachHeader({ email }: CoachHeaderProps) {
   React.useEffect(() => setMenuOpen(false), [pathname]);
 
   return (
-    <div className="border-b-2 border-foreground pb-4">
+    <div className="border-b border-border pb-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-center gap-3">
           <Button
@@ -65,7 +65,7 @@ export function CoachHeader({ email }: CoachHeaderProps) {
 
       {/* Mobile navigation drawer */}
       {menuOpen && (
-        <nav className="mt-4 flex flex-col border-t border-border md:hidden">
+        <nav className="mt-4 flex flex-col gap-1 border-t border-border pt-3 md:hidden">
           {coachNavItems.map(({ href, label, icon: Icon }) => {
             const active =
               pathname === href || pathname.startsWith(`${href}/`);
@@ -74,10 +74,10 @@ export function CoachHeader({ email }: CoachHeaderProps) {
                 key={href}
                 href={href}
                 className={cn(
-                  "flex items-center gap-3 border-b border-border py-3 text-sm transition-colors last:border-b-0",
+                  "flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors",
                   active
-                    ? "font-medium text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-secondary font-medium text-primary"
+                    : "text-muted-foreground hover:text-primary"
                 )}
               >
                 <Icon className="size-4" />
