@@ -169,6 +169,202 @@ upsert into `jobs` → record stats on `crawl_runs`. Newly ingested companies wi
 active jobs appear automatically in the student portal via
 `public_company_summary`.
 
+### Sponsor register (authenticated)
+
+The **[UK Register of Licensed Sponsors: workers](https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers)**
+is the only authority for whether an organisation currently holds a sponsor
+licence. Claude is an *entity-resolution* layer on top of it — it decides
+whether a crawled company and a register row describe the same organisation,
+and never whether a licence exists.
+
+- **`POST /sponsors/import`** — locate the current CSV on GOV.UK, download,
+  parse, and upsert it. Also the refresh path: the publication page is read on
+  every run, so a newly published edition is picked up without a code change.
+  Safe to run repeatedly.
+- **`GET /sponsors/imports`** — recent ingestion runs with their statistics.
+- **`POST /sponsors/resolve/{company_id}`** — resolve one company on demand.
+- **`POST /sponsors/resolve?limit=&force=`** — bulk-resolve companies whose
+  conclusion is missing or stale (the backfill, and the sweep after a refresh).
+- **`GET /sponsors/companies/{company_id}`** — confirmed sponsorships plus the
+  last check.
+
+#### Automatic resolution
+
+Every crawl checks the companies it touched, **after** the crawl reaches a
+terminal state:
+
+```
+run_crawl
+  ├─ asyncio.wait_for(_execute, 90s)   crawl proper — untouched
+  │      └─ _ingest → companies upserted → stats.affected_company_ids
+  ├─ _finalize(...)                    crawl status + statistics persisted
+  └─ _resolve_sponsorship(ids)         sponsorship — isolated, non-fatal
+        ├─ skip companies with a current conclusion
+        ├─ candidate search in Postgres  → 0 candidates ⇒ no_match, no model call
+        ├─ Claude resolution             → bounded concurrency + retries
+        └─ persist company_sponsorship (match only) + company_sponsorship_checks
+```
+
+Running it after `_finalize` rather than inside `_ingest` is deliberate: inside
+the crawl it would spend the 90-second timeout budget, and a slow register
+lookup could turn a good crawl into a timeout. Here the crawl's outcome is
+already written, and the hook swallows every exception — a crawl that ingested
+jobs correctly is a successful crawl whether or not the register could be
+consulted.
+
+**No register, no resolution.** If no register edition has been imported
+successfully, the whole batch is skipped — no model calls, no rows, no check
+state. An empty register means these companies are *unchecked*, not *not
+sponsors*, and writing `no_match` would record that misreading permanently.
+
+A company is resolved only when it has never been checked, it was checked
+against an older register edition, or its last attempt errored **and** it has
+not exhausted its retry budget. `company_sponsorship_checks.attempts` counts
+**cumulative failed model HTTP attempts against the current register edition**
+since the last successful conclusion: three transient failures in one run
+advance it by 3, any conclusion resets it to 0, and a failure that never reached
+the model (a database error) costs nothing. At 9 the company stops being
+enqueued automatically and waits for `--force` or a new register edition. That state lives
+in `company_sponsorship_checks` (migration 0007), which also gives `no_match` and
+`ambiguous` somewhere to live — `company_sponsorship.sponsor_licence_id` is NOT
+NULL, so that table holds confirmed links and nothing else.
+
+| Setting | Default | |
+| --- | --- | --- |
+| `SPONSOR_RESOLVE_CONCURRENCY` | `3` | In-flight model requests |
+| `SPONSOR_RESOLVE_MAX_PER_CRAWL` | `50` | Companies per crawl |
+
+Transient failures (timeout, connection, 429, 5xx) are retried up to 3 attempts
+with jittered exponential backoff; a 4xx is not retried. Either way the company
+is recorded as `error` so the next run picks it up again.
+
+#### Resolving manually
+
+```bash
+cd apps/api
+python scripts/resolve_sponsorship.py --company <uuid>           # one company
+python scripts/resolve_sponsorship.py --company <uuid> --force   # force a recheck
+python scripts/resolve_sponsorship.py --all --limit 200          # backfill
+```
+
+Requires migrations `0006_sponsor_register.sql`,
+`0007_company_sponsorship_checks.sql` and `0008_sponsorship_rls.sql`.
+
+**These tables are private.** Migration 0008 enables RLS with no policies and
+revokes table privileges from `anon` and `authenticated`, so neither the browser
+nor a signed-in session can read them through PostgREST. Only `service_role`
+reaches them. Being authenticated is not the same as being a coach — students
+authenticate too, and sponsorship is a paid entitlement — so access will be
+granted later through this API with explicit entitlement checks, not by a
+blanket RLS policy.
+
+#### Stored fields
+
+| GOV.UK column | Stored as | Notes |
+| --- | --- | --- |
+| Organisation Name | `organisation_name` | Verbatim; never rewritten |
+| Town/City | `town_city` | Verbatim |
+| County | `county` | Verbatim |
+| Type & Rating | `type_rating` | Verbatim, plus parsed `licence_type` + `rating` |
+| Route | `route` | Verbatim |
+
+Alongside them: `normalized_name`/`normalized_town` (lookup only), `natural_key`
+(the register line's identity), `source_url`, `register_published_at`,
+`first_seen_at`, `last_seen_at`, `is_current`, `withdrawn_at`.
+
+#### Deduplication and current status
+
+A register line is identified by (organisation, town, county, type & rating,
+route), hashed into `natural_key` with a unique index — so one organisation can
+hold several rows (multiple routes or sites) and re-running the importer over an
+unchanged file inserts nothing. A row that stops appearing in a newer edition is
+marked `is_current = false` with a `withdrawn_at` stamp and **kept**: absence
+from today's file means the licence is not listed today, not that it never
+existed.
+
+#### Running the importer manually
+
+```bash
+cd apps/api
+
+# 1. Validate a manually downloaded edition. Writes nothing.
+python scripts/import_sponsor_register.py --file register.csv --validate
+
+# 2. Import it once the report says "safe to import".
+python scripts/import_sponsor_register.py --file register.csv
+
+# 3. Or download the current edition from GOV.UK and ingest it.
+python scripts/import_sponsor_register.py
+```
+
+`--validate` and `--dry-run` are the same flag: both parse the whole file,
+normalize, run every uniqueness and safety check, print the report and touch no
+database. They share one code path with the real import, so what you validate is
+exactly what would be written — a second flag with its own logic could drift
+from the importer and validate something the importer does not do.
+
+#### Import safety
+
+The dangerous file is not one that fails to parse — that raises and writes
+nothing. It is one that parses successfully into the **wrong shape**: GOV.UK
+renames a column, most rows lose their organisation name, the import "succeeds"
+with 400 rows instead of 60,000, and the withdrawal step marks the real register
+as no longer current.
+
+So a parsed edition is validated before a single register row is written, and
+the import is refused unless:
+
+| Check | Threshold |
+| --- | --- |
+| Rows parsed | > 0 |
+| Organisation name present | every accepted row |
+| Route present | every accepted row |
+| Rejection rate | < 2% |
+| Shrink vs the last successful edition | < 20% |
+
+`--force` overrides all of them, for a genuinely smaller edition a human has
+inspected. The thresholds live in `app/sponsors/validation.py`.
+
+**Withdrawal ordering.** Parsing and validation complete before any write; the
+new edition is upserted in full; only then are rows absent from it marked
+`is_current = false`. If any step raises, withdrawal never runs and the stored
+register keeps every row it had. Verified by tests that refuse a shrunken, an
+empty and an unparseable edition and then assert the stored rows are untouched.
+
+#### Bulk-write reliability
+
+The register is ~142,000 rows. Writes are chunked at **250 rows** (`SPONSOR_UPSERT_CHUNK`)
+and carry an import-specific **120-second** timeout (`SPONSOR_IMPORT_TIMEOUT`) —
+`SupabaseRest`'s 15-second default is right for interactive requests and far too
+short for an upsert into a six-figure table with a unique index. Raising the
+default instead would let an interactive endpoint hang for minutes.
+
+Each batch retries up to 5 times (`SPONSOR_BATCH_ATTEMPTS`) with exponential
+backoff and jitter, on timeouts, connection failures, 429 and 5xx. A 4xx that is
+not 429 is permanent and fails immediately.
+
+**Retrying a timed-out write is safe.** A `ReadTimeout` does not prove the
+server discarded the request — PostgREST may have committed it and answered too
+late. Because `natural_key` is unique and every write is an upsert, re-sending a
+batch that already landed updates the same rows rather than duplicating them.
+That is also why a failed import can simply be re-run: rows written by the
+previous attempt are recognised as unchanged and the import continues from
+there, with no manual cleanup.
+
+Statistics are assigned only after every batch is confirmed, so a failed import
+never reports rows it did not write, and the run is reconciled against a
+`count=exact` query afterwards.
+
+Progress is logged per batch:
+
+```
+[sponsor-import] writing 141904 rows in 568 batches of 250 (insert=141904 update=0 unchanged=0)
+[sponsor-import] edition batch 1/568 rows=250 completed | processed=250 remaining=141654 (0.2%)
+[sponsor-import] edition batch 27/568 retry=1 reason=ReadTimeout backoff=1.4s
+```
+
+Verification queries for after an import: `infra/supabase/verify_sponsor_import.sql`.
+
 `GET /health` returns `{"status": "ok"}`.
 
 ## Environment variables
@@ -189,6 +385,12 @@ Copy `.env.example` to `.env` and fill in:
 | `ADZUNA_APP_ID`     | ✅ (crawler) | —             | Adzuna API app id                       |
 | `ADZUNA_APP_KEY`    | ✅ (crawler) | —             | Adzuna API app key                      |
 | `REED_API_KEY`      | ✅ (crawler) | —             | Reed API key                            |
+| `SPONSOR_RESOLVER_MODEL` | ❌  | `claude-opus-5` | Model used for sponsor entity resolution |
+| `SPONSOR_RESOLVE_CONCURRENCY` | ❌ | `3` | In-flight resolution requests |
+| `SPONSOR_RESOLVE_MAX_PER_CRAWL` | ❌ | `50` | Companies resolved per crawl |
+| `SPONSOR_UPSERT_CHUNK` | ❌ | `250` | Rows per register upsert batch |
+| `SPONSOR_IMPORT_TIMEOUT` | ❌ | `120` | Seconds per bulk register write |
+| `SPONSOR_BATCH_ATTEMPTS` | ❌ | `5` | Attempts per batch before failing |
 
 ## Run locally
 
@@ -222,7 +424,11 @@ python test_auth.py        # JWKS token verification
 python test_cors.py        # CORS configuration
 python test_scoring.py     # lead scoring
 python test_companies.py   # permanent company deletion endpoint
-python test_crawl_stats.py # crawl statistics reach the right crawl_runs row
+python test_sponsor_register.py   # sponsor-register ingestion (fixture CSV)
+python test_sponsor_matching.py   # candidate search + entity resolution
+python test_sponsor_worker.py     # automatic resolution, retries, batching
+python test_sponsor_validation.py # import validation + withdrawal safety
+python test_sponsor_import_retry.py # bulk-write retry, resume, withdrawal safety
 ```
 
 `test_companies.py` stubs the Supabase call, so it needs no network and no

@@ -1,6 +1,12 @@
 """Thin async Supabase REST (PostgREST) client using the service role key.
 
 Server-side only — the service role key is never exposed to the frontend.
+
+Every method takes an optional per-call `timeout` that overrides the client
+default. Bulk operations need it: the sponsor-register import writes hundreds of
+batches into a table with a unique index, and those upserts take far longer than
+the interactive requests the 15-second default was chosen for. Raising the
+default instead would let an interactive endpoint hang for minutes.
 """
 
 from __future__ import annotations
@@ -25,15 +31,44 @@ class SupabaseRest:
         client: httpx.AsyncClient,
         table: str,
         params: Optional[dict[str, str]] = None,
+        timeout: Optional[float] = None,
     ) -> list[dict[str, Any]]:
         response = await client.get(
             f"{self._rest}/{table}",
             params=params or {},
             headers=self._headers,
-            timeout=self._timeout,
+            timeout=timeout or self._timeout,
         )
         response.raise_for_status()
         return response.json()
+
+    async def count(
+        self,
+        client: httpx.AsyncClient,
+        table: str,
+        params: Optional[dict[str, str]] = None,
+        timeout: Optional[float] = None,
+    ) -> Optional[int]:
+        """Number of rows matching `params`, or None if the count is unavailable.
+
+        Uses PostgREST's `Prefer: count=exact`, which reports the total in the
+        `Content-Range` header as `<start>-<end>/<total>`. A HEAD request keeps
+        the body empty, so counting a six-figure table costs one small response
+        rather than the rows themselves.
+        """
+        response = await client.head(
+            f"{self._rest}/{table}",
+            params=params or {},
+            headers={**self._headers, "Prefer": "count=exact"},
+            timeout=timeout or self._timeout,
+        )
+        response.raise_for_status()
+        content_range = response.headers.get("content-range", "")
+        _, _, total = content_range.partition("/")
+        try:
+            return int(total)
+        except ValueError:
+            return None
 
     async def insert(
         self,
@@ -41,10 +76,16 @@ class SupabaseRest:
         table: str,
         rows: list[dict[str, Any]],
         prefer: str = "return=representation",
+        timeout: Optional[float] = None,
     ) -> list[dict[str, Any]]:
         if not rows:
             return []
-        response = await client.post( f"{self._rest}/{table}", headers={**self._headers, "Prefer": prefer}, json=rows, timeout=self._timeout, )
+        response = await client.post(
+            f"{self._rest}/{table}",
+            headers={**self._headers, "Prefer": prefer},
+            json=rows,
+            timeout=timeout or self._timeout,
+        )
         if response.status_code >= 400:
             print(" === SUPABASE INSERT ERROR ===")
             print("TABLE:", table)
@@ -64,6 +105,7 @@ class SupabaseRest:
         rows: list[dict[str, Any]],
         on_conflict: str,
         prefer: str = "resolution=merge-duplicates,return=representation",
+        timeout: Optional[float] = None,
     ) -> list[dict[str, Any]]:
         if not rows:
             return []
@@ -72,7 +114,7 @@ class SupabaseRest:
             params={"on_conflict": on_conflict},
             headers={**self._headers, "Prefer": prefer},
             json=rows,
-            timeout=self._timeout,
+            timeout=timeout or self._timeout,
         )
         response.raise_for_status()
         if "return=representation" in prefer:
@@ -86,13 +128,14 @@ class SupabaseRest:
         match: dict[str, str],
         values: dict[str, Any],
         prefer: str = "return=minimal",
+        timeout: Optional[float] = None,
     ) -> None:
         response = await client.patch(
             f"{self._rest}/{table}",
             params=match,
             headers={**self._headers, "Prefer": prefer},
             json=values,
-            timeout=self._timeout,
+            timeout=timeout or self._timeout,
         )
         if response.status_code >= 400:
             # TEMPORARY diagnostics — remove after investigation.

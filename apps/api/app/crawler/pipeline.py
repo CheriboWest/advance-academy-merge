@@ -30,6 +30,9 @@ MAX_RAW_JOBS = 50
 PER_SOURCE_LIMIT = 25
 # Hard ceiling so a background task can never stay "running" forever.
 OVERALL_TIMEOUT_SECONDS = 90.0
+# Sponsorship resolution runs after the crawl has already been finalized, so
+# this ceiling only bounds the background work — it can never make a crawl fail.
+SPONSORSHIP_TIMEOUT_SECONDS = 240.0
 
 
 def _now_iso() -> str:
@@ -383,6 +386,64 @@ async def _finalize(
         print(f"[finalize] run_id={run_id} note={error_note!r}", flush=True)
 
 
+async def _resolve_sponsorship(company_ids: list[str]) -> None:
+    """Check newly crawled companies against the sponsor register.
+
+    Isolated from the crawl in every direction: it never raises, it has its own
+    timeout, and it is skipped entirely when the API key is absent. Imported
+    lazily so the crawler does not depend on the sponsors package at import
+    time.
+    """
+    if not company_ids:
+        return
+
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        log_stage("sponsorship_skipped", 0.0, "(no Anthropic API key configured)")
+        return
+
+    started = time.perf_counter()
+    try:
+        from app.crawler.supabase_rest import SupabaseRest as _Rest
+        from app.sponsors.worker import resolve_companies
+
+        rest = _Rest(settings.supabase_url, settings.supabase_service_role_key)
+        async with httpx.AsyncClient() as client:
+            stats = await asyncio.wait_for(
+                resolve_companies(
+                    client,
+                    rest,
+                    company_ids,
+                    api_key=settings.anthropic_api_key,
+                    model=settings.sponsor_resolver_model,
+                    timeout=settings.request_timeout,
+                    concurrency=settings.sponsor_resolve_concurrency,
+                    max_companies=settings.sponsor_resolve_max_per_crawl,
+                ),
+                timeout=SPONSORSHIP_TIMEOUT_SECONDS,
+            )
+        log_stage(
+            "sponsorship_total", time.perf_counter() - started, f"{stats.as_dict()}"
+        )
+    except asyncio.TimeoutError:
+        log_stage(
+            "sponsorship_total",
+            time.perf_counter() - started,
+            "[timed out — crawl unaffected]",
+        )
+    except Exception as exc:  # noqa: BLE001 — never fails the crawl
+        log_stage(
+            "sponsorship_total",
+            time.perf_counter() - started,
+            f"[failed: {type(exc).__name__} — crawl unaffected]",
+        )
+        print(
+            f"[sponsorship] resolution failed after the crawl: "
+            f"{type(exc).__name__}: {exc}",
+            flush=True,
+        )
+
+
 async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> None:
     """Background entrypoint. Always finalizes crawl_runs to success/error."""
     settings = get_settings()
@@ -422,5 +483,15 @@ async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> N
         status = "error"
         error_note = _safe_error(exc)
 
-    await _finalize(rest, run_id, status, stats, error_note)
+    await _finalize(rest, run_id, status, error_note)
+
+    # Sponsorship resolution runs AFTER the crawl reaches a terminal state, on
+    # purpose. Inside `_execute` it would spend the crawl's timeout budget and a
+    # slow or failing lookup could turn a good crawl into a timeout; here the
+    # status and statistics are already written, so nothing this does can change
+    # what the crawl recorded. It is also swallowed whole — a crawl that
+    # ingested jobs correctly is a successful crawl whether or not the register
+    # could be consulted.
+    await _resolve_sponsorship(stats.affected_company_ids)
+
     log_stage("crawl_total", time.perf_counter() - started, f"[{status}]")
