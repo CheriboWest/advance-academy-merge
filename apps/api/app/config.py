@@ -59,6 +59,15 @@ class Settings:
         self.sponsor_resolver_model: str = os.getenv(
             "SPONSOR_RESOLVER_MODEL", "claude-opus-5"
         )
+        # Sponsorship resolution runs in the background after a crawl. Kept
+        # small: it must never contend with crawling, and each unit of work is
+        # a model call.
+        self.sponsor_resolve_concurrency: int = int(
+            os.getenv("SPONSOR_RESOLVE_CONCURRENCY", "3")
+        )
+        self.sponsor_resolve_max_per_crawl: int = int(
+            os.getenv("SPONSOR_RESOLVE_MAX_PER_CRAWL", "50")
+        )
         # Job-board crawler credentials.
         self.adzuna_app_id: str = os.getenv("ADZUNA_APP_ID", "")
         self.adzuna_app_key: str = os.getenv("ADZUNA_APP_KEY", "")

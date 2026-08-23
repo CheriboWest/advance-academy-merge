@@ -168,10 +168,62 @@ and never whether a licence exists.
   every run, so a newly published edition is picked up without a code change.
   Safe to run repeatedly.
 - **`GET /sponsors/imports`** — recent ingestion runs with their statistics.
-- **`POST /sponsors/resolve/{company_id}`** — narrow the register to a few
-  candidates in the database, then ask Claude which (if any) is the same entity.
+- **`POST /sponsors/resolve/{company_id}`** — resolve one company on demand.
+- **`POST /sponsors/resolve?limit=&force=`** — bulk-resolve companies whose
+  conclusion is missing or stale (the backfill, and the sweep after a refresh).
+- **`GET /sponsors/companies/{company_id}`** — confirmed sponsorships plus the
+  last check.
 
-Requires migration `infra/supabase/migrations/0006_sponsor_register.sql`.
+#### Automatic resolution
+
+Every crawl checks the companies it touched, **after** the crawl reaches a
+terminal state:
+
+```
+run_crawl
+  ├─ asyncio.wait_for(_execute, 90s)   crawl proper — untouched
+  │      └─ _ingest → companies upserted → stats.affected_company_ids
+  ├─ _finalize(...)                    crawl status + statistics persisted
+  └─ _resolve_sponsorship(ids)         sponsorship — isolated, non-fatal
+        ├─ skip companies with a current conclusion
+        ├─ candidate search in Postgres  → 0 candidates ⇒ no_match, no model call
+        ├─ Claude resolution             → bounded concurrency + retries
+        └─ persist company_sponsorship (match only) + company_sponsorship_checks
+```
+
+Running it after `_finalize` rather than inside `_ingest` is deliberate: inside
+the crawl it would spend the 90-second timeout budget, and a slow register
+lookup could turn a good crawl into a timeout. Here the crawl's outcome is
+already written, and the hook swallows every exception — a crawl that ingested
+jobs correctly is a successful crawl whether or not the register could be
+consulted.
+
+A company is resolved only when it has never been checked, its last attempt
+errored, or it was checked against an older register edition. That state lives
+in `company_sponsorship_checks` (migration 0007), which also gives `no_match` and
+`ambiguous` somewhere to live — `company_sponsorship.sponsor_licence_id` is NOT
+NULL, so that table holds confirmed links and nothing else.
+
+| Setting | Default | |
+| --- | --- | --- |
+| `SPONSOR_RESOLVE_CONCURRENCY` | `3` | In-flight model requests |
+| `SPONSOR_RESOLVE_MAX_PER_CRAWL` | `50` | Companies per crawl |
+
+Transient failures (timeout, connection, 429, 5xx) are retried up to 3 attempts
+with jittered exponential backoff; a 4xx is not retried. Either way the company
+is recorded as `error` so the next run picks it up again.
+
+#### Resolving manually
+
+```bash
+cd apps/api
+python scripts/resolve_sponsorship.py --company <uuid>           # one company
+python scripts/resolve_sponsorship.py --company <uuid> --force   # force a recheck
+python scripts/resolve_sponsorship.py --all --limit 200          # backfill
+```
+
+Requires migrations `0006_sponsor_register.sql` and
+`0007_company_sponsorship_checks.sql`.
 
 #### Stored fields
 
@@ -227,6 +279,8 @@ Copy `.env.example` to `.env` and fill in:
 | `ADZUNA_APP_KEY`    | ✅ (crawler) | —             | Adzuna API app key                      |
 | `REED_API_KEY`      | ✅ (crawler) | —             | Reed API key                            |
 | `SPONSOR_RESOLVER_MODEL` | ❌  | `claude-opus-5` | Model used for sponsor entity resolution |
+| `SPONSOR_RESOLVE_CONCURRENCY` | ❌ | `3` | In-flight resolution requests |
+| `SPONSOR_RESOLVE_MAX_PER_CRAWL` | ❌ | `50` | Companies resolved per crawl |
 
 ## Run locally
 
@@ -262,6 +316,7 @@ python test_scoring.py     # lead scoring
 python test_companies.py   # permanent company deletion endpoint
 python test_sponsor_register.py   # sponsor-register ingestion (fixture CSV)
 python test_sponsor_matching.py   # candidate search + entity resolution
+python test_sponsor_worker.py     # automatic resolution, retries, batching
 ```
 
 `test_companies.py` stubs the Supabase call, so it needs no network and no

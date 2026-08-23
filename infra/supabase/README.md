@@ -25,6 +25,7 @@ infra/supabase/
 | `0003_job_title_search.sql` | `pg_trgm` + GIN index backing Job Role Search |
 | `0004_company_permanent_delete.sql` | `delete_companies_permanently(uuid[])` — transactional, `service_role`-only permanent company deletion |
 | `0006_sponsor_register.sql` | `sponsor_licences`, `sponsor_register_imports`, `company_sponsorship` + the `company_sponsorship_current` view |
+| `0007_company_sponsorship_checks.sql` | `company_sponsorship_checks` — per-company resolution state (what the last attempt concluded, against which register edition) |
 
 All migrations are additive and idempotent: re-running one is a no-op.
 

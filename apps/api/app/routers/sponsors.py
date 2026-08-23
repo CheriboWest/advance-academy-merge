@@ -18,6 +18,7 @@ from app.schemas import SponsorImportResponse, SponsorResolutionResponse
 from app.sponsors import govuk
 from app.sponsors.importer import run_import
 from app.sponsors.service import resolve_company
+from app.sponsors.worker import resolve_companies
 
 router = APIRouter(prefix="/sponsors", tags=["sponsors"])
 
@@ -123,3 +124,76 @@ async def resolve_sponsorship(
         search_strategies=strategies,
         persisted=persist and resolution.decision == "match",
     )
+
+
+@router.post("/resolve", response_model=dict)
+async def bulk_resolve(
+    limit: int = Query(50, ge=1, le=500, description="Maximum companies to resolve."),
+    force: bool = Query(False, description="Re-resolve even if already current."),
+    _user_id: str = Depends(get_current_user),
+) -> dict:
+    """Resolve companies whose sponsorship conclusion is missing or stale.
+
+    The backfill for companies crawled before sponsorship existed, and the way
+    to sweep every company after a register refresh — a newer edition makes
+    earlier conclusions stale, so they become eligible again automatically.
+
+    Bounded by `limit` and by the configured concurrency, and never raises: a
+    per-company failure is counted and reported rather than aborting the batch.
+    """
+    settings = get_settings()
+    rest = _require_supabase(settings)
+
+    if not settings.anthropic_api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="Server is not configured with an Anthropic API key.",
+        )
+
+    async with httpx.AsyncClient() as client:
+        stats = await resolve_companies(
+            client,
+            rest,
+            None,
+            api_key=settings.anthropic_api_key,
+            model=settings.sponsor_resolver_model,
+            timeout=settings.request_timeout,
+            concurrency=settings.sponsor_resolve_concurrency,
+            max_companies=limit,
+            force=force,
+        )
+
+    return {"status": "completed", **stats.as_dict(), "errors": stats.errors[:10]}
+
+
+@router.get("/companies/{company_id}", response_model=dict)
+async def company_sponsorship_status(
+    company_id: str,
+    _user_id: str = Depends(get_current_user),
+) -> dict:
+    """This company's confirmed sponsorship, plus when it was last checked.
+
+    `sponsorships` is drawn from `company_sponsorship_current`, so it contains
+    confirmed matches against currently-listed register rows and nothing else —
+    an ambiguous or failed check never appears as a sponsorship.
+    """
+    settings = get_settings()
+    rest = _require_supabase(settings)
+
+    async with httpx.AsyncClient() as client:
+        sponsorships = await rest.select(
+            client,
+            "company_sponsorship_current",
+            {"select": "*", "company_id": f"eq.{company_id}"},
+        )
+        checks = await rest.select(
+            client,
+            "company_sponsorship_checks",
+            {"select": "*", "company_id": f"eq.{company_id}", "limit": "1"},
+        )
+
+    return {
+        "company_id": company_id,
+        "sponsorships": sponsorships,
+        "last_check": checks[0] if checks else None,
+    }

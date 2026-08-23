@@ -39,6 +39,10 @@ class CrawlStats:
     companies_created: int = 0
     companies_updated: int = 0
     source_errors: dict[str, str] = field(default_factory=dict)
+    # Companies this crawl created or updated. Carried so the post-crawl
+    # sponsorship hook knows what to look at without re-querying; not a
+    # statistic, so it is excluded from `as_columns()`.
+    affected_company_ids: list[str] = field(default_factory=list)
 
     def as_columns(self) -> dict[str, int]:
         return {
