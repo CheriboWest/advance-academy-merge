@@ -55,7 +55,7 @@ class FakeRest:
         self.filters: list[dict] = []
         self.writes: list[tuple[str, list[dict]]] = []
 
-    async def select(self, client, table, params=None):
+    async def select(self, client, table, params=None, timeout=None):
         params = params or {}
         self.filters.append(dict(params))
         rows = [dict(r) for r in self.rows]
@@ -74,7 +74,7 @@ class FakeRest:
                             if (r.get(field) or "").startswith(pattern[:-1])]
         return rows[: int(params.get("limit", "100"))]
 
-    async def upsert(self, client, table, rows, on_conflict, prefer=""):
+    async def upsert(self, client, table, rows, on_conflict, prefer="", timeout=None):
         self.writes.append((table, rows))
         return []
 

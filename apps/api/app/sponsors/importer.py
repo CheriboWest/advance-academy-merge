@@ -12,7 +12,10 @@ existed, and deleting it would destroy the only record that it once was.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
+import random
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
@@ -34,10 +37,32 @@ class RegisterValidationError(RuntimeError):
         super().__init__("; ".join(report.failures))
         self.report = report
 
-# PostgREST request sizing. The register runs to tens of thousands of rows, so
-# writes are chunked; reads page through the whole table.
-UPSERT_CHUNK = 500
+# PostgREST request sizing. The register runs to ~142,000 rows, so writes are
+# chunked; reads page through the whole table.
+#
+# 250 rather than 500: each batch is an ON CONFLICT upsert against a table with
+# a unique index on `natural_key`, and the cost of maintaining that index grows
+# with the table. At 500 the later batches of a full import exceeded the request
+# timeout. Halving the batch roughly halves the per-request work, at the cost of
+# twice as many requests — which are cheap and independently retryable, unlike a
+# batch that times out.
+UPSERT_CHUNK = int(os.getenv("SPONSOR_UPSERT_CHUNK", "250"))
 SELECT_PAGE = 1000
+
+# Bulk writes get their own timeout. The 15 seconds SupabaseRest defaults to is
+# right for interactive requests and far too short for a 250-row upsert into a
+# six-figure table.
+IMPORT_REQUEST_TIMEOUT = float(os.getenv("SPONSOR_IMPORT_TIMEOUT", "120"))
+
+# Per-batch retry budget. Bounded so a genuinely broken import fails in minutes
+# rather than grinding on.
+BATCH_MAX_ATTEMPTS = int(os.getenv("SPONSOR_BATCH_ATTEMPTS", "5"))
+BATCH_BASE_BACKOFF = 1.0
+BATCH_MAX_BACKOFF = 30.0
+
+# Statuses worth trying again. A 4xx that is not 429 means the request itself is
+# wrong — the schema, the payload, the key — and will fail identically forever.
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 TABLE = "sponsor_licences"
 IMPORTS_TABLE = "sponsor_register_imports"
@@ -50,6 +75,105 @@ def _now_iso() -> str:
 def _chunks(items: list[Any], size: int) -> Iterable[list[Any]]:
     for i in range(0, len(items), size):
         yield items[i : i + size]
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """Whether a failed batch write is worth sending again.
+
+    Timeouts and connection failures are retryable, and so are 429 and the 5xx
+    family. Everything else — a malformed payload, a schema mismatch, a bad key —
+    is permanent, and retrying it just delays a failure that is already certain.
+    """
+    if isinstance(
+        exc,
+        (
+            httpx.ReadTimeout,
+            httpx.ConnectTimeout,
+            httpx.WriteTimeout,
+            httpx.PoolTimeout,
+            httpx.ConnectError,
+            httpx.ReadError,
+            httpx.RemoteProtocolError,
+        ),
+    ):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in RETRYABLE_STATUS
+    return False
+
+
+async def _write_batches(
+    client: httpx.AsyncClient,
+    rest: SupabaseRest,
+    rows: list[dict[str, Any]],
+    *,
+    label: str,
+    on_conflict: str = "natural_key",
+    sleeper: Any = asyncio.sleep,
+) -> int:
+    """Upsert `rows` in batches, retrying transient failures. Returns retries used.
+
+    A `ReadTimeout` does NOT prove the server discarded the request — PostgREST
+    may well have committed it and simply answered too late. That is exactly why
+    the retry is safe: `natural_key` is unique and the write is an upsert, so
+    re-sending a batch that already landed updates the same rows instead of
+    duplicating them. The alternative — treating a timeout as a failure and
+    stopping — leaves an import half-applied with no way to tell how far it got.
+
+    Raises if a batch exhausts its attempts, so the caller never proceeds to
+    withdrawal on a partial edition.
+    """
+    batches = [chunk for chunk in _chunks(rows, UPSERT_CHUNK)]
+    total_batches = len(batches)
+    total_rows = len(rows)
+    written = 0
+    retries_used = 0
+
+    for index, chunk in enumerate(batches, start=1):
+        for attempt in range(1, BATCH_MAX_ATTEMPTS + 1):
+            try:
+                await rest.upsert(
+                    client,
+                    TABLE,
+                    chunk,
+                    on_conflict=on_conflict,
+                    prefer="resolution=merge-duplicates,return=minimal",
+                    timeout=IMPORT_REQUEST_TIMEOUT,
+                )
+                break
+            except Exception as exc:  # noqa: BLE001 — classified immediately
+                if not _is_retryable(exc) or attempt == BATCH_MAX_ATTEMPTS:
+                    logger.error(
+                        "[sponsor-import] %s batch %d/%d FAILED after %d attempt(s): "
+                        "%s. %d/%d rows were written before this batch; the stored "
+                        "register is untouched by withdrawal.",
+                        label, index, total_batches, attempt,
+                        type(exc).__name__, written, total_rows,
+                    )
+                    raise
+                retries_used += 1
+                delay = min(
+                    BATCH_BASE_BACKOFF * (2 ** (attempt - 1)), BATCH_MAX_BACKOFF
+                )
+                delay += random.uniform(0, delay / 2)
+                logger.warning(
+                    "[sponsor-import] %s batch %d/%d retry=%d reason=%s "
+                    "backoff=%.1fs",
+                    label, index, total_batches, attempt,
+                    type(exc).__name__, delay,
+                )
+                await sleeper(delay)
+
+        written += len(chunk)
+        logger.info(
+            "[sponsor-import] %s batch %d/%d rows=%d completed | "
+            "processed=%d remaining=%d (%.1f%%)",
+            label, index, total_batches, len(chunk),
+            written, total_rows - written,
+            100.0 * written / total_rows if total_rows else 100.0,
+        )
+
+    return retries_used
 
 
 async def _existing_rows(
@@ -108,6 +232,7 @@ async def ingest_records(
     source_url: str,
     published_at: Optional[str],
     stats: ImportStats,
+    sleeper: Any = asyncio.sleep,
 ) -> None:
     """Upsert `records` and withdraw stored rows the file no longer contains.
 
@@ -117,7 +242,12 @@ async def ingest_records(
     stored = await _existing_rows(client, rest)
     seen_now = datetime.now(timezone.utc).isoformat()
 
+    # Classify first, count later. These tallies describe what the edition WILL
+    # do; they are copied into `stats` only after every batch is confirmed, so a
+    # failed import never reports rows it did not write.
     to_write: list[dict[str, Any]] = []
+    planned_inserted = planned_updated = planned_unchanged = 0
+
     for record in records:
         existing = stored.get(record.natural_key)
         row = record.as_row(source_url, published_at)
@@ -126,31 +256,37 @@ async def ingest_records(
         row["withdrawn_at"] = None
 
         if existing is None:
-            stats.rows_inserted += 1
+            planned_inserted += 1
             row["first_seen_at"] = seen_now
-            to_write.append(row)
         elif _is_unchanged(record, existing):
-            stats.rows_unchanged += 1
+            planned_unchanged += 1
             # Still written: `last_seen_at` is how we prove the row is in
             # today's edition, which is what stops it being withdrawn below.
-            to_write.append(row)
         else:
-            stats.rows_updated += 1
-            to_write.append(row)
+            planned_updated += 1
+        to_write.append(row)
 
-    # Stage the whole edition first. If any chunk raises, the exception
-    # propagates and the withdrawal below never runs — the stored register keeps
-    # every row it had, some merely refreshed. Withdrawal is the only
-    # irreversible-looking step, so it is the last thing that happens and it
-    # happens only after every new row is safely in place.
-    for chunk in _chunks(to_write, UPSERT_CHUNK):
-        await rest.upsert(
-            client,
-            TABLE,
-            chunk,
-            on_conflict="natural_key",
-            prefer="resolution=merge-duplicates,return=minimal",
-        )
+    logger.info(
+        "[sponsor-import] writing %d rows in %d batches of %d "
+        "(insert=%d update=%d unchanged=%d)",
+        len(to_write), -(-len(to_write) // UPSERT_CHUNK), UPSERT_CHUNK,
+        planned_inserted, planned_updated, planned_unchanged,
+    )
+
+    # Stage the whole edition first. `_write_batches` raises if any batch
+    # exhausts its retries, so the withdrawal below is unreachable unless every
+    # new row is safely in place. Withdrawal is the only step that changes what
+    # the register says is current, so it happens last and only on success.
+    retries = await _write_batches(
+        client, rest, to_write, label="edition", sleeper=sleeper
+    )
+
+    # Every batch confirmed. Only now do the numbers become facts.
+    stats.rows_inserted = planned_inserted
+    stats.rows_updated = planned_updated
+    stats.rows_unchanged = planned_unchanged
+    if retries:
+        logger.info("[sponsor-import] edition completed with %d retries", retries)
 
     # Anything currently marked live that this edition did not contain.
     present = {record.natural_key for record in records}
@@ -158,22 +294,43 @@ async def ingest_records(
         row for key, row in stored.items()
         if key not in present and row.get("is_current")
     ]
-    for chunk in _chunks(withdrawn, UPSERT_CHUNK):
-        await rest.upsert(
+    if withdrawn:
+        await _write_batches(
             client,
-            TABLE,
+            rest,
             [
                 {
                     "natural_key": row["natural_key"],
                     "is_current": False,
                     "withdrawn_at": seen_now,
                 }
-                for row in chunk
+                for row in withdrawn
             ],
-            on_conflict="natural_key",
-            prefer="resolution=merge-duplicates,return=minimal",
+            label="withdrawal",
+            sleeper=sleeper,
         )
     stats.rows_withdrawn = len(withdrawn)
+
+
+async def _confirm_edition(
+    client: httpx.AsyncClient, rest: SupabaseRest, source_url: str
+) -> Optional[int]:
+    """Count the rows the database actually holds for this edition.
+
+    Reconciliation, not bookkeeping: a timed-out batch may have committed, so
+    the only trustworthy count comes from asking the database afterwards.
+    Best-effort — a failure here must not fail an import that already succeeded.
+    """
+    try:
+        return await rest.count(
+            client,
+            TABLE,
+            {"source_url": f"eq.{source_url}", "is_current": "eq.true"},
+            timeout=IMPORT_REQUEST_TIMEOUT,
+        )
+    except Exception:  # noqa: BLE001 — reconciliation is advisory
+        logger.warning("[sponsor-import] could not reconcile the edition count")
+        return None
 
 
 async def previous_successful_rows(
@@ -202,6 +359,7 @@ async def run_import(
     csv_bytes: Optional[bytes] = None,
     source_url: Optional[str] = None,
     force: bool = False,
+    sleeper: Any = asyncio.sleep,
 ) -> tuple[str, ImportStats]:
     """Ingest the current register. Returns `(import_run_id, stats)`.
 
@@ -278,8 +436,24 @@ async def run_import(
             )
 
         await ingest_records(
-            client, rest, records, resolved_url, published_at, stats
+            client, rest, records, resolved_url, published_at, stats,
+            sleeper=sleeper,
         )
+
+        confirmed = await _confirm_edition(client, rest, resolved_url)
+        if confirmed is not None:
+            logger.info(
+                "[sponsor-import] reconciled: %d rows in the database carry this "
+                "edition's source URL (parsed %d)",
+                confirmed, stats.rows_parsed,
+            )
+            if confirmed < stats.rows_parsed:
+                logger.warning(
+                    "[sponsor-import] the database holds fewer rows for this "
+                    "edition (%d) than were parsed (%d); re-run the import to "
+                    "finish it",
+                    confirmed, stats.rows_parsed,
+                )
 
         if run_id:
             await rest.update(

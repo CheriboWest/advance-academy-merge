@@ -59,7 +59,7 @@ class FakeRest:
         self.imports: list[dict] = []
         self.requests: list[str] = []
 
-    async def select(self, client, table, params=None):
+    async def select(self, client, table, params=None, timeout=None):
         params = params or {}
         self.requests.append(f"select:{table}")
         if table == "sponsor_register_imports":
@@ -80,7 +80,7 @@ class FakeRest:
             return [dict(r) for r in ordered[offset : offset + limit]]
         return []
 
-    async def insert(self, client, table, rows, prefer="return=representation"):
+    async def insert(self, client, table, rows, prefer="return=representation", timeout=None):
         self.requests.append(f"insert:{table}")
         if table == "sponsor_register_imports":
             created = [{**r, "id": f"import-{len(self.imports) + 1}"} for r in rows]
@@ -88,7 +88,7 @@ class FakeRest:
             return created
         return rows
 
-    async def upsert(self, client, table, rows, on_conflict, prefer=""):
+    async def upsert(self, client, table, rows, on_conflict, prefer="", timeout=None):
         self.requests.append(f"upsert:{table}:{on_conflict}")
         for row in rows:
             existing = next(
@@ -103,7 +103,7 @@ class FakeRest:
             raise AssertionError("sponsor_licences_natural_key_idx violated")
         return []
 
-    async def update(self, client, table, match, values, prefer=""):
+    async def update(self, client, table, match, values, prefer="", timeout=None):
         self.requests.append(f"update:{table}")
         if table == "sponsor_register_imports":
             run_id = match.get("id", "").removeprefix("eq.")

@@ -53,7 +53,7 @@ class FakeRest:
         self.checks: list[dict] = []
         self.imports = [{"id": "import-1", "status": "success"}]
 
-    async def select(self, client, table, params=None):
+    async def select(self, client, table, params=None, timeout=None):
         params = params or {}
         if table == "companies":
             if "id" in params:
@@ -88,7 +88,7 @@ class FakeRest:
             return [dict(c) for c in self.checks]
         return []
 
-    async def upsert(self, client, table, rows, on_conflict, prefer=""):
+    async def upsert(self, client, table, rows, on_conflict, prefer="", timeout=None):
         target = {"company_sponsorship": self.links,
                   "company_sponsorship_checks": self.checks}.get(table)
         if target is None:
@@ -107,10 +107,10 @@ class FakeRest:
             raise AssertionError(f"unique index violated on {table} ({on_conflict})")
         return []
 
-    async def update(self, client, table, match, values, prefer=""):
+    async def update(self, client, table, match, values, prefer="", timeout=None):
         return None
 
-    async def insert(self, client, table, rows, prefer="return=representation"):
+    async def insert(self, client, table, rows, prefer="return=representation", timeout=None):
         return rows
 
 
@@ -459,7 +459,7 @@ check("NEW EDITION: the budget starts fresh against the new edition",
 
 # A failure that never reached the model must not consume the budget.
 class BrokenRest(FakeRest):
-    async def select(self, client, table, params=None):
+    async def select(self, client, table, params=None, timeout=None):
         if table == "sponsor_licences":
             raise RuntimeError("database unavailable")
         return await super().select(client, table, params)

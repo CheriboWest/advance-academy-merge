@@ -317,6 +317,38 @@ new edition is upserted in full; only then are rows absent from it marked
 register keeps every row it had. Verified by tests that refuse a shrunken, an
 empty and an unparseable edition and then assert the stored rows are untouched.
 
+#### Bulk-write reliability
+
+The register is ~142,000 rows. Writes are chunked at **250 rows** (`SPONSOR_UPSERT_CHUNK`)
+and carry an import-specific **120-second** timeout (`SPONSOR_IMPORT_TIMEOUT`) —
+`SupabaseRest`'s 15-second default is right for interactive requests and far too
+short for an upsert into a six-figure table with a unique index. Raising the
+default instead would let an interactive endpoint hang for minutes.
+
+Each batch retries up to 5 times (`SPONSOR_BATCH_ATTEMPTS`) with exponential
+backoff and jitter, on timeouts, connection failures, 429 and 5xx. A 4xx that is
+not 429 is permanent and fails immediately.
+
+**Retrying a timed-out write is safe.** A `ReadTimeout` does not prove the
+server discarded the request — PostgREST may have committed it and answered too
+late. Because `natural_key` is unique and every write is an upsert, re-sending a
+batch that already landed updates the same rows rather than duplicating them.
+That is also why a failed import can simply be re-run: rows written by the
+previous attempt are recognised as unchanged and the import continues from
+there, with no manual cleanup.
+
+Statistics are assigned only after every batch is confirmed, so a failed import
+never reports rows it did not write, and the run is reconciled against a
+`count=exact` query afterwards.
+
+Progress is logged per batch:
+
+```
+[sponsor-import] writing 141904 rows in 568 batches of 250 (insert=141904 update=0 unchanged=0)
+[sponsor-import] edition batch 1/568 rows=250 completed | processed=250 remaining=141654 (0.2%)
+[sponsor-import] edition batch 27/568 retry=1 reason=ReadTimeout backoff=1.4s
+```
+
 Verification queries for after an import: `infra/supabase/verify_sponsor_import.sql`.
 
 `GET /health` returns `{"status": "ok"}`.
@@ -342,6 +374,9 @@ Copy `.env.example` to `.env` and fill in:
 | `SPONSOR_RESOLVER_MODEL` | ❌  | `claude-opus-5` | Model used for sponsor entity resolution |
 | `SPONSOR_RESOLVE_CONCURRENCY` | ❌ | `3` | In-flight resolution requests |
 | `SPONSOR_RESOLVE_MAX_PER_CRAWL` | ❌ | `50` | Companies resolved per crawl |
+| `SPONSOR_UPSERT_CHUNK` | ❌ | `250` | Rows per register upsert batch |
+| `SPONSOR_IMPORT_TIMEOUT` | ❌ | `120` | Seconds per bulk register write |
+| `SPONSOR_BATCH_ATTEMPTS` | ❌ | `5` | Attempts per batch before failing |
 
 ## Run locally
 
@@ -379,6 +414,7 @@ python test_sponsor_register.py   # sponsor-register ingestion (fixture CSV)
 python test_sponsor_matching.py   # candidate search + entity resolution
 python test_sponsor_worker.py     # automatic resolution, retries, batching
 python test_sponsor_validation.py # import validation + withdrawal safety
+python test_sponsor_import_retry.py # bulk-write retry, resume, withdrawal safety
 ```
 
 `test_companies.py` stubs the Supabase call, so it needs no network and no
