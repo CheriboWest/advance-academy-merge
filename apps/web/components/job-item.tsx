@@ -63,7 +63,7 @@ function JobBody({ job }: JobItemProps) {
           )}
         </div>
       </div>
-      <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium">
+      <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-highlight-ink">
         View job
         <ArrowUpRight className="size-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
       </span>
@@ -78,7 +78,7 @@ export function JobItem({ job }: JobItemProps) {
   // not as a link.
   if (!href) {
     return (
-      <div className="flex flex-col gap-3 border-l-2 border-transparent py-5 pl-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <div className="card-surface flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
         <JobBody job={job} />
       </div>
     );
@@ -89,7 +89,7 @@ export function JobItem({ job }: JobItemProps) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex flex-col gap-3 border-l-2 border-transparent py-5 pl-3 transition-[background-color,border-color,padding] hover:border-l-primary hover:bg-muted hover:pl-5 focus-visible:border-l-primary focus-visible:bg-muted focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+      className="card-interactive group flex flex-col gap-3 p-5 focus-visible:border-primary/30 focus-visible:outline-none sm:flex-row sm:items-center sm:justify-between sm:gap-6"
     >
       <JobBody job={job} />
     </a>

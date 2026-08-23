@@ -11,10 +11,7 @@ interface KPICardProps {
   className?: string;
 }
 
-/**
- * One metric in the dashboard's statistics band. Cells are separated by rules
- * from the containing grid rather than each being its own floating card.
- */
+/** One metric in the dashboard's statistics band. */
 export function KPICard({
   label,
   value,
@@ -23,12 +20,14 @@ export function KPICard({
   className,
 }: KPICardProps) {
   return (
-    <div className={cn("px-0 py-5 sm:px-6 sm:first:pl-0", className)}>
-      <p className="label-caps flex items-center gap-2">
-        <Icon className="size-3.5" />
-        {label}
-      </p>
-      <p className="mt-2 font-display text-4xl leading-none tabular-nums">
+    <div className={cn("card-surface p-5", className)}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="label-caps">{label}</p>
+        <span className="icon-tile size-9">
+          <Icon className="size-4" />
+        </span>
+      </div>
+      <p className="mt-3 font-display text-4xl leading-none tabular-nums text-foreground">
         {value}
       </p>
       {hint && <p className="mt-2 text-xs text-muted-foreground">{hint}</p>}

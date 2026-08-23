@@ -59,3 +59,8 @@ Implemented:
 
 Not implemented (intentionally): Supabase, authentication, FastAPI, AI,
 email, coach dashboard, real search, pagination.
+
+## Deployment
+
+Production is deployed on Vercel from the `main` branch — every push to `main`
+triggers a new production deployment automatically.

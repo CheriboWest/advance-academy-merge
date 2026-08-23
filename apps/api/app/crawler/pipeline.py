@@ -312,31 +312,76 @@ async def _execute(
             )
 
 
+def _is_missing_column_error(exc: httpx.HTTPStatusError) -> bool:
+    """True when PostgREST rejected a write because a column does not exist.
+
+    Signals that `crawl_runs` predates migration 0005 and has no statistics
+    columns yet.
+    """
+    body = exc.response.text or ""
+    return "PGRST204" in body or "does not exist" in body
+
+
 async def _finalize(
     rest: SupabaseRest,
     run_id: str,
     status: str,
+    stats: CrawlStats,
     error_note: str | None,
 ) -> None:
-    """Persist the terminal state to crawl_runs.
+    """Persist the terminal state *and* this run's statistics to crawl_runs.
 
-    The live crawl_runs schema only guarantees the `status` and `completed_at`
-    columns (there is no `error` column and no per-run count columns), so the
-    UPDATE writes exactly those two — the smallest write that reaches a terminal
-    state. `error_note` is logged for observability but not persisted, since no
-    column exists to hold it. If the UPDATE fails, SupabaseRest.update prints the
-    PostgREST error and re-raises (surfaced loudly, never swallowed).
+    Both go in a **single** UPDATE, deliberately: the frontend stops polling the
+    moment it sees a terminal `status`, so writing the status first and the
+    counts second would leave a window where the completion screen renders zeros
+    for a run that actually ingested data. One statement means a poll either
+    sees the run still running, or sees it terminal *with* its statistics.
+
+    The counts come from the same `CrawlStats` instance the ingest mutated —
+    there is no second tally anywhere, and nothing is recomputed from database
+    totals.
+
+    Falls back to the status-only write if the database still lacks the
+    statistics columns (migration 0005 not yet applied): a run must always reach
+    a terminal state, even on an old schema. The fallback is logged loudly and
+    never silently swallows anything else.
     """
+    completed_at = _now_iso()
     payload: dict[str, Any] = {
         "status": status,
-        "completed_at": _now_iso(),
+        "completed_at": completed_at,
+        "error": error_note,
+        **stats.as_columns(),
     }
 
     async with httpx.AsyncClient() as client:
         with stage("update_crawl_run"):
-            await rest.update(client, "crawl_runs", {"id": f"eq.{run_id}"}, payload)
+            try:
+                await rest.update(
+                    client, "crawl_runs", {"id": f"eq.{run_id}"}, payload
+                )
+            except httpx.HTTPStatusError as exc:
+                if not _is_missing_column_error(exc):
+                    raise
+                print(
+                    "[finalize] crawl_runs is missing the statistics columns — "
+                    "apply infra/supabase/migrations/"
+                    "0005_crawl_run_stats_columns.sql. Falling back to a "
+                    f"status-only write. run_id={run_id} stats={stats.as_columns()}",
+                    flush=True,
+                )
+                await rest.update(
+                    client,
+                    "crawl_runs",
+                    {"id": f"eq.{run_id}"},
+                    {"status": status, "completed_at": completed_at},
+                )
 
-    print(f"[finalize] persisted run_id={run_id} status={status}", flush=True)
+    print(
+        f"[finalize] persisted run_id={run_id} status={status} "
+        f"stats={stats.as_columns()}",
+        flush=True,
+    )
     if error_note:
         print(f"[finalize] run_id={run_id} note={error_note!r}", flush=True)
 
