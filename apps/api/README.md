@@ -155,6 +155,57 @@ upsert into `jobs` → record stats on `crawl_runs`. Newly ingested companies wi
 active jobs appear automatically in the student portal via
 `public_company_summary`.
 
+### Sponsor register (authenticated)
+
+The **[UK Register of Licensed Sponsors: workers](https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers)**
+is the only authority for whether an organisation currently holds a sponsor
+licence. Claude is an *entity-resolution* layer on top of it — it decides
+whether a crawled company and a register row describe the same organisation,
+and never whether a licence exists.
+
+- **`POST /sponsors/import`** — locate the current CSV on GOV.UK, download,
+  parse, and upsert it. Also the refresh path: the publication page is read on
+  every run, so a newly published edition is picked up without a code change.
+  Safe to run repeatedly.
+- **`GET /sponsors/imports`** — recent ingestion runs with their statistics.
+- **`POST /sponsors/resolve/{company_id}`** — narrow the register to a few
+  candidates in the database, then ask Claude which (if any) is the same entity.
+
+Requires migration `infra/supabase/migrations/0006_sponsor_register.sql`.
+
+#### Stored fields
+
+| GOV.UK column | Stored as | Notes |
+| --- | --- | --- |
+| Organisation Name | `organisation_name` | Verbatim; never rewritten |
+| Town/City | `town_city` | Verbatim |
+| County | `county` | Verbatim |
+| Type & Rating | `type_rating` | Verbatim, plus parsed `licence_type` + `rating` |
+| Route | `route` | Verbatim |
+
+Alongside them: `normalized_name`/`normalized_town` (lookup only), `natural_key`
+(the register line's identity), `source_url`, `register_published_at`,
+`first_seen_at`, `last_seen_at`, `is_current`, `withdrawn_at`.
+
+#### Deduplication and current status
+
+A register line is identified by (organisation, town, county, type & rating,
+route), hashed into `natural_key` with a unique index — so one organisation can
+hold several rows (multiple routes or sites) and re-running the importer over an
+unchanged file inserts nothing. A row that stops appearing in a newer edition is
+marked `is_current = false` with a `withdrawn_at` stamp and **kept**: absence
+from today's file means the licence is not listed today, not that it never
+existed.
+
+#### Running the importer manually
+
+```bash
+cd apps/api
+python scripts/import_sponsor_register.py                       # download + ingest
+python scripts/import_sponsor_register.py --file register.csv   # ingest a local file
+python scripts/import_sponsor_register.py --file register.csv --dry-run
+```
+
 `GET /health` returns `{"status": "ok"}`.
 
 ## Environment variables
@@ -175,6 +226,7 @@ Copy `.env.example` to `.env` and fill in:
 | `ADZUNA_APP_ID`     | ✅ (crawler) | —             | Adzuna API app id                       |
 | `ADZUNA_APP_KEY`    | ✅ (crawler) | —             | Adzuna API app key                      |
 | `REED_API_KEY`      | ✅ (crawler) | —             | Reed API key                            |
+| `SPONSOR_RESOLVER_MODEL` | ❌  | `claude-opus-5` | Model used for sponsor entity resolution |
 
 ## Run locally
 
@@ -208,6 +260,8 @@ python test_auth.py        # JWKS token verification
 python test_cors.py        # CORS configuration
 python test_scoring.py     # lead scoring
 python test_companies.py   # permanent company deletion endpoint
+python test_sponsor_register.py   # sponsor-register ingestion (fixture CSV)
+python test_sponsor_matching.py   # candidate search + entity resolution
 ```
 
 `test_companies.py` stubs the Supabase call, so it needs no network and no

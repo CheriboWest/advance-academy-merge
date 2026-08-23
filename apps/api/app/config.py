@@ -52,6 +52,13 @@ class Settings:
         # Sender address, e.g. "Violet Dao <violet@cvadvance.com>". Its domain
         # must be verified in Resend.
         self.email_from: str = os.getenv("EMAIL_FROM", "")
+        # Model used for sponsor entity resolution. Kept separate from the
+        # outreach model: resolution is a judgement task where a wrong answer is
+        # expensive, so it defaults to the most capable model rather than the
+        # cheapest one that can write an email.
+        self.sponsor_resolver_model: str = os.getenv(
+            "SPONSOR_RESOLVER_MODEL", "claude-opus-5"
+        )
         # Job-board crawler credentials.
         self.adzuna_app_id: str = os.getenv("ADZUNA_APP_ID", "")
         self.adzuna_app_key: str = os.getenv("ADZUNA_APP_KEY", "")

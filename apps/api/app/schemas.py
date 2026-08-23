@@ -110,3 +110,45 @@ class DeleteCompaniesResponse(BaseModel):
     deleted_jobs: int = 0
     deleted_coach_meta: int = 0
     unlinked_outreach_emails: int = 0
+
+
+class SponsorImportResponse(BaseModel):
+    """Outcome of one sponsor-register ingestion run."""
+
+    import_id: Optional[str] = None
+    status: str
+    source_url: Optional[str] = None
+    register_published_at: Optional[str] = None
+    rows_downloaded: int = 0
+    rows_parsed: int = 0
+    rows_inserted: int = 0
+    rows_updated: int = 0
+    rows_unchanged: int = 0
+    rows_rejected: int = 0
+    rows_withdrawn: int = 0
+
+
+class SponsorCandidate(BaseModel):
+    """A register row offered to the resolver."""
+
+    id: str
+    organisation_name: str
+    town_city: Optional[str] = None
+    county: Optional[str] = None
+    route: Optional[str] = None
+    licence_type: Optional[str] = None
+    rating: Optional[str] = None
+
+
+class SponsorResolutionResponse(BaseModel):
+    """The resolution for one company, after the code-side guardrails."""
+
+    company_id: str
+    selected_candidate_id: Optional[str] = None
+    confidence: float = 0.0
+    decision: str
+    matched_on: list[str] = Field(default_factory=list)
+    reasoning: str = ""
+    candidates_considered: int = 0
+    search_strategies: list[str] = Field(default_factory=list)
+    persisted: bool = False
