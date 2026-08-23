@@ -483,7 +483,7 @@ async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> N
         status = "error"
         error_note = _safe_error(exc)
 
-    await _finalize(rest, run_id, status, error_note)
+    await _finalize(rest, run_id, status, stats, error_note)
 
     # Sponsorship resolution runs AFTER the crawl reaches a terminal state, on
     # purpose. Inside `_execute` it would spend the crawl's timeout budget and a
