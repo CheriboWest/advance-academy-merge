@@ -33,7 +33,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           name="email"
           type="email"
           autoComplete="email"
-          placeholder="coach@careerhub.uk"
+          placeholder="coach@advanceacademy.uk"
           required
           disabled={pending}
           className="h-11"
@@ -68,6 +68,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
 
       <Button
         type="submit"
+        variant="highlight"
         disabled={pending}
         className="h-11 w-full"
       >

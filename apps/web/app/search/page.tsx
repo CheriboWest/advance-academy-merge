@@ -9,7 +9,7 @@ import { SearchResultsSkeleton } from "@/components/search-results-skeleton";
 
 export const metadata: Metadata = {
   title: "Search",
-  description: "Search UK companies and jobs on CareerHub UK.",
+  description: "Search UK companies and jobs on Advance Academy.",
 };
 
 // Data is fetched per request from Supabase, driven by URL search params.

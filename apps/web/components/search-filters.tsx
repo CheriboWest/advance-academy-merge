@@ -91,7 +91,7 @@ export function SearchFilters({
     chips.push({ label: sector, clear: () => commit({ sector: ALL }) });
 
   return (
-    <div className="sticky top-16 z-30 border-b border-border bg-background">
+    <div className="sticky top-16 z-30 border-b border-border bg-card">
       {/* Navigation is a transition, not a spinner — show it as a hairline. */}
       <div
         aria-hidden
@@ -102,8 +102,8 @@ export function SearchFilters({
       />
 
       <PageContainer className="py-3" aria-busy={isPending}>
-        {/* Search-by mode toggle — underlined tabs, not a pill group. */}
-        <div className="flex gap-6" role="group" aria-label="Search by">
+        {/* Search-by mode toggle — chips, matching the nav. */}
+        <div className="flex gap-2" role="group" aria-label="Search by">
           {MODE_OPTIONS.map((option) => {
             const active = option.value === mode;
             return (
@@ -113,10 +113,10 @@ export function SearchFilters({
                 aria-pressed={active}
                 onClick={() => commit({ mode: option.value })}
                 className={cn(
-                  "border-b-2 pb-2 text-sm font-medium transition-colors",
+                  "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
                   active
-                    ? "border-primary text-foreground"
-                    : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+                    ? "border-primary/30 bg-secondary text-primary"
+                    : "border-transparent text-muted-foreground hover:bg-accent hover:text-primary"
                 )}
               >
                 {option.label}
@@ -214,6 +214,7 @@ export function SearchFilters({
 
             <Button
               type="submit"
+              variant="highlight"
               className="col-span-2 h-11 sm:col-span-3 lg:col-span-1 lg:w-auto lg:px-6"
             >
               <Search className="size-4" />
@@ -230,7 +231,7 @@ export function SearchFilters({
                 key={chip.label}
                 type="button"
                 onClick={chip.clear}
-                className="group inline-flex items-center gap-1.5 rounded-sm border border-border px-2 py-1 text-sm transition-colors hover:border-destructive hover:text-destructive"
+                className="group inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-sm transition-colors hover:border-destructive hover:text-destructive"
               >
                 {chip.label}
                 <X className="size-3.5 opacity-60 group-hover:opacity-100" />

@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Target } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { coachNavItems } from "@/components/coach/coach-nav";
@@ -12,16 +13,21 @@ export function CoachSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-56 shrink-0 border-r border-border md:block">
+    <aside className="hidden w-60 shrink-0 border-r border-border md:block">
       <div className="sticky top-16 py-8 pr-6">
-        <Link href="/coach/dashboard" className="block">
-          <span className="label-caps">Workspace</span>
-          <span className="mt-1 block font-display text-2xl leading-none">
-            Coach
+        <Link href="/coach/dashboard" className="flex items-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-full bg-primary text-highlight">
+            <Target className="size-5" />
+          </span>
+          <span>
+            <span className="label-caps block">Workspace</span>
+            <span className="block font-display text-xl leading-tight text-primary">
+              Coach
+            </span>
           </span>
         </Link>
 
-        <nav className="mt-8 flex flex-col">
+        <nav className="mt-8 flex flex-col gap-1">
           {coachNavItems.map(({ href, label, icon: Icon }) => {
             const active =
               pathname === href || pathname.startsWith(`${href}/`);
@@ -30,10 +36,10 @@ export function CoachSidebar() {
                 key={href}
                 href={href}
                 className={cn(
-                  "flex items-center gap-3 border-l-2 py-2.5 pl-3 text-sm transition-colors",
+                  "flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors",
                   active
-                    ? "border-primary font-medium text-foreground"
-                    : "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+                    ? "border-border bg-secondary font-medium text-primary"
+                    : "border-transparent text-muted-foreground hover:bg-accent hover:text-primary"
                 )}
               >
                 <Icon className="size-4" />

@@ -6,7 +6,9 @@ import { fetchCompanies, fetchPublicStats } from "@/lib/queries";
 import type { CompanySummary } from "@/lib/types";
 import { PageContainer } from "@/components/page-container";
 import { HeroSearch } from "@/components/hero-search";
-import { CompanyRow } from "@/components/company-row";
+import { CompanyCard } from "@/components/company-card";
+import { SectionDivider } from "@/components/section-divider";
+import { SectionHeading } from "@/components/section-heading";
 import { Button } from "@/components/ui/button";
 
 // Headline counts and the hiring list are read per request from Supabase.
@@ -41,29 +43,29 @@ export default async function HomePage() {
 
   return (
     <>
-      <PageContainer as="section" className="pt-14 sm:pt-20">
-        <p className="label-caps">UK graduate & early-career hiring</p>
+      <PageContainer as="section" className="pt-16 text-center sm:pt-24">
+        <p className="label-caps">UK graduate &amp; early-career hiring</p>
 
-        <h1 className="mt-5 max-w-4xl text-balance text-5xl leading-[0.95] sm:text-6xl md:text-7xl">
+        <h1 className="mx-auto mt-5 max-w-4xl text-balance text-5xl leading-[0.95] sm:text-6xl md:text-7xl">
           Which UK companies are hiring right now
-          <span className="text-highlight"> — and how to reach them.</span>
+          <span className="text-highlight-ink"> — and how to reach them.</span>
         </h1>
 
-        <p className="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
+        <p className="mx-auto mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
           Search live roles by company or job title, see who is actually
           recruiting, and go straight to their careers page. No account needed.
         </p>
 
-        <div className="mt-10 max-w-3xl">
+        <div className="mx-auto mt-10 max-w-2xl">
           <HeroSearch />
 
-          <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2">
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
             <span className="label-caps mr-1">Or jump to</span>
             {POPULAR_ROLES.map((role) => (
               <Link
                 key={role}
                 href={`/search?mode=role&q=${encodeURIComponent(role)}`}
-                className="rounded-sm border border-border px-3 py-1.5 text-sm transition-colors hover:border-foreground hover:bg-foreground hover:text-background"
+                className="rounded-full border border-border bg-card px-4 py-1.5 text-sm transition-colors hover:border-primary/40 hover:bg-secondary hover:text-primary"
               >
                 {role}
               </Link>
@@ -85,10 +87,17 @@ export default async function HomePage() {
         </div>
       </PageContainer>
 
+      <PageContainer className="mt-16 sm:mt-20">
+        <SectionDivider />
+      </PageContainer>
+
       {hiring.length > 0 && (
-        <PageContainer as="section" className="mt-20">
-          <div className="flex items-end justify-between gap-4 border-b-2 border-foreground pb-3">
-            <h2 className="text-2xl sm:text-3xl">Hiring now</h2>
+        <PageContainer as="section" className="mt-14">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <SectionHeading index={1}>Find opportunities</SectionHeading>
+              <h2 className="mt-2 text-3xl sm:text-4xl">Hiring now</h2>
+            </div>
             <Button asChild variant="link" size="sm">
               <Link href="/search">
                 All employers
@@ -97,15 +106,39 @@ export default async function HomePage() {
             </Button>
           </div>
 
-          <ul className="divide-y divide-border">
+          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {hiring.map((company) => (
-              <li key={company.id}>
-                <CompanyRow company={company} />
-              </li>
+              <CompanyCard key={company.id} company={company} />
             ))}
-          </ul>
+          </div>
         </PageContainer>
       )}
+
+      <PageContainer as="section" className="mt-20">
+        <SectionDivider className="mb-14" />
+
+        <div className="rounded-xl bg-primary px-6 py-14 text-center text-primary-foreground sm:px-12">
+          <h2 className="text-balance text-3xl text-primary-foreground sm:text-4xl">
+            Ready to advance your career?
+          </h2>
+          <p className="mx-auto mt-4 max-w-lg text-pretty text-primary-foreground/80">
+            Start by searching employers, or find every company hiring for the
+            job title you want.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Button asChild variant="highlight" size="lg">
+              <Link href="/search">Find companies</Link>
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              className="border border-primary-foreground/25 bg-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/25"
+            >
+              <Link href="/search?mode=role">Search by job role</Link>
+            </Button>
+          </div>
+        </div>
+      </PageContainer>
     </>
   );
 }

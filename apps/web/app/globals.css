@@ -20,6 +20,10 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-highlight: var(--highlight);
   --color-highlight-foreground: var(--highlight-foreground);
+  /* Gold that is legible AS TEXT on white — the fill gold below is ~1.9:1 and
+     fails AA, so it is never allowed to carry small type. */
+  --color-highlight-ink: var(--highlight-ink);
+  --color-heading: var(--heading);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -31,97 +35,107 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  /* Editorial radius scale: sharp, declared outright — no calc() chain that
-     collapses to zero once the base radius is small. */
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 6px;
-  --radius-xl: 10px;
+  /* Soft radius scale. Declared outright — every `rounded-sm` call site in the
+     app reads this, so the card language is tuned here, not at 40 call sites. */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
 
   --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
   --font-sans: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
-  /* Ink on paper. Warm neutrals (hue ~85-95), never cool slate. */
-  --background: oklch(0.977 0.005 90);
-  --foreground: oklch(0.196 0.010 95);
+  /* Navy and gold on white. Cool neutrals (hue ~265), never warm paper. */
+  --background: oklch(0.994 0.002 265);
+  --foreground: oklch(0.215 0.020 265);
 
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.196 0.010 95);
+  --card-foreground: oklch(0.215 0.020 265);
 
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.196 0.010 95);
+  --popover-foreground: oklch(0.215 0.020 265);
 
-  /* British racing green — the single load-bearing colour. */
-  --primary: oklch(0.365 0.065 160);
-  --primary-foreground: oklch(0.98 0.004 90);
+  /* Deep navy — the load-bearing colour: headings, CTA band, focus ring. */
+  --primary: oklch(0.345 0.135 265);
+  --primary-foreground: oklch(0.99 0.002 265);
 
-  --secondary: oklch(0.955 0.007 90);
-  --secondary-foreground: oklch(0.28 0.010 95);
+  --secondary: oklch(0.965 0.005 265);
+  --secondary-foreground: oklch(0.300 0.020 265);
 
-  --muted: oklch(0.955 0.007 90);
-  --muted-foreground: oklch(0.500 0.010 90);
+  --muted: oklch(0.965 0.005 265);
+  --muted-foreground: oklch(0.505 0.020 265);
 
   /* Neutral hover surface (shadcn semantics — ghost/outline hover). */
-  --accent: oklch(0.945 0.008 90);
-  --accent-foreground: oklch(0.28 0.010 95);
+  --accent: oklch(0.955 0.007 265);
+  --accent-foreground: oklch(0.300 0.020 265);
 
-  /* Rust — attention only: "hiring now", matching roles, live counts. */
-  --highlight: oklch(0.525 0.155 43);
-  --highlight-foreground: oklch(0.98 0.004 90);
+  /* Gold — FILLS ONLY: icon tiles, primary CTA buttons, badges. */
+  --highlight: oklch(0.800 0.150 84);
+  --highlight-foreground: oklch(0.290 0.110 265);
+  /* Gold for TEXT on light surfaces: "Open ›", eyebrow numerals. */
+  --highlight-ink: oklch(0.620 0.130 66);
 
-  --destructive: oklch(0.505 0.180 27);
-  --destructive-foreground: oklch(0.98 0.004 90);
+  --destructive: oklch(0.520 0.190 27);
+  --destructive-foreground: oklch(0.99 0.002 265);
 
-  --border: oklch(0.885 0.008 90);
-  --input: oklch(0.885 0.008 90);
-  --ring: oklch(0.365 0.065 160);
+  --border: oklch(0.912 0.008 265);
+  --input: oklch(0.912 0.008 265);
+  --ring: oklch(0.345 0.135 265);
 
-  --chart-1: oklch(0.365 0.065 160);
-  --chart-2: oklch(0.525 0.155 43);
-  --chart-3: oklch(0.560 0.060 200);
-  --chart-4: oklch(0.680 0.110 80);
-  --chart-5: oklch(0.450 0.070 300);
+  /* Headings are navy by default; see the base layer below. */
+  --heading: var(--primary);
+
+  --chart-1: oklch(0.345 0.135 265);
+  --chart-2: oklch(0.800 0.150 84);
+  --chart-3: oklch(0.550 0.120 250);
+  --chart-4: oklch(0.680 0.110 40);
+  --chart-5: oklch(0.480 0.090 300);
 }
 
 .dark {
-  --background: oklch(0.170 0.006 90);
-  --foreground: oklch(0.950 0.006 90);
+  --background: oklch(0.185 0.022 265);
+  --foreground: oklch(0.955 0.006 265);
 
-  --card: oklch(0.215 0.006 90);
-  --card-foreground: oklch(0.950 0.006 90);
+  --card: oklch(0.230 0.026 265);
+  --card-foreground: oklch(0.955 0.006 265);
 
-  --popover: oklch(0.215 0.006 90);
-  --popover-foreground: oklch(0.950 0.006 90);
+  --popover: oklch(0.230 0.026 265);
+  --popover-foreground: oklch(0.955 0.006 265);
 
-  --primary: oklch(0.720 0.100 160);
-  --primary-foreground: oklch(0.170 0.006 90);
+  --primary: oklch(0.740 0.110 262);
+  --primary-foreground: oklch(0.185 0.022 265);
 
-  --secondary: oklch(0.260 0.006 90);
-  --secondary-foreground: oklch(0.950 0.006 90);
+  --secondary: oklch(0.280 0.024 265);
+  --secondary-foreground: oklch(0.955 0.006 265);
 
-  --muted: oklch(0.260 0.006 90);
-  --muted-foreground: oklch(0.680 0.010 90);
+  --muted: oklch(0.280 0.024 265);
+  --muted-foreground: oklch(0.705 0.018 265);
 
-  --accent: oklch(0.280 0.006 90);
-  --accent-foreground: oklch(0.950 0.006 90);
+  --accent: oklch(0.305 0.026 265);
+  --accent-foreground: oklch(0.955 0.006 265);
 
-  --highlight: oklch(0.700 0.140 45);
-  --highlight-foreground: oklch(0.170 0.006 90);
+  --highlight: oklch(0.815 0.145 84);
+  --highlight-foreground: oklch(0.230 0.060 265);
+  /* On dark surfaces the bright gold is already legible as text. */
+  --highlight-ink: oklch(0.815 0.145 84);
 
   --destructive: oklch(0.660 0.170 27);
-  --destructive-foreground: oklch(0.170 0.006 90);
+  --destructive-foreground: oklch(0.185 0.022 265);
 
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.720 0.100 160);
+  --border: oklch(1 0 0 / 13%);
+  --input: oklch(1 0 0 / 17%);
+  --ring: oklch(0.740 0.110 262);
 
-  --chart-1: oklch(0.720 0.100 160);
-  --chart-2: oklch(0.700 0.140 45);
-  --chart-3: oklch(0.700 0.070 200);
-  --chart-4: oklch(0.780 0.110 80);
-  --chart-5: oklch(0.650 0.090 300);
+  /* Navy-on-dark would be unreadable — headings fall back to body ink. */
+  --heading: var(--foreground);
+
+  --chart-1: oklch(0.740 0.110 262);
+  --chart-2: oklch(0.815 0.145 84);
+  --chart-3: oklch(0.700 0.090 250);
+  --chart-4: oklch(0.780 0.110 40);
+  --chart-5: oklch(0.680 0.090 300);
 }
 
 @layer base {
@@ -133,9 +147,10 @@
     @apply bg-background text-foreground;
   }
 
-  /* Headings use the display serif by default, so no call site has to
-     remember. Instrument Serif ships one weight — never let the browser fake
-     a bold from it. */
+  /* Headings use the display serif and the heading ink by default, so no call
+     site has to remember either. Instrument Serif ships one weight — never let
+     the browser fake a bold from it. Headings sitting ON navy override the
+     colour locally with `text-primary-foreground`. */
   h1,
   h2,
   h3 {
@@ -143,12 +158,32 @@
     font-weight: 400;
     font-synthesis-weight: none;
     letter-spacing: -0.015em;
+    color: var(--color-heading);
   }
 }
 
 @layer utilities {
-  /* Small-caps label used for metric captions and section eyebrows. */
+  /* Small-caps label used for section eyebrows and metric captions. */
   .label-caps {
-    @apply text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground;
+    @apply text-[11px] font-medium uppercase tracking-[0.12em] text-primary;
+  }
+
+  /* The one card idiom in the app: white panel, hairline border, soft corner. */
+  .card-surface {
+    @apply rounded-lg border border-border bg-card;
+  }
+
+  /* Interactive version — used for cards that are themselves links.
+     Tailwind v4 cannot @apply a sibling custom utility, so the surface
+     declarations are repeated rather than composed. */
+  .card-interactive {
+    @apply rounded-lg border border-border bg-card;
+    @apply transition-[border-color,box-shadow,transform];
+    @apply hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_6px_20px_-12px_var(--primary)];
+  }
+
+  /* Gold rounded square holding a navy icon — the concept's card glyph. */
+  .icon-tile {
+    @apply flex size-10 shrink-0 items-center justify-center rounded-md bg-highlight text-highlight-foreground;
   }
 }

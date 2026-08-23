@@ -78,18 +78,35 @@ create table if not exists public.discovery_queries (
 );
 
 -- Crawl run records + statistics.
+--
+-- The columns the application actually reads and writes are listed first; see
+-- migration 0005_crawl_run_stats_columns.sql. The live table uses
+-- `started_at`/`completed_at` (not `created_at`/`finished_at`), and `status` is
+-- 'running' → 'success' | 'error'. The trailing columns come from migrations
+-- 0001/0002 and are no longer written — left in place, not dropped.
 create table if not exists public.crawl_runs (
   id                       uuid primary key default gen_random_uuid(),
+  source                   text,
   status                   text not null default 'running',
   query                    text,
   location                 text,
+  started_at               timestamptz default now(),
+  completed_at             timestamptz,
+  error                    text,
+  -- Per-run statistics, written in one UPDATE when the run finalizes and read
+  -- back by the coach's "Crawl complete" screen.
+  raw_jobs                 integer default 0,
+  normalized_jobs          integer default 0,
+  inserted_jobs            integer default 0,
+  updated_jobs             integer default 0,
+  duplicate_jobs           integer default 0,
+  companies_created        integer default 0,
+  companies_updated        integer default 0,
+  -- Legacy, unwritten.
   jobs_fetched             integer default 0,
   new_jobs                 integer default 0,
-  duplicate_jobs           integer default 0,
   companies_discovered     integer default 0,
-  companies_updated        integer default 0,
   lead_scores_recalculated integer default 0,
-  error                    text,
   created_at               timestamptz default now(),
   finished_at              timestamptz
 );

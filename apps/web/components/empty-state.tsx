@@ -20,19 +20,17 @@ export function EmptyState({
   className,
 }: EmptyStateProps) {
   return (
-    <div className={cn("border-y border-border py-14", className)}>
-      <div className="flex max-w-xl gap-4">
-        <Icon className="mt-1 size-5 shrink-0 text-muted-foreground" />
-        <div>
-          <h3 className="text-xl">{title}</h3>
-          {description && (
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              {description}
-            </p>
-          )}
-          {action && <div className="mt-5">{action}</div>}
-        </div>
-      </div>
+    <div className={cn("card-surface px-6 py-12 text-center", className)}>
+      <span className="icon-tile mx-auto">
+        <Icon className="size-5" />
+      </span>
+      <h3 className="mt-4 text-xl">{title}</h3>
+      {description && (
+        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      )}
+      {action && <div className="mt-6">{action}</div>}
     </div>
   );
 }
