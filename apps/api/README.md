@@ -198,8 +198,19 @@ already written, and the hook swallows every exception — a crawl that ingested
 jobs correctly is a successful crawl whether or not the register could be
 consulted.
 
-A company is resolved only when it has never been checked, its last attempt
-errored, or it was checked against an older register edition. That state lives
+**No register, no resolution.** If no register edition has been imported
+successfully, the whole batch is skipped — no model calls, no rows, no check
+state. An empty register means these companies are *unchecked*, not *not
+sponsors*, and writing `no_match` would record that misreading permanently.
+
+A company is resolved only when it has never been checked, it was checked
+against an older register edition, or its last attempt errored **and** it has
+not exhausted its retry budget. `company_sponsorship_checks.attempts` counts
+**cumulative failed model HTTP attempts against the current register edition**
+since the last successful conclusion: three transient failures in one run
+advance it by 3, any conclusion resets it to 0, and a failure that never reached
+the model (a database error) costs nothing. At 9 the company stops being
+enqueued automatically and waits for `--force` or a new register edition. That state lives
 in `company_sponsorship_checks` (migration 0007), which also gives `no_match` and
 `ambiguous` somewhere to live — `company_sponsorship.sponsor_licence_id` is NOT
 NULL, so that table holds confirmed links and nothing else.
@@ -222,8 +233,16 @@ python scripts/resolve_sponsorship.py --company <uuid> --force   # force a reche
 python scripts/resolve_sponsorship.py --all --limit 200          # backfill
 ```
 
-Requires migrations `0006_sponsor_register.sql` and
-`0007_company_sponsorship_checks.sql`.
+Requires migrations `0006_sponsor_register.sql`,
+`0007_company_sponsorship_checks.sql` and `0008_sponsorship_rls.sql`.
+
+**These tables are private.** Migration 0008 enables RLS with no policies and
+revokes table privileges from `anon` and `authenticated`, so neither the browser
+nor a signed-in session can read them through PostgREST. Only `service_role`
+reaches them. Being authenticated is not the same as being a coach — students
+authenticate too, and sponsorship is a paid entitlement — so access will be
+granted later through this API with explicit entitlement checks, not by a
+blanket RLS policy.
 
 #### Stored fields
 

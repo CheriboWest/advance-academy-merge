@@ -18,6 +18,7 @@ import asyncio
 from typing import Any, Optional
 
 from app.crawler.models import CrawlStats
+from app.sponsors.service import MAX_CUMULATIVE_ATTEMPTS
 from app.sponsors.worker import (
     DEFAULT_CONCURRENCY,
     MAX_ATTEMPTS,
@@ -69,7 +70,13 @@ class FakeRest:
                 rows = [r for r in rows if pattern in r["normalized_name"]]
             return [dict(r) for r in rows][: int(params.get("limit", "50"))]
         if table == "sponsor_register_imports":
-            return [dict(i) for i in self.imports]
+            # Production filters to successful imports; the fake must too, or a
+            # failed import would look like a usable register edition.
+            rows = self.imports
+            status = params.get("status")
+            if status and status.startswith("eq."):
+                rows = [i for i in rows if i.get("status") == status[3:]]
+            return [dict(i) for i in rows][: int(params.get("limit", "50"))]
         if table == "company_sponsorship_checks":
             if "company_id" in params:
                 raw = params["company_id"]
@@ -362,6 +369,109 @@ stub = SometimesFails(MATCH)
 stats = run(rest, [f"co-d{i}" for i in range(6)], stub)
 check("BATCH: one company's failure does not stop the others",
       stats.resolved == 5 and stats.failed == 1, f"got {stats.as_dict()}")
+
+# ---------------------------------------------------------------------------
+# 8. Empty register — "not checked", never "not a sponsor".
+# ---------------------------------------------------------------------------
+rest = FakeRest([company("co-e1"), company("co-e2")], licences=[])
+rest.imports = []  # no register has ever been imported successfully
+stub = StubAnthropic(MATCH)
+stats = run(rest, ["co-e1", "co-e2"], stub)
+
+check("EMPTY REGISTER: the model is never called", stub.calls == 0, f"got {stub.calls}")
+check("EMPTY REGISTER: no sponsorship rows are written", rest.links == [])
+check("EMPTY REGISTER: no no_match check rows are written", rest.checks == [],
+      f"got {rest.checks}")
+check("EMPTY REGISTER: no check rows of any kind are written", len(rest.checks) == 0)
+check("EMPTY REGISTER: the batch reports why it skipped",
+      stats.skipped_reason == "no_register_imported", f"got {stats.skipped_reason}")
+check("EMPTY REGISTER: nothing is counted as resolved",
+      stats.resolved == 0 and stats.no_match == 0 and stats.failed == 0,
+      f"got {stats.as_dict()}")
+
+# A register with rows but no *successful* import row is still not a register.
+rest.licences = [LICENCE]
+rest.imports = [{"id": "import-x", "status": "error"}]
+stub = StubAnthropic(MATCH)
+stats = run(rest, ["co-e1"], stub)
+check("EMPTY REGISTER: a failed import does not count as an edition",
+      stub.calls == 0 and rest.checks == [])
+
+# After a successful import the same company resolves normally.
+rest.imports = [{"id": "import-1", "status": "success"}]
+stub = StubAnthropic(MATCH)
+stats = run(rest, ["co-e1"], stub)
+check("AFTER IMPORT: the same company becomes eligible",
+      stub.calls == 1 and stats.matched == 1, f"got {stats.as_dict()}")
+check("AFTER IMPORT: the check is written and pinned to the edition",
+      rest.checks[0]["register_import_id"] == "import-1")
+
+# ---------------------------------------------------------------------------
+# 9. Cumulative retry cap across runs.
+# ---------------------------------------------------------------------------
+rest = FakeRest([company("co-f1")])
+crawl_calls = []
+for crawl in ("A", "B", "C"):
+    stub = StubAnthropic(error=RateLimited("slow down"))
+    run(rest, ["co-f1"], stub)
+    crawl_calls.append(stub.calls)
+
+check("RETRY CAP: each crawl spends the per-run limit",
+      crawl_calls == [MAX_ATTEMPTS] * 3, f"got {crawl_calls}")
+check("RETRY CAP: failed attempts accumulate across crawls",
+      rest.checks[0]["attempts"] == MAX_CUMULATIVE_ATTEMPTS,
+      f"got {rest.checks[0]['attempts']}")
+check("RETRY CAP: the company is still in error state",
+      rest.checks[0]["last_decision"] == "error")
+
+stub_d = StubAnthropic(error=RateLimited("slow down"))
+stats = run(rest, ["co-f1"], stub_d)
+check("RETRY CAP: crawl D makes ZERO automatic model calls",
+      stub_d.calls == 0, f"got {stub_d.calls}")
+check("RETRY CAP: the company is reported as skipped, not failed",
+      stats.skipped_current == 1 and stats.failed == 0, f"got {stats.as_dict()}")
+
+forced = StubAnthropic(MATCH)
+stats = run(rest, ["co-f1"], forced, force=True)
+check("RETRY CAP: force overrides the cap", forced.calls == 1, f"got {forced.calls}")
+check("RETRY CAP: a conclusion clears the failure budget",
+      rest.checks[0]["attempts"] == 0 and rest.checks[0]["last_decision"] == "match",
+      f"got attempts={rest.checks[0]['attempts']} decision={rest.checks[0]['last_decision']}")
+
+# A capped company is reopened by a new register edition.
+rest2 = FakeRest([company("co-f2")])
+for _ in range(3):
+    run(rest2, ["co-f2"], StubAnthropic(error=RateLimited("slow")))
+check("RETRY CAP: co-f2 is capped", rest2.checks[0]["attempts"] == MAX_CUMULATIVE_ATTEMPTS)
+blocked = StubAnthropic(MATCH)
+run(rest2, ["co-f2"], blocked)
+check("RETRY CAP: capped company is not auto-enqueued", blocked.calls == 0)
+
+rest2.imports.insert(0, {"id": "import-2", "status": "success"})
+reopened = StubAnthropic(MATCH)
+stats = run(rest2, ["co-f2"], reopened)
+check("NEW EDITION: a capped company is reopened", reopened.calls == 1,
+      f"got {reopened.calls}")
+check("NEW EDITION: the budget starts fresh against the new edition",
+      rest2.checks[0]["attempts"] == 0
+      and rest2.checks[0]["register_import_id"] == "import-2",
+      f"got {rest2.checks[0]}")
+
+# A failure that never reached the model must not consume the budget.
+class BrokenRest(FakeRest):
+    async def select(self, client, table, params=None):
+        if table == "sponsor_licences":
+            raise RuntimeError("database unavailable")
+        return await super().select(client, table, params)
+
+
+rest3 = BrokenRest([company("co-g1")])
+stub = StubAnthropic(MATCH)
+stats = run(rest3, ["co-g1"], stub)
+check("BUDGET: a database failure is recorded as error", stats.failed == 1)
+check("BUDGET: a failure that never reached the model costs no budget",
+      rest3.checks[0]["attempts"] == 0, f"got {rest3.checks[0]['attempts']}")
+check("BUDGET: and the model really was not called", stub.calls == 0)
 
 print()
 if _failures:

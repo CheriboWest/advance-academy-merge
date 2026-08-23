@@ -26,6 +26,7 @@ infra/supabase/
 | `0004_company_permanent_delete.sql` | `delete_companies_permanently(uuid[])` — transactional, `service_role`-only permanent company deletion |
 | `0006_sponsor_register.sql` | `sponsor_licences`, `sponsor_register_imports`, `company_sponsorship` + the `company_sponsorship_current` view |
 | `0007_company_sponsorship_checks.sql` | `company_sponsorship_checks` — per-company resolution state (what the last attempt concluded, against which register edition) |
+| `0008_sponsorship_rls.sql` | Deny-by-default RLS + revoked grants on the four sponsorship tables; `company_sponsorship_current` becomes `security_invoker` |
 
 All migrations are additive and idempotent: re-running one is a no-op.
 

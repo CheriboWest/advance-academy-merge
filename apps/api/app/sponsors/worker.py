@@ -30,6 +30,8 @@ from app.crawler.supabase_rest import SupabaseRest
 from app.sponsors.candidates import CandidateSearch
 from app.sponsors.resolver import Resolution, resolve
 from app.sponsors.service import (
+    MAX_CUMULATIVE_ATTEMPTS,
+    checks_for,
     companies_needing_resolution,
     latest_register_import_id,
     load_company,
@@ -50,6 +52,21 @@ BASE_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 20.0
 
 
+class ResolutionFailed(Exception):
+    """A model call that failed after exhausting its per-run attempts.
+
+    Carries how many model HTTP attempts were spent, so the caller can add them
+    to the company's cumulative budget. Failures that never reached the model
+    (a database error, a missing company) are NOT this exception and cost the
+    budget nothing — the cap exists to bound model spend.
+    """
+
+    def __init__(self, cause: Exception, attempts: int) -> None:
+        super().__init__(str(cause))
+        self.cause = cause
+        self.attempts = attempts
+
+
 @dataclass
 class BatchStats:
     """Outcome of one batch, for logging and API responses."""
@@ -62,6 +79,7 @@ class BatchStats:
     no_match: int = 0
     failed: int = 0
     claude_calls: int = 0
+    skipped_reason: Optional[str] = None
     errors: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
@@ -74,6 +92,7 @@ class BatchStats:
             "no_match": self.no_match,
             "failed": self.failed,
             "claude_calls": self.claude_calls,
+            "skipped_reason": self.skipped_reason,
         }
 
 
@@ -141,7 +160,7 @@ async def _resolve_with_retry(
             await sleeper(delay)
 
     assert last is not None
-    raise last
+    raise ResolutionFailed(last, attempt)
 
 
 async def _resolve_one(
@@ -153,11 +172,22 @@ async def _resolve_one(
     model: str,
     timeout: float,
     register_import_id: Optional[str],
+    prior_check: Optional[dict[str, Any]],
     anthropic_client: Any,
     stats: BatchStats,
     sleeper: Any,
 ) -> None:
     """Resolve one company. Never raises — every outcome is recorded."""
+    # Failed attempts accumulate only within one register edition: a newer
+    # edition is a different question, so its budget starts fresh.
+    prior_attempts = 0
+    if (
+        prior_check
+        and register_import_id
+        and str(prior_check.get("register_import_id") or "") == register_import_id
+    ):
+        prior_attempts = int(prior_check.get("attempts") or 0)
+
     try:
         company = await load_company(client, rest, company_id)
         if company is None:
@@ -181,6 +211,7 @@ async def _resolve_one(
                 client, rest, company_id,
                 decision="no_match", candidate_count=0,
                 register_import_id=register_import_id,
+                attempts=0,  # a conclusion clears the failure budget
             )
             stats.no_match += 1
             stats.resolved += 1
@@ -200,7 +231,7 @@ async def _resolve_one(
             candidate_count=len(candidates),
             matched_licence_id=resolution.selected_candidate_id,
             register_import_id=register_import_id,
-            attempts=attempts,
+            attempts=0,  # a conclusion clears the failure budget
         )
 
         logger.info(
@@ -217,23 +248,52 @@ async def _resolve_one(
             stats.no_match += 1
 
     except Exception as exc:  # noqa: BLE001 — isolation is the point
-        reason = f"{type(exc).__name__}: {exc}"
+        cause = exc.cause if isinstance(exc, ResolutionFailed) else exc
+        reason = f"{type(cause).__name__}: {cause}"
         logger.error(
             "company_id=%s sponsorship resolution failed: %s", company_id, reason
         )
         stats.failed += 1
         stats.errors.append(f"{company_id}: {reason}"[:300])
-        # Recorded as 'error' so the company is retried next time rather than
-        # looking permanently settled.
+        # Failed model attempts accumulate across runs. Once the total for this
+        # register edition reaches the cap, `companies_needing_resolution` stops
+        # enqueuing the company automatically and it waits for review or force.
+        # Only failures that actually reached the model consume the budget.
+        attempts_this_run = exc.attempts if isinstance(exc, ResolutionFailed) else 0
+        cumulative = prior_attempts + attempts_this_run
+        if attempts_this_run and cumulative >= MAX_CUMULATIVE_ATTEMPTS:
+            logger.error(
+                "company_id=%s reached the retry cap (%d/%d failed attempts "
+                "against this register edition); leaving for manual review",
+                company_id, cumulative, MAX_CUMULATIVE_ATTEMPTS,
+            )
         try:
             await record_check(
                 client, rest, company_id,
                 decision="error", candidate_count=0,
                 register_import_id=register_import_id,
+                attempts=cumulative,
                 error=reason[:1000],
             )
         except Exception:  # noqa: BLE001 — a failed record must not raise either
             logger.exception("company_id=%s could not record the failure", company_id)
+
+
+async def _force_targets(
+    client: httpx.AsyncClient,
+    rest: SupabaseRest,
+    company_ids: Optional[list[str]],
+    max_companies: int,
+) -> list[str]:
+    """Targets for a forced run: state is ignored, including the retry cap."""
+    if company_ids:
+        return company_ids[:max_companies]
+    rows = await rest.select(
+        client,
+        "companies",
+        {"select": "id", "order": "created_at.desc", "limit": str(max_companies)},
+    )
+    return [str(row["id"]) for row in rows]
 
 
 async def resolve_companies(
@@ -258,13 +318,30 @@ async def resolve_companies(
     """
     stats = BatchStats()
 
-    if force and company_ids:
-        targets = company_ids[:max_companies]
-        stats.considered = len(company_ids)
+    # Nothing can be resolved against a register that was never imported. An
+    # empty register does not mean these companies are not sponsors — it means
+    # the question has not been asked. Recording `no_match` here would write
+    # that misreading into the database for every company, so the whole batch
+    # is skipped instead: no model calls, no rows, no check state.
+    register_import_id = await latest_register_import_id(client, rest)
+    if register_import_id is None:
+        stats.skipped_reason = "no_register_imported"
+        logger.warning(
+            "Sponsorship: skipped — no sponsor register has been imported "
+            "successfully yet, so there is nothing to resolve against. Run the "
+            "register import (POST /sponsors/import) first; companies remain "
+            "unchecked rather than being recorded as non-sponsors."
+        )
+        return stats
+
+    if force:
+        targets = await _force_targets(client, rest, company_ids, max_companies)
+        stats.considered = len(company_ids) if company_ids is not None else len(targets)
     else:
         requested = len(company_ids) if company_ids is not None else max_companies
         targets = await companies_needing_resolution(
-            client, rest, company_ids, limit=max_companies
+            client, rest, company_ids,
+            limit=max_companies, current_import=register_import_id,
         )
         stats.considered = requested
         stats.skipped_current = max(0, requested - len(targets))
@@ -276,7 +353,9 @@ async def resolve_companies(
         )
         return stats
 
-    register_import_id = await latest_register_import_id(client, rest)
+    # Loaded once so each company's accumulated failure budget is known without
+    # a query per company.
+    prior_checks = await checks_for(client, rest, targets)
     semaphore = asyncio.Semaphore(max(1, concurrency))
 
     async def guarded(company_id: str) -> None:
@@ -285,6 +364,7 @@ async def resolve_companies(
                 client, rest, company_id,
                 api_key=api_key, model=model, timeout=timeout,
                 register_import_id=register_import_id,
+                prior_check=prior_checks.get(company_id),
                 anthropic_client=anthropic_client, stats=stats, sleeper=sleeper,
             )
 
