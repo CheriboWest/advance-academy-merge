@@ -18,6 +18,7 @@ COMPANY_COLUMNS = "id,name,slug,website,sector,region,hq_location"
 LINK_TABLE = "company_sponsorship"
 CHECK_TABLE = "company_sponsorship_checks"
 IMPORTS_TABLE = "sponsor_register_imports"
+LICENCES_TABLE = "sponsor_licences"
 
 
 async def latest_register_import_id(
@@ -174,7 +175,7 @@ async def checks_for(
             {
                 "select": (
                     "company_id,last_decision,register_import_id,attempts,"
-                    "checked_at"
+                    "checked_at,candidate_count"
                 ),
                 "company_id": f"in.({','.join(chunk)})",
             },
@@ -241,6 +242,153 @@ async def store_resolution(
         resolution.selected_candidate_id,
         resolution.confidence,
     )
+
+
+async def _current_match(
+    client: httpx.AsyncClient, rest: SupabaseRest, company_id: str
+) -> Optional[dict[str, Any]]:
+    """The confirmed, currently-live sponsor match for a company, or None.
+
+    Reads `company_sponsorship` directly rather than the
+    `company_sponsorship_current` view: the view gives everything the response
+    needs about the matched row EXCEPT `normalized_name`/`normalized_town`,
+    which grouping sibling routes needs, so this queries `sponsor_licences`
+    itself for both the matched row's display fields and its grouping key in
+    one place.
+
+    `None` when there is no `match` link, or when the matched licence has
+    stopped being current — the latter cannot happen for a check run against
+    today's edition (identity is confirmed at the moment the row was live), but
+    is handled rather than assumed, since it costs nothing to check.
+    """
+    links = await rest.select(
+        client,
+        LINK_TABLE,
+        {
+            "select": "sponsor_licence_id,confidence,resolved_at",
+            "company_id": f"eq.{company_id}",
+            "decision": "eq.match",
+            "limit": "1",
+        },
+    )
+    if not links:
+        return None
+    link = links[0]
+
+    licences = await rest.select(
+        client,
+        LICENCES_TABLE,
+        {
+            "select": (
+                "organisation_name,town_city,county,type_rating,licence_type,"
+                "rating,route,normalized_name,normalized_town,is_current"
+            ),
+            "id": f"eq.{link['sponsor_licence_id']}",
+            "limit": "1",
+        },
+    )
+    if not licences or not licences[0].get("is_current"):
+        return None
+    licence = licences[0]
+
+    # Sibling routes for the same organisation at the same registered site —
+    # the register carries no organisation-level id, so (normalized_name,
+    # normalized_town) is the closest safe grouping key, and it is the same
+    # key the candidate matcher itself uses for exact identity lookup.
+    town = licence.get("normalized_town")
+    sibling_filter = {
+        "select": "route",
+        "is_current": "eq.true",
+        "normalized_name": f"eq.{licence['normalized_name']}",
+    }
+    sibling_filter["normalized_town"] = (
+        f"eq.{town}" if town else "is.null"
+    )
+    siblings = await rest.select(client, LICENCES_TABLE, sibling_filter)
+    routes = sorted({s["route"] for s in siblings if s.get("route")})
+    if licence.get("route") and licence["route"] not in routes:
+        routes.append(licence["route"])
+        routes.sort()
+
+    return {
+        "organisation_name": licence["organisation_name"],
+        "town_city": licence.get("town_city"),
+        "county": licence.get("county"),
+        "type_rating": licence.get("type_rating"),
+        "licence_type": licence.get("licence_type"),
+        "rating": licence.get("rating"),
+        "routes": routes,
+        "confidence": float(link.get("confidence") or 0.0),
+        "resolved_at": link.get("resolved_at"),
+    }
+
+
+async def company_sponsorship_status(
+    client: httpx.AsyncClient, rest: SupabaseRest, company_id: str
+) -> dict[str, Any]:
+    """The coach-facing sponsorship status for one company.
+
+    See `CompanySponsorshipStatus` (app/schemas.py) for the field-by-field
+    contract, in particular why `licensed` needs no staleness check while the
+    other four states do.
+    """
+    latest_import = await latest_register_import_id(client, rest)
+
+    match = await _current_match(client, rest, company_id)
+    if match is not None:
+        checks = await checks_for(client, rest, [company_id])
+        check = checks.get(str(company_id))
+        return {
+            "company_id": company_id,
+            "status": "licensed",
+            "checked_at": (check or {}).get("checked_at") or match["resolved_at"],
+            "register_import_id": latest_import,
+            "candidate_count": (check or {}).get("candidate_count"),
+            "stale": False,
+            "match": {k: v for k, v in match.items() if k != "resolved_at"},
+        }
+
+    checks = await checks_for(client, rest, [company_id])
+    check = checks.get(str(company_id))
+
+    if check is None:
+        return {
+            "company_id": company_id,
+            "status": "not_checked",
+            "checked_at": None,
+            "register_import_id": latest_import,
+            "candidate_count": None,
+            "stale": False,
+            "match": None,
+        }
+
+    check_import = check.get("register_import_id")
+    is_stale = (
+        latest_import is not None
+        and str(check_import or "") != latest_import
+    )
+    if is_stale:
+        return {
+            "company_id": company_id,
+            "status": "not_checked",
+            "checked_at": check.get("checked_at"),
+            "register_import_id": latest_import,
+            "candidate_count": check.get("candidate_count"),
+            "stale": True,
+            "match": None,
+        }
+
+    decision = check.get("last_decision")
+    status_value = decision if decision in ("ambiguous", "no_match", "error") else "not_checked"
+    return {
+        "company_id": company_id,
+        "status": status_value,
+        "checked_at": check.get("checked_at"),
+        "register_import_id": latest_import,
+        "candidate_count": check.get("candidate_count"),
+        "stale": False,
+        "match": None,
+    }
 
 
 async def resolve_company(

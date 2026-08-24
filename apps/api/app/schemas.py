@@ -157,3 +157,56 @@ class SponsorResolutionResponse(BaseModel):
     candidates_considered: int = 0
     search_strategies: list[str] = Field(default_factory=list)
     persisted: bool = False
+
+
+class SponsorshipMatch(BaseModel):
+    """The confirmed sponsor, with sibling licence routes grouped in.
+
+    One legal sponsor is several rows in `sponsor_licences` — one per route.
+    `organisation_name`/`town_city`/`county`/`type_rating`/`licence_type`/
+    `rating` describe the SPECIFIC row the resolver matched; `routes` lists
+    every route currently live for that same organisation at that same
+    registered location (grouped by `normalized_name`/`normalized_town`, since
+    the register carries no organisation-level id). A sibling route with a
+    different `type_rating` is not reflected here — see the endpoint's
+    docstring.
+    """
+
+    organisation_name: str
+    town_city: Optional[str] = None
+    county: Optional[str] = None
+    type_rating: Optional[str] = None
+    licence_type: Optional[str] = None
+    rating: Optional[str] = None
+    routes: list[str] = Field(default_factory=list)
+    confidence: float
+
+
+class CompanySponsorshipStatus(BaseModel):
+    """The coach-facing sponsorship status for one company.
+
+    `status` is one of: licensed | ambiguous | no_match | error | not_checked.
+
+    `licensed` is read from `company_sponsorship_current`, which is always
+    current by construction (it joins `sponsor_licences.is_current`, kept live
+    by register finalization) — so it needs no separate staleness check.
+
+    The other four states come from `company_sponsorship_checks`, which DOES
+    need one: `stale=true` means a check exists but was run against an older
+    register edition than `register_import_id` (the current one), so its
+    negative/inconclusive conclusion is not trusted as still current. The
+    check's own `checked_at`/`candidate_count` are still returned when stale,
+    so the UI can show "last checked <date>, against a previous edition"
+    rather than nothing at all.
+
+    `error` never carries the underlying exception text — only that a check
+    failed.
+    """
+
+    company_id: str
+    status: str
+    checked_at: Optional[str] = None
+    register_import_id: Optional[str] = None
+    candidate_count: Optional[int] = None
+    stale: bool = False
+    match: Optional[SponsorshipMatch] = None
