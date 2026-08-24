@@ -2,13 +2,17 @@
 
 Shared on purpose. These tests turn on properties the database enforces — the
 unique index on `natural_key`, PostgREST updating only the columns a payload
-carries, `is_current` defaulting to false since migration 0009, and what
-`finalize_sponsor_register_import()` promotes and withdraws. A double that
-drifts from any of those turns a test suite into a suite of reassurances, which
-is exactly how earlier bugs here survived their tests.
+carries, `is_current` defaulting to false since migration 0009, and the four
+chunked finalization functions from migration 0010 (begin / promote / withdraw
+/ complete). A double that drifts from any of those turns a test suite into a
+suite of reassurances, which is exactly how earlier bugs here survived their
+tests.
 
-The finalization RPC mirrors `infra/supabase/migrations/0009_...sql` statement
-for statement. Change one and change the other.
+The RPC dispatch mirrors `infra/supabase/migrations/0010_...sql` function for
+function — including its status-transition guards (finalizing-only, refuse an
+empty stage, refuse withdrawal before promotion is complete) and its
+idempotent early-returns on an already-`success` import. Change one and change
+the other.
 """
 
 from __future__ import annotations
@@ -20,7 +24,10 @@ import httpx
 
 LICENCES = "sponsor_licences"
 IMPORTS = "sponsor_register_imports"
-FINALIZE = "finalize_sponsor_register_import"
+BEGIN_FINALIZE = "begin_sponsor_register_finalization"
+PROMOTE_CHUNK = "promote_sponsor_register_import_chunk"
+WITHDRAW_CHUNK = "withdraw_sponsor_register_chunk"
+COMPLETE_FINALIZE = "complete_sponsor_register_import"
 
 # Column defaults `sponsor_licences` applies to a row PostgREST inserts without
 # them. `is_current` is false as of 0009: a row is not live until an import
@@ -28,6 +35,7 @@ FINALIZE = "finalize_sponsor_register_import"
 _INSERT_DEFAULTS = {
     "is_current": False,
     "withdrawn_at": None,
+    "withdrawn_by_import_id": None,
     "staged_import_id": None,
     "staged_seen_at": None,
     "last_import_id": None,
@@ -102,9 +110,28 @@ class FakeSupabase:
         return []
 
     async def count(self, client, table, params=None, timeout=None):
+        params = params or {}
         if table == LICENCES:
-            return len([r for r in self.licences.values() if r.get("is_current")])
+            rows = self.licences.values()
+            if not params:
+                return len([r for r in rows if r.get("is_current")])
+            return len([r for r in rows if self._matches(r, params)])
         return len(self.imports)
+
+    @staticmethod
+    def _matches(row: dict, params: dict) -> bool:
+        """A crude `eq.`-filter matcher, enough for what these tests send."""
+        for key, value in params.items():
+            if not isinstance(value, str) or not value.startswith("eq."):
+                continue
+            target = value[3:]
+            actual = row.get(key)
+            if target in ("true", "false"):
+                if bool(actual) != (target == "true"):
+                    return False
+            elif str(actual) != target:
+                return False
+        return True
 
     # -- writes -------------------------------------------------------------
     async def insert(self, client, table, rows, prefer="return=representation",
@@ -172,7 +199,7 @@ class FakeSupabase:
                     record.update(values)
         return None
 
-    # -- the finalization function -----------------------------------------
+    # -- chunked finalization (mirrors migration 0010) --------------------
     async def rpc(self, client, function, payload=None, timeout=None):
         payload = payload or {}
         self.requests.append(f"rpc:{function}")
@@ -183,49 +210,174 @@ class FakeSupabase:
             self.rpc_failures += 1
             raise self.error_factory()
 
-        assert function == FINALIZE, function
-        import_id = payload["p_import_id"]
+        dispatch = {
+            BEGIN_FINALIZE: self._begin_finalize,
+            PROMOTE_CHUNK: self._promote_chunk,
+            WITHDRAW_CHUNK: self._withdraw_chunk,
+            COMPLETE_FINALIZE: self._complete_finalize,
+        }
+        handler = dispatch.get(function)
+        assert handler is not None, f"unknown RPC: {function}"
+        return handler(payload)
 
+    def _get_import(self, import_id: str) -> dict:
         record = next((r for r in self.imports if r["id"] == import_id), None)
         if record is None:
             raise PostgrestError(f"import {import_id} does not exist")
-        if record.get("status") == "error":
+        return record
+
+    def _staged(self, import_id: str) -> list[dict]:
+        return [
+            r for r in self.licences.values()
+            if r.get("staged_import_id") == import_id
+        ]
+
+    def _unpromoted(self, import_id: str) -> list[dict]:
+        return [
+            r for r in self._staged(import_id)
+            if r.get("last_import_id") != import_id
+        ]
+
+    def _stale_current(self, import_id: str) -> list[dict]:
+        return [
+            r for r in self.licences.values()
+            if r.get("is_current") and r.get("staged_import_id") != import_id
+        ]
+
+    def _begin_finalize(self, payload: dict) -> list[dict]:
+        import_id = payload["p_import_id"]
+        record = self._get_import(import_id)
+        status = record.get("status")
+
+        if status == "success":
+            return [{
+                "staged_rows": len(self._staged(import_id)), "status": "success",
+            }]
+        if status not in ("running", "error", "finalizing"):
             raise PostgrestError(
-                f"import {import_id} is already recorded as failed"
+                f"import {import_id} has unrecognised status {status}"
             )
 
-        staged = [
-            row for row in self.licences.values()
-            if row.get("staged_import_id") == import_id
-        ]
+        staged = self._staged(import_id)
         if not staged:
             raise PostgrestError(
-                f"import {import_id} staged no rows; refusing to withdraw the "
-                "register"
+                f"import {import_id} staged no rows; there is nothing to publish"
             )
 
+        record["status"] = "finalizing"
+        record["error"] = None
+        return [{"staged_rows": len(staged), "status": "finalizing"}]
+
+    def _require_finalizing(self, import_id: str) -> Optional[list[dict]]:
+        """Returns an early-return payload of (0, 0) if already success, else None."""
+        record = self._get_import(import_id)
+        status = record.get("status")
+        if status == "success":
+            return [{"processed": 0, "remaining": 0}]
+        if status != "finalizing":
+            raise PostgrestError(
+                f"import {import_id} is not finalizing (status={status}); call "
+                "begin_sponsor_register_finalization() first"
+            )
+        return None
+
+    def _promote_chunk(self, payload: dict) -> list[dict]:
+        import_id = payload["p_import_id"]
+        limit = payload.get("p_limit", 2000)
+        early = self._require_finalizing(import_id)
+        if early is not None:
+            return early
+
+        chunk = self._unpromoted(import_id)[:limit]
         now = _now()
-        for row in staged:
+        for row in chunk:
             row.update({
                 "is_current": True,
                 "withdrawn_at": None,
                 "last_seen_at": now,
                 "last_import_id": import_id,
             })
+        remaining = len(self._unpromoted(import_id))
+        return [{"processed": len(chunk), "remaining": remaining}]
 
-        withdrawn = [
-            row for row in self.licences.values()
-            if row.get("is_current") and row.get("staged_import_id") != import_id
+    def _withdraw_chunk(self, payload: dict) -> list[dict]:
+        import_id = payload["p_import_id"]
+        limit = payload.get("p_limit", 2000)
+        early = self._require_finalizing(import_id)
+        if early is not None:
+            return early
+
+        if self._unpromoted(import_id):
+            raise PostgrestError(
+                f"import {import_id} still has unpromoted rows; finish "
+                "promote_sponsor_register_import_chunk() first"
+            )
+
+        chunk = self._stale_current(import_id)[:limit]
+        now = _now()
+        for row in chunk:
+            row.update({
+                "is_current": False,
+                "withdrawn_at": now,
+                "withdrawn_by_import_id": import_id,
+            })
+        remaining = len(self._stale_current(import_id))
+        return [{"processed": len(chunk), "remaining": remaining}]
+
+    def _complete_finalize(self, payload: dict) -> list[dict]:
+        import_id = payload["p_import_id"]
+        record = self._get_import(import_id)
+        status = record.get("status")
+
+        if status == "success":
+            return [{
+                "rows_processed": record.get("rows_processed") or 0,
+                "rows_current_after": record.get("rows_current_after") or 0,
+                "rows_withdrawn": record.get("rows_withdrawn") or 0,
+            }]
+        if status != "finalizing":
+            raise PostgrestError(
+                f"import {import_id} is not finalizing (status={status})"
+            )
+
+        unpromoted = self._unpromoted(import_id)
+        if unpromoted:
+            raise PostgrestError(
+                f"{len(unpromoted)} staged row(s) are still unpromoted"
+            )
+        stale = self._stale_current(import_id)
+        if stale:
+            raise PostgrestError(
+                f"{len(stale)} live row(s) do not belong to this edition"
+            )
+
+        promoted = [
+            r for r in self.licences.values()
+            if r.get("staged_import_id") == import_id
+            and r.get("last_import_id") == import_id
         ]
-        for row in withdrawn:
-            row.update({"is_current": False, "withdrawn_at": now})
+        current = self.current()
+        if len(current) != len(promoted):
+            raise PostgrestError(
+                f"{len(current) - len(promoted)} row(s) are current but not "
+                f"credited to import {import_id}"
+            )
+        withdrawn = [
+            r for r in self.licences.values()
+            if r.get("withdrawn_by_import_id") == import_id
+        ]
 
-        return [{
-            "rows_promoted": len(staged),
+        record.update({
+            "status": "success",
+            "rows_processed": len(promoted),
+            "rows_current_after": len(current),
             "rows_withdrawn": len(withdrawn),
-            "rows_current": len(
-                [r for r in self.licences.values() if r.get("is_current")]
-            ),
+            "error": None,
+        })
+        return [{
+            "rows_processed": len(promoted),
+            "rows_current_after": len(current),
+            "rows_withdrawn": len(withdrawn),
         }]
 
     # -- convenience for assertions ----------------------------------------

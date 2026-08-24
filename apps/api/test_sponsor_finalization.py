@@ -21,7 +21,12 @@ from typing import Any, Optional
 
 import httpx
 
-from app.sponsors.importer import UPSERT_CHUNK, run_import
+from app.sponsors.importer import (
+    FINALIZE_CHUNK_SIZE,
+    UPSERT_CHUNK,
+    FinalizationFailed,
+    run_import,
+)
 from fake_supabase import FakeSupabase, PostgrestError
 
 HEADER = "Organisation Name,Town/City,County,Type & Rating,Route\n"
@@ -106,8 +111,22 @@ check("A: no read of the register table happens at all",
 check("A: the only register traffic is the write and the finalize",
       {r for r in rest.requests if "licences" in r} == {"upsert:sponsor_licences"},
       f"got {sorted({r for r in rest.requests if 'licences' in r})}")
-check("A: finalization is one call, not one per row",
-      len(rest.rpc_calls) == 1, f"got {len(rest.rpc_calls)}")
+# Finalization is chunked, not one giant statement: with 138,000 stale rows to
+# withdraw at FINALIZE_CHUNK_SIZE per call, that is roughly BIG / chunk calls
+# (plus begin/promote/complete) — nowhere near one call per row, and nowhere
+# near the single all-in-one call 0009 used.
+expected_order_of_magnitude = BIG // FINALIZE_CHUNK_SIZE
+check("A: finalization is chunked, not one call per row",
+      len(rest.rpc_calls) < BIG, f"got {len(rest.rpc_calls)}")
+check("A: ...and not the single giant call 0009 used, either",
+      len(rest.rpc_calls) >= expected_order_of_magnitude,
+      f"got {len(rest.rpc_calls)}, expected roughly {expected_order_of_magnitude}+")
+check("A: no single chunk call ever exceeds the configured chunk size",
+      all(
+          call[1].get("p_limit", 0) <= FINALIZE_CHUNK_SIZE
+          for call in rest.rpc_calls if "p_limit" in call[1]
+      ),
+      "a chunk call asked for more than FINALIZE_CHUNK_SIZE rows")
 check("A: the import still succeeds against a full table",
       rest.status() == "success", f"got {rest.status()}")
 
@@ -270,7 +289,9 @@ rest = FakeSupabase()
 ingest(rest, csv_of(["Acme Ltd", "Beta Ltd"]))
 empty = try_ingest(rest, HEADER.encode("utf-8"))
 check("GUARD: an edition that stages nothing cannot publish",
-      isinstance(empty, PostgrestError), f"got {type(empty).__name__}")
+      isinstance(empty, FinalizationFailed), f"got {type(empty).__name__}")
+check("GUARD: the underlying database refusal is preserved as the cause",
+      isinstance(empty.__cause__, PostgrestError), f"got {type(empty.__cause__)}")
 check("GUARD: and it withdraws nothing",
       rest.current_names() == {"Acme Ltd", "Beta Ltd"},
       f"got {rest.current_names()}")
@@ -291,7 +312,10 @@ rest = FakeSupabase()
 rest.fail_rpc_times = 99
 outcome = try_ingest(rest, csv_of(["Acme Ltd"]))
 check("RETRY: a finalization that never succeeds fails the import",
-      isinstance(outcome, httpx.ReadTimeout), f"got {type(outcome).__name__}")
+      isinstance(outcome, FinalizationFailed), f"got {type(outcome).__name__}")
+check("RETRY: the exhausted timeout is preserved as the cause",
+      isinstance(outcome.__cause__, httpx.ReadTimeout),
+      f"got {type(outcome.__cause__)}")
 check("RETRY: nothing is published by it", rest.current() == [],
       f"got {len(rest.current())}")
 check("RETRY: the run is recorded as an error", rest.status() == "error")

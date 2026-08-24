@@ -71,6 +71,37 @@ where is_current = false
   and withdrawn_at is null
   and last_import_id is not null;
 
+\echo '== 3e. any run stuck mid-publication (status=finalizing)? =='
+-- finalizing means begin_sponsor_register_finalization() ran but
+-- complete_sponsor_register_import() has not. A row here after a resume
+-- attempt failed again means the chunk loop is still not reaching the end —
+-- worth checking rows_parsed vs the counts below rather than just re-running.
+select i.id, i.source_url, i.rows_parsed, i.rows_processed, i.started_at,
+       (select count(*) from public.sponsor_licences sl
+         where sl.staged_import_id = i.id
+           and sl.last_import_id is distinct from sl.staged_import_id)
+         as still_unpromoted,
+       (select count(*) from public.sponsor_licences sl
+         where sl.is_current and sl.staged_import_id is distinct from i.id)
+         as still_needs_withdrawal
+  from public.sponsor_register_imports i
+ where i.status = 'finalizing'
+ order by i.started_at desc;
+
+\echo '== 3f. runs eligible for --resume-finalize (status=error, fully staged) =='
+select i.id, i.source_url, i.rows_parsed, i.rows_processed, i.error, i.started_at,
+       (select count(*) from public.sponsor_licences sl
+         where sl.staged_import_id = i.id) as rows_actually_staged
+  from public.sponsor_register_imports i
+ where i.status = 'error'
+   and i.rows_parsed is not null
+   and (
+     i.rows_processed = i.rows_parsed
+     or (select count(*) from public.sponsor_licences sl
+          where sl.staged_import_id = i.id) = i.rows_parsed
+   )
+ order by i.started_at desc;
+
 \echo '== 4. all recent import runs (did any fail?) =='
 select id, status, rows_parsed, rows_withdrawn, left(coalesce(error,''), 80) as error,
        started_at

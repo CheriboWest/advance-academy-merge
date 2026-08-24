@@ -6,9 +6,11 @@ unchanged file rewrites the same rows rather than duplicating them.
 Writing a row and publishing it are two different acts
 -----------------------------------------------------
 Every batch upsert stamps `staged_import_id` and touches nothing that decides
-what the register currently says. Only `finalize_sponsor_register_import()` —
-one database call, made after every batch has been confirmed — promotes this
-edition's rows to current and withdraws the live rows it did not carry.
+what the register currently says. Only the finalization RPCs — begin, then repeated promote/withdraw chunk
+calls, then complete, run after every staging batch has been confirmed —
+promote this edition's rows to current and withdraw the live rows it did not
+carry. See migration 0010 for why publication is chunked rather than one
+statement.
 
 That split is what makes a failed import harmless. A run that dies halfway
 leaves rows carrying its marker, and no reader looks at that marker: the rows it
@@ -114,9 +116,25 @@ STATUS_WRITE_ATTEMPTS = int(os.getenv("SPONSOR_STATUS_ATTEMPTS", "3"))
 # Finalization is one statement over the whole table, so it gets its own,
 # larger budget. It is idempotent — promoting the same rows twice is a no-op —
 # which is what makes retrying a timed-out call safe.
-FINALIZE_TIMEOUT = float(os.getenv("SPONSOR_FINALIZE_TIMEOUT", "300"))
+FINALIZE_TIMEOUT = float(os.getenv("SPONSOR_FINALIZE_TIMEOUT", "60"))
 FINALIZE_ATTEMPTS = int(os.getenv("SPONSOR_FINALIZE_ATTEMPTS", "3"))
-FINALIZE_FUNCTION = "finalize_sponsor_register_import"
+
+# Publication runs as many small RPC calls rather than the one giant UPDATE
+# migration 0009 used. The real 141,904-row edition timed out (Postgres error
+# 57014, ~8.5s) on that single statement every time it was attempted, entirely
+# in index maintenance and an FK check — the fix is bounding how much of that
+# work any one statement can be asked to do, not raising the timeout, which
+# only postpones the same wall for the next, larger edition.
+#
+# 2,000 measured at ~0.1s per chunk against a representative 141,904-row table
+# (see migration 0010's commentary) — a wide margin under the production limit,
+# leaving headroom for slower moments without tuning the chunk size down.
+FINALIZE_CHUNK_SIZE = int(os.getenv("SPONSOR_FINALIZE_CHUNK_SIZE", "2000"))
+
+BEGIN_FINALIZE_FUNCTION = "begin_sponsor_register_finalization"
+PROMOTE_CHUNK_FUNCTION = "promote_sponsor_register_import_chunk"
+WITHDRAW_CHUNK_FUNCTION = "withdraw_sponsor_register_chunk"
+COMPLETE_FINALIZE_FUNCTION = "complete_sponsor_register_import"
 
 TABLE = "sponsor_licences"
 IMPORTS_TABLE = "sponsor_register_imports"
@@ -471,81 +489,173 @@ async def ingest_records(
         logger.info("[sponsor-import] staging completed with %d retries", retries)
 
 
+class FinalizationFailed(RuntimeError):
+    """Staging finished; publishing the staged edition did not.
+
+    Raised only after `ingest_records` has already succeeded — every row of the
+    edition is safely staged, and what failed is the database work that would
+    have promoted and withdrawn rows to publish it. Kept distinct from a
+    staging failure so the log, and the run's operator, are never left
+    wondering whether the CSV needs re-uploading (it does not: `--resume-finalize`
+    picks this exact run back up without touching the file again).
+    """
+
+
+async def _call_finalize_rpc(
+    client: httpx.AsyncClient,
+    rest: SupabaseRest,
+    function: str,
+    payload: dict[str, Any],
+    *,
+    sleeper: Any,
+) -> Any:
+    """Call one finalization RPC, retrying transient failures.
+
+    Every finalization function — begin, promote a chunk, withdraw a chunk,
+    complete — is idempotent by construction (see migration 0010): re-sending
+    the same call after a timeout either finds the same work still outstanding
+    or finds it already done and reports that. That is what makes retrying here
+    safe, unlike retrying an arbitrary write.
+    """
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, FINALIZE_ATTEMPTS + 1):
+        started = time.monotonic()
+        try:
+            return await rest.rpc(client, function, payload, timeout=FINALIZE_TIMEOUT)
+        except Exception as exc:  # noqa: BLE001 — classified immediately
+            last_exc = exc
+            if not _is_retryable(exc) or attempt == FINALIZE_ATTEMPTS:
+                raise
+            delay = min(BATCH_BASE_BACKOFF * (2 ** (attempt - 1)), BATCH_MAX_BACKOFF)
+            logger.warning(
+                "[sponsor-import] %s retry=%d reason=%s elapsed=%.1fs backoff=%.1fs",
+                function, attempt, type(exc).__name__,
+                time.monotonic() - started, delay,
+            )
+            await sleeper(delay)
+    raise last_exc  # pragma: no cover — loop always returns or raises above
+
+
 async def finalize_edition(
     client: httpx.AsyncClient,
     rest: SupabaseRest,
     import_id: str,
     stats: ImportStats,
     *,
+    chunk_size: int = FINALIZE_CHUNK_SIZE,
     sleeper: Any = asyncio.sleep,
 ) -> None:
-    """Publish the staged edition, in the database, in one call.
+    """Publish the staged edition, as many small database calls instead of one.
 
-    `finalize_sponsor_register_import` promotes every row this import staged and
-    withdraws every live row it did not carry. Doing it there rather than here
-    is the whole point: the alternative is downloading 138,000 natural keys to
-    work out a set difference Postgres can compute without moving any of them.
+    Four steps, each its own RPC and each safe to repeat:
 
-    Retried on transient failures because it is idempotent — a call that
-    committed and then timed out is republished to the same state by the next
-    one. Raises if it cannot be completed, so a run whose edition was never
-    published cannot be recorded as a success.
+      1. begin   — locks the import, refuses if nothing was staged, moves
+                   status to 'finalizing'. Idempotent: calling it again
+                   (resuming) just reports where the run stands.
+      2. promote — repeatedly, until `remaining=0`. Each call promotes up to
+                   `chunk_size` still-unpublished rows of THIS edition. Bounded
+                   by construction, so no single call can approach the
+                   production statement timeout however large the edition is.
+      3. withdraw — repeatedly, until `remaining=0`. Only runs once promotion
+                   is complete (the database refuses it otherwise): an edition
+                   is fully live before anything is retired.
+      4. complete — verifies both phases are actually finished and that the
+                   live set is exactly this edition, then marks the import
+                   success with counts it re-derives from the table.
+
+    A failure at any step raises `FinalizationFailed` and leaves the import
+    exactly where the last successful call left it — `finalizing`, with
+    whatever has been promoted or withdrawn so far intact. Nothing here needs
+    to know whether it is running for the first time or resuming a run that
+    failed partway: the four functions answer that from the table itself.
     """
-    for attempt in range(1, FINALIZE_ATTEMPTS + 1):
-        started = time.monotonic()
-        try:
-            result = await rest.rpc(
-                client,
-                FINALIZE_FUNCTION,
-                {"p_import_id": import_id},
-                timeout=FINALIZE_TIMEOUT,
-            )
-            break
-        except Exception as exc:  # noqa: BLE001 — classified immediately
-            if not _is_retryable(exc) or attempt == FINALIZE_ATTEMPTS:
-                logger.error(
-                    "[sponsor-import] finalization FAILED after %d attempt(s): "
-                    "%s. The edition stays staged and unpublished; the previous "
-                    "edition is still the authoritative one, and re-running this "
-                    "file will stage and publish it in full.",
-                    attempt, type(exc).__name__,
-                )
-                raise
-            delay = min(BATCH_BASE_BACKOFF * (2 ** (attempt - 1)), BATCH_MAX_BACKOFF)
-            logger.warning(
-                "[sponsor-import] finalization retry=%d reason=%s elapsed=%.1fs "
-                "backoff=%.1fs",
-                attempt, type(exc).__name__, time.monotonic() - started, delay,
-            )
-            await sleeper(delay)
-
-    row = _first_row(result)
-    if row is None:
-        raise RuntimeError(
-            f"{FINALIZE_FUNCTION} returned no counts; the edition's state is "
-            "unknown. Check sponsor_licences before treating this run as done."
+    try:
+        began = await _call_finalize_rpc(
+            client, rest, BEGIN_FINALIZE_FUNCTION,
+            {"p_import_id": import_id}, sleeper=sleeper,
+        )
+        begin_row = _first_row(began) or {}
+        staged = int(begin_row.get("staged_rows") or 0)
+        logger.info(
+            "[sponsor-import] finalization begun for import %s: %d rows staged "
+            "(status=%s)", import_id, staged, begin_row.get("status"),
         )
 
-    promoted = int(row.get("rows_promoted") or 0)
+        if begin_row.get("status") != "success":
+            promoted_total = 0
+            remaining = staged
+            while remaining > 0:
+                result = await _call_finalize_rpc(
+                    client, rest, PROMOTE_CHUNK_FUNCTION,
+                    {"p_import_id": import_id, "p_limit": chunk_size},
+                    sleeper=sleeper,
+                )
+                row = _first_row(result) or {}
+                processed = int(row.get("processed") or 0)
+                remaining = int(row.get("remaining") or 0)
+                promoted_total += processed
+                logger.info(
+                    "[sponsor-import] promote chunk: +%d rows, %d remaining "
+                    "(%d promoted so far)", processed, remaining, promoted_total,
+                )
+                if processed == 0 and remaining > 0:
+                    # Every retry is idempotent; a chunk reporting zero progress
+                    # with rows still outstanding means something is stuck, not
+                    # transient — looping would just spin forever.
+                    raise RuntimeError(
+                        f"{PROMOTE_CHUNK_FUNCTION} made no progress with "
+                        f"{remaining} row(s) still unpromoted"
+                    )
+
+            withdrawn_total = 0
+            remaining = -1
+            while remaining != 0:
+                result = await _call_finalize_rpc(
+                    client, rest, WITHDRAW_CHUNK_FUNCTION,
+                    {"p_import_id": import_id, "p_limit": chunk_size},
+                    sleeper=sleeper,
+                )
+                row = _first_row(result) or {}
+                processed = int(row.get("processed") or 0)
+                remaining = int(row.get("remaining") or 0)
+                withdrawn_total += processed
+                logger.info(
+                    "[sponsor-import] withdraw chunk: +%d rows, %d remaining "
+                    "(%d withdrawn so far)", processed, remaining, withdrawn_total,
+                )
+                if processed == 0 and remaining > 0:
+                    raise RuntimeError(
+                        f"{WITHDRAW_CHUNK_FUNCTION} made no progress with "
+                        f"{remaining} row(s) still needing withdrawal"
+                    )
+
+        completed = await _call_finalize_rpc(
+            client, rest, COMPLETE_FINALIZE_FUNCTION,
+            {"p_import_id": import_id}, sleeper=sleeper,
+        )
+    except Exception as exc:  # noqa: BLE001 — every finalization failure, tagged
+        raise FinalizationFailed(
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+
+    row = _first_row(completed)
+    if row is None:
+        raise FinalizationFailed(
+            f"{COMPLETE_FINALIZE_FUNCTION} returned no counts; the edition's "
+            "publication state is unknown. Check sponsor_register_imports and "
+            "sponsor_licences before treating this run as done."
+        )
+
+    stats.rows_processed = int(row.get("rows_processed") or 0)
+    stats.rows_current_after = int(row.get("rows_current_after") or 0)
     stats.rows_withdrawn = int(row.get("rows_withdrawn") or 0)
-    stats.rows_current_after = int(row.get("rows_current") or 0)
 
     logger.info(
-        "[sponsor-import] finalized import %s: promoted=%d withdrawn=%d "
+        "[sponsor-import] finalized import %s: processed=%d withdrawn=%d "
         "current=%d",
-        import_id, promoted, stats.rows_withdrawn, stats.rows_current_after,
+        import_id, stats.rows_processed, stats.rows_withdrawn,
+        stats.rows_current_after,
     )
-
-    # Reconciliation, not bookkeeping. `rows_promoted` is counted from the rows
-    # the database actually holds for this import, so a disagreement with what
-    # we sent means rows went missing between here and there.
-    if promoted != stats.rows_processed:
-        logger.warning(
-            "[sponsor-import] staged %d rows but the database promoted %d. "
-            "Re-run the import over the same file to finish it.",
-            stats.rows_processed, promoted,
-        )
-    stats.rows_processed = promoted
 
 
 def _first_row(result: Any) -> Optional[dict[str, Any]]:
@@ -635,6 +745,160 @@ async def previous_successful_rows(
     if rows and isinstance(rows[0].get("rows_parsed"), (int, float)):
         return int(rows[0]["rows_parsed"])
     return None
+
+
+class ResumeRefused(RuntimeError):
+    """A `--resume-finalize` request was refused before touching anything.
+
+    Distinct from `FinalizationFailed`: this means finalization was never
+    attempted because the run was not a safe candidate for it, not that it ran
+    and failed.
+    """
+
+
+async def resume_finalize_import(
+    rest: SupabaseRest,
+    import_id: str,
+    *,
+    client: Optional[httpx.AsyncClient] = None,
+    sleeper: Any = asyncio.sleep,
+    client_factory: Any = httpx.AsyncClient,
+) -> tuple[str, ImportStats]:
+    """Publish an edition that finished staging but never finished publishing.
+
+    Reads NOTHING from a CSV and downloads nothing from GOV.UK — the file was
+    already parsed and every row is already in `sponsor_licences` under
+    `import_id`. This resumes `finalize_edition` for that exact run, which
+    picks up in whichever chunk-promote/withdraw phase it last reached rather
+    than starting the edition over.
+
+    Refuses, without changing anything, unless the run is a safe candidate:
+
+    - it must exist,
+    - it must not already be `success` (nothing to resume),
+    - it must not be `running` (staging may still be in flight — resuming
+      publication of an edition that has not finished being written would
+      publish an incomplete one),
+    - and staging must actually have finished: `rows_processed == rows_parsed`
+      on the stored run, OR the number of rows in `sponsor_licences` actually
+      carrying this run's `staged_import_id` matches `rows_parsed`. Either is
+      sufficient on its own — `rows_processed` is set in the stored row ONLY
+      after `_write_batches` returns without raising (see `ingest_records`),
+      so on the real code path it already means "every row was confirmed
+      written"; the staged-count check exists for a run whose stored row
+      predates that column, or otherwise cannot be trusted on its own, and
+      still needs a second way to prove staging genuinely finished.
+    """
+    owns_client = client is None
+    client = client or httpx.AsyncClient()
+    stats = ImportStats()
+
+    try:
+        rows = await rest.select(
+            client,
+            IMPORTS_TABLE,
+            {"select": "*", "id": f"eq.{import_id}", "limit": "1"},
+        )
+        if not rows:
+            raise ResumeRefused(f"No sponsor_register_imports row with id {import_id}.")
+        record = rows[0]
+        status = record.get("status")
+
+        if status == "success":
+            raise ResumeRefused(
+                f"Import {import_id} already has status=success; there is "
+                "nothing to resume. (Its edition is already published.)"
+            )
+        if status == "running":
+            raise ResumeRefused(
+                f"Import {import_id} has status=running: data staging may "
+                "still be in progress. Resuming publication now could publish "
+                "an edition that never finished being written. Wait for it to "
+                "reach status=error or status=finalizing first."
+            )
+        if status not in ("error", "finalizing"):
+            raise ResumeRefused(
+                f"Import {import_id} has unrecognised status={status!r}; "
+                "refusing to guess what that means."
+            )
+
+        rows_parsed = record.get("rows_parsed")
+        rows_processed = record.get("rows_processed")
+        stats.rows_downloaded = record.get("rows_downloaded") or 0
+        stats.rows_parsed = rows_parsed or 0
+        stats.rows_rejected = record.get("rows_rejected") or 0
+
+        # A count, not a page of rows: this runs once per resume and only
+        # needs the number, which `SupabaseRest.count` gets in a single HEAD
+        # request regardless of how large the edition is.
+        staged_count = await rest.count(
+            client, TABLE, {"staged_import_id": f"eq.{import_id}"},
+        )
+
+        eligible = (
+            rows_parsed is not None and rows_processed == rows_parsed
+        ) or (
+            rows_parsed is not None and staged_count == rows_parsed
+        )
+        if not eligible:
+            raise ResumeRefused(
+                f"Import {import_id} does not look like a complete staging "
+                f"run: rows_parsed={rows_parsed}, rows_processed={rows_processed}, "
+                f"rows actually staged={staged_count}. Refusing to publish a "
+                "possibly-incomplete edition; re-run the import from the CSV "
+                "instead."
+            )
+
+        logger.info(
+            "[sponsor-import] resuming finalization of import %s: "
+            "rows_parsed=%s rows_processed=%s staged_in_table=%s status=%s",
+            import_id, rows_parsed, rows_processed, staged_count, status,
+        )
+
+        await finalize_edition(client, rest, import_id, stats, sleeper=sleeper)
+
+        await _record_status(
+            rest,
+            import_id,
+            {
+                "status": "success",
+                "source_url": record.get("source_url"),
+                "register_published_at": record.get("register_published_at"),
+                "finished_at": _now_iso(),
+                **stats.as_columns(),
+            },
+            client_factory=client_factory,
+            sleeper=sleeper,
+        )
+        logger.info(
+            "[sponsor-import] resume finalized import %s: %s",
+            import_id, stats.as_columns(),
+        )
+        return import_id, stats
+
+    except ResumeRefused:
+        raise
+    except Exception as exc:  # noqa: BLE001 — recorded, then re-raised
+        logger.exception(
+            "[sponsor-import] resume of import %s failed during "
+            "publication/finalization", import_id,
+        )
+        await _record_status(
+            rest,
+            import_id,
+            {
+                "status": "error",
+                "error": f"{type(exc).__name__}: {exc}"[:1000],
+                "finished_at": _now_iso(),
+                **stats.as_columns(),
+            },
+            client_factory=client_factory,
+            sleeper=sleeper,
+        )
+        raise
+    finally:
+        if owns_client:
+            await client.aclose()
 
 
 async def run_import(
@@ -755,7 +1019,20 @@ async def run_import(
         return run_id, stats
 
     except Exception as exc:  # noqa: BLE001 — recorded, then re-raised
-        logger.exception("Register import failed")
+        if isinstance(exc, FinalizationFailed):
+            # Staging already succeeded — every row is safely in
+            # sponsor_licences under this run's id. Said explicitly so nobody
+            # reaches for the CSV again: `--resume-finalize` picks this run up
+            # from exactly where it stopped.
+            logger.exception(
+                "Register import failed: publication/finalization failed "
+                "AFTER data staging completed (%d rows staged under run %s). "
+                "Nothing needs re-uploading — resume with: "
+                "--resume-finalize %s",
+                stats.rows_processed, run_id, run_id,
+            )
+        else:
+            logger.exception("Register import failed: data staging failed")
         # `_record_status` swallows its own failures, so the original
         # exception below is never masked by a bookkeeping error.
         await _record_status(

@@ -24,9 +24,15 @@ apps/api/.env) unless --dry-run or --inspect-batch is used. Safe to run
 repeatedly: rows are keyed by their register identity, and an edition only
 becomes current once every batch has landed.
 
-Requires migration 0009. Rows are staged under the run's import id and published
-by finalize_sponsor_register_import(); without it the import fails before it
-writes anything, rather than half-publishing an edition.
+Requires migrations 0009 and 0010. Rows are staged under the run's import id
+and published by the chunked finalization RPCs from migration 0010; without
+them the import fails before it writes anything, rather than
+half-publishing an edition.
+
+    # A run finished staging (rows_processed == rows_parsed) but publication
+    # failed or timed out, and the run is now status=error. Publish it without
+    # re-parsing or re-uploading the CSV:
+    python scripts/import_sponsor_register.py --resume-finalize <import-id>
 """
 
 from __future__ import annotations
@@ -44,6 +50,8 @@ from app.crawler.supabase_rest import SupabaseRest  # noqa: E402
 from app.sponsors.importer import (  # noqa: E402
     UPSERT_CHUNK,
     RegisterValidationError,
+    ResumeRefused,
+    resume_finalize_import,
     run_import,
 )
 from app.sponsors.inspection import BatchOutOfRange, render_batch  # noqa: E402
@@ -140,11 +148,40 @@ async def _ingest(path: Path | None, force: bool) -> int:
         print(f"\n{exc}\n", file=sys.stderr)
         return 3
 
+    _print_stats(run_id, stats)
+    return 0
+
+
+def _print_stats(run_id: str, stats) -> None:
     print(f"import {run_id or '(unrecorded)'} finished")
     for key, value in stats.as_columns().items():
         # The deprecated counters are null, not zero: "not measured" is a
         # different claim from "nothing happened".
         print(f"  {key:20} {'n/a (deprecated)' if value is None else value}")
+
+
+async def _resume_finalize(import_id: str) -> int:
+    """Publish an already-staged edition. Reads and downloads nothing.
+
+    For a run whose data staging finished but whose publication did not: the
+    original ~8.5s single-statement finalize_sponsor_register_import() call
+    could time out on a six-figure edition. Chunked finalization
+    (begin/promote/withdraw/complete, all idempotent) replaces it, and this
+    resumes exactly that for a run that already exists.
+    """
+    settings = get_settings()
+    if not (settings.supabase_url and settings.supabase_service_role_key):
+        print("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.", file=sys.stderr)
+        return 2
+
+    rest = SupabaseRest(settings.supabase_url, settings.supabase_service_role_key)
+    try:
+        run_id, stats = await resume_finalize_import(rest, import_id)
+    except ResumeRefused as exc:
+        print(f"\nResume REFUSED: {exc}\n", file=sys.stderr)
+        return 4
+
+    _print_stats(run_id, stats)
     return 0
 
 
@@ -158,6 +195,12 @@ def main() -> int:
     parser.add_argument("--force", action="store_true",
                         help="Import even if the safety checks fail. Only after "
                              "inspecting the validation report.")
+    parser.add_argument("--resume-finalize", metavar="IMPORT_ID",
+                        help="Publish an edition that finished staging but "
+                             "never finished publishing (status=error or "
+                             "status=finalizing, with rows_processed== "
+                             "rows_parsed). Reads and downloads no CSV. "
+                             "Refuses anything else.")
     parser.add_argument("--inspect-batch", type=int, metavar="N",
                         help="Print the rows and payload sizes of import batch "
                              "N. Read-only: writes nothing, needs no credentials.")
@@ -173,6 +216,14 @@ def main() -> int:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)-8s %(name)s: %(message)s",
     )
+
+    if args.resume_finalize:
+        if args.file or args.dry_run or args.validate or args.inspect_batch is not None:
+            print("--resume-finalize cannot be combined with --file, "
+                  "--dry-run/--validate or --inspect-batch: it does not touch "
+                  "a CSV at all.", file=sys.stderr)
+            return 2
+        return asyncio.run(_resume_finalize(args.resume_finalize))
 
     if args.inspect_batch is not None:
         if not args.file:
