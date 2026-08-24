@@ -151,6 +151,28 @@ class SupabaseRest:
             return response.json()
         return []
 
+    async def delete(
+        self,
+        client: httpx.AsyncClient,
+        table: str,
+        match: dict[str, str],
+        prefer: str = "return=representation",
+        timeout: Optional[float] = None,
+    ) -> list[dict[str, Any]]:
+        """Delete rows matching `match`. Returns the deleted rows (default
+        `return=representation`) so a caller can tell "deleted one row" from
+        "matched nothing" without a separate existence check."""
+        response = await client.delete(
+            f"{self._rest}/{table}",
+            params=match,
+            headers={**self._headers, "Prefer": prefer},
+            timeout=timeout or self._timeout,
+        )
+        response.raise_for_status()
+        if prefer.startswith("return=representation"):
+            return response.json()
+        return []
+
     async def update(
         self,
         client: httpx.AsyncClient,
@@ -159,7 +181,10 @@ class SupabaseRest:
         values: dict[str, Any],
         prefer: str = "return=minimal",
         timeout: Optional[float] = None,
-    ) -> None:
+    ) -> list[dict[str, Any]]:
+        """Update rows matching `match`. Returns the updated rows when `prefer`
+        requests representation (existing callers all use the `return=minimal`
+        default and ignore the return value, so this is purely additive)."""
         response = await client.patch(
             f"{self._rest}/{table}",
             params=match,
@@ -177,3 +202,6 @@ class SupabaseRest:
             print("RESPONSE:", response.text, flush=True)
             print("============================ ", flush=True)
         response.raise_for_status()
+        if prefer.startswith("return=representation"):
+            return response.json()
+        return []

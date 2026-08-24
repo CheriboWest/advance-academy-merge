@@ -114,12 +114,13 @@ async def delete_companies(
     result = DeleteCompaniesResponse(**payload)
     logger.info(
         "Coach %s permanently deleted %d/%d companies (%d jobs, %d coach meta rows, "
-        "%d outreach emails unlinked)",
+        "%d outreach emails unlinked, %d contacts)",
         user_id,
         result.deleted_companies,
         result.requested,
         result.deleted_jobs,
         result.deleted_coach_meta,
         result.unlinked_outreach_emails,
+        result.deleted_contacts,
     )
     return result

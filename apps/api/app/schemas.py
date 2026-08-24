@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+# Deliberately a plain regex rather than pydantic's EmailStr/email-validator:
+# that extra isn't in requirements.txt, and this project already validates
+# email format this same loose way client-side (see the "Send to" field in
+# components/coach/outreach-composer.tsx) — kept identical so the two never
+# disagree about what counts as a valid address.
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 class OutreachRequest(BaseModel):
@@ -123,6 +131,7 @@ class DeleteCompaniesResponse(BaseModel):
     deleted_jobs: int = 0
     deleted_coach_meta: int = 0
     unlinked_outreach_emails: int = 0
+    deleted_contacts: int = 0
 
 
 class SponsorImportResponse(BaseModel):
@@ -249,3 +258,81 @@ class SponsorshipStatusBatchRequest(BaseModel):
     company_ids: list[str] = Field(
         default_factory=list, max_length=MAX_COMPANIES_PER_STATUS_BATCH
     )
+
+
+def _blank_to_none(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+class ContactWrite(BaseModel):
+    """Shared body shape for creating and editing a contact.
+
+    A contact must be reachable some way: at least one of email/phone/
+    linkedin_url. Mirrors the `contacts_has_contact_method` database
+    constraint (migration 0011) — checked here too so the coach gets a clear
+    422 instead of a raw database error, and so a direct write that somehow
+    bypassed the API would still be caught at the database.
+
+    An edit form resubmits every field (not a sparse PATCH), so this same
+    model is reused for both create and update — there is no partial-update
+    "clear this field but leave that one" case to support.
+    """
+
+    full_name: str = Field(..., min_length=1, description="Contact's full name.")
+    job_title: Optional[str] = Field(None, description='Role, e.g. "Hiring Manager".')
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator("email")
+    @classmethod
+    def _validate_email(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None and not _EMAIL_RE.match(value):
+            raise ValueError("Enter a valid email address.")
+        return value
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_blanks(cls, data: object) -> object:
+        # An edit form's untouched optional fields arrive as "", not absent —
+        # treat blank the same as not provided, rather than persisting empty
+        # strings that would (wrongly) count as a contact method.
+        if isinstance(data, dict):
+            for key in ("job_title", "email", "phone", "linkedin_url", "notes"):
+                if key in data:
+                    data[key] = _blank_to_none(data.get(key))
+        return data
+
+    @model_validator(mode="after")
+    def _require_a_contact_method(self) -> "ContactWrite":
+        if not (self.email or self.phone or self.linkedin_url):
+            raise ValueError(
+                "A contact needs at least one contact method: email, phone, "
+                "or LinkedIn."
+            )
+        return self
+
+
+class ContactCreate(ContactWrite):
+    """Body for POST /contacts."""
+
+    company_id: UUID
+
+
+class Contact(BaseModel):
+    """A company contact, as returned by the API."""
+
+    id: str
+    company_id: str
+    full_name: str
+    job_title: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None

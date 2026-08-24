@@ -4,11 +4,12 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { getCompanyContext, getExistingDraft } from "@/lib/coach";
+import { getContacts } from "@/lib/contacts";
 import { getSponsorshipStatus } from "@/lib/sponsorship";
 import type { OutreachInput } from "@/lib/outreach";
 import { Button } from "@/components/ui/button";
 import { CompanyContextCard } from "@/components/coach/company-context-card";
-import { OutreachComposer } from "@/components/coach/outreach-composer";
+import { OutreachWorkspace } from "@/components/coach/outreach-workspace";
 import { SponsorshipCard } from "@/components/coach/sponsorship-card";
 
 interface ComposerPageProps {
@@ -37,9 +38,10 @@ export default async function OutreachComposerPage({
     notFound();
   }
 
-  const [draft, sponsorshipStatus] = await Promise.all([
+  const [draft, sponsorshipStatus, contacts] = await Promise.all([
     getExistingDraft(companyId),
     getSponsorshipStatus(company.company_id),
+    getContacts(company.company_id),
   ]);
 
   const input: OutreachInput = {
@@ -71,12 +73,13 @@ export default async function OutreachComposerPage({
         initialStatus={sponsorshipStatus}
       />
 
-      <OutreachComposer
+      <OutreachWorkspace
         companyId={company.company_id}
         input={input}
         initialSubject={draft?.subject ?? ""}
         initialBody={draft?.body ?? ""}
         hasExistingDraft={Boolean(draft)}
+        initialContacts={contacts}
       />
     </div>
   );
