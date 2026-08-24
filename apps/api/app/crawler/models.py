@@ -23,6 +23,49 @@ class NormalizedJob:
     website: Optional[str] = None
 
 
+def compute_display_stats(
+    *,
+    normalized_jobs: int,
+    inserted_jobs: int,
+    updated_jobs: int,
+    duplicate_jobs: int,
+) -> dict[str, int]:
+    """The four coach-facing metrics, derived from the internal counters.
+
+    Single source of truth for both a live `CrawlStats` (mid-crawl / just
+    finalized) and a `crawl_runs` row read back later — the two are computed
+    the same way so the log line, the API response, and the frontend cards
+    can never drift from each other.
+
+    Decision (an already-existing job that gets refreshed, i.e.
+    `updated_jobs`, is shown to the coach as a duplicate, not as new): from
+    the coach's point of view nothing new appeared in the pipeline — the same
+    posting was recognized again, whether that happened within this crawl
+    (`duplicate_jobs`) or against a posting from an earlier crawl
+    (`updated_jobs`). `updated_jobs` itself is NOT deleted or renamed — it
+    stays a distinct internal counter (is the upsert-refresh path actually
+    being exercised?) — it is simply folded into "Duplicate jobs" here.
+
+    `jobs_verified` = `normalized_jobs + duplicate_jobs`, i.e. every raw job
+    that made it far enough to be normalized and content-hashed, whether it
+    then became a new job, a refresh of an existing one, or an in-crawl
+    repeat. This is deliberately NOT "only inserted jobs", NOT "jobs
+    currently active in the whole database", and NOT "manually reviewed" —
+    it is jobs from *this* crawl that the pipeline successfully processed.
+    Today every raw job reaches normalization (nothing is rejected earlier),
+    so this equals `raw_jobs`; the formula is expressed in terms of
+    `normalized_jobs + duplicate_jobs` rather than reusing `raw_jobs`
+    directly so that a future validation step that drops malformed raw jobs
+    before normalization would correctly lower `jobs_verified` below
+    `raw_jobs` without any change here.
+    """
+    return {
+        "new_jobs": inserted_jobs,
+        "duplicate_jobs_total": duplicate_jobs + updated_jobs,
+        "jobs_verified": normalized_jobs + duplicate_jobs,
+    }
+
+
 @dataclass
 class CrawlStats:
     """Aggregated statistics for a crawl run.
@@ -54,3 +97,12 @@ class CrawlStats:
             "companies_created": self.companies_created,
             "companies_updated": self.companies_updated,
         }
+
+    def as_display_columns(self) -> dict[str, int]:
+        """The four coach-facing metrics — see `compute_display_stats`."""
+        return compute_display_stats(
+            normalized_jobs=self.normalized_jobs,
+            inserted_jobs=self.inserted_jobs,
+            updated_jobs=self.updated_jobs,
+            duplicate_jobs=self.duplicate_jobs,
+        )

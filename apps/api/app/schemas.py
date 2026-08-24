@@ -61,7 +61,17 @@ class DiscoverStartResponse(BaseModel):
 
 
 class CrawlRunStatus(BaseModel):
-    """A crawl run row + its statistics."""
+    """A crawl run row + its statistics.
+
+    `raw_jobs`/`normalized_jobs`/`inserted_jobs`/`updated_jobs`/
+    `duplicate_jobs`/`companies_created`/`companies_updated` are the internal
+    counters, unchanged — kept for the "Recent crawls" history table and for
+    debugging. `new_jobs`/`duplicate_jobs_total`/`jobs_verified` are the
+    coach-facing metrics shown on the "Crawl complete" cards, derived from
+    the internal counters by `compute_display_stats`
+    (see `app.crawler.models` for exactly how and why); `companies_created`
+    is reused as-is for that card since its meaning already matches.
+    """
 
     id: str
     status: str
@@ -74,6 +84,9 @@ class CrawlRunStatus(BaseModel):
     duplicate_jobs: int = 0
     companies_created: int = 0
     companies_updated: int = 0
+    new_jobs: int = 0
+    duplicate_jobs_total: int = 0
+    jobs_verified: int = 0
     error: Optional[str] = None
     created_at: Optional[str] = None
     finished_at: Optional[str] = None
