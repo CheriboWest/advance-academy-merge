@@ -17,14 +17,28 @@ from app.crawler.models import NormalizedJob
 
 NOW = datetime.now(timezone.utc)
 
-STAT_KEYS = (
+# The crawl_runs columns _finalize actually persists to (confirmed live —
+# see CrawlStats.as_persisted_columns). NOT the migration-0002/0005 columns
+# (raw_jobs, normalized_jobs, inserted_jobs, companies_created, updated_jobs)
+# — those are never written; a table with only them and not these would look
+# identical, to this fake, to one with neither.
+PERSISTED_KEYS = (
+    "new_jobs",
+    "duplicate_jobs",
+    "companies_discovered",
+    "companies_updated",
+    "jobs_found",
+)
+
+# The columns migrations 0002/0005 added, which this codebase's _finalize
+# must NEVER attempt to write — that was the root cause of every statistic
+# being silently discarded (see test_crawl_stats.py scenario 8).
+UNPERSISTED_LEGACY_KEYS = (
     "raw_jobs",
     "normalized_jobs",
     "inserted_jobs",
-    "updated_jobs",
-    "duplicate_jobs",
     "companies_created",
-    "companies_updated",
+    "updated_jobs",
 )
 
 _failures: list[str] = []
@@ -62,14 +76,17 @@ class FakeRest:
         self,
         companies: Optional[list[dict]] = None,
         jobs: Optional[list[dict]] = None,
-        missing_stat_columns: bool = False,
+        missing_columns: Optional[set] = None,
     ) -> None:
         self.companies = companies or []
         self.jobs = jobs or []
         self.crawl_runs: dict[str, dict] = {}
         self.updates: list[tuple[str, dict, dict]] = []
-        # Emulates a database that predates migration 0005.
-        self.missing_stat_columns = missing_stat_columns
+        # Column names this fake table does NOT have. A crawl_runs UPDATE
+        # touching any of them fails the *entire* statement — matching real
+        # Postgres/PostgREST all-or-nothing UPDATE semantics — not just that
+        # field.
+        self.missing_columns = missing_columns or set()
 
     async def select(self, client, table, params=None):
         params = params or {}
@@ -123,8 +140,8 @@ class FakeRest:
     async def update(self, client, table, match, values, prefer="return=minimal"):
         self.updates.append((table, dict(match), dict(values)))
 
-        if table == "crawl_runs" and self.missing_stat_columns:
-            unknown = [k for k in values if k in STAT_KEYS or k == "error"]
+        if table == "crawl_runs":
+            unknown = [k for k in values if k in self.missing_columns]
             if unknown:
                 request = httpx.Request("PATCH", "https://example.test/crawl_runs")
                 response = httpx.Response(
@@ -132,17 +149,18 @@ class FakeRest:
                     json={
                         "code": "PGRST204",
                         "message": (
-                            f"Column '{unknown[0]}' of relation 'crawl_runs' "
-                            "does not exist"
+                            f"Could not find the '{unknown[0]}' column of "
+                            "'crawl_runs' in the schema cache"
                         ),
                     },
                     request=request,
                 )
+                # Real Postgres UPDATEs are all-or-nothing: none of `values`
+                # is applied when any column is unknown.
                 raise httpx.HTTPStatusError(
                     "bad request", request=request, response=response
                 )
 
-        if table == "crawl_runs":
             run_id = match.get("id", "").removeprefix("eq.")
             self.crawl_runs.setdefault(run_id, {"id": run_id}).update(values)
 

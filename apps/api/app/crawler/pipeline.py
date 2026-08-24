@@ -202,10 +202,18 @@ async def _ingest(
                 row["careers_url"] = enrichment["careers_url"]
 
             company_rows.append(row)
+            # Attributed to whichever source's job appears first in this
+            # company's group — a company crawled from both sources at once
+            # is credited to one of them, deterministically, purely for the
+            # per-source log line; the combined companies_created total below
+            # is unaffected either way.
+            first_source = group_jobs[0].source if group_jobs else None
             if prior:
                 stats.companies_updated += 1
             else:
                 stats.companies_created += 1
+                if first_source:
+                    stats.record_source_outcome(first_source, companies_created=1)
 
     with stage("upsert_companies", f"({len(company_rows)} rows)"):
         upserted = await rest.upsert(
@@ -220,6 +228,10 @@ async def _ingest(
     # Build normalized job rows, deduplicating within this crawl by content_hash.
     with stage("normalize_jobs"):
         unique_rows: list[dict[str, Any]] = []
+        # Parallel to unique_rows (same index) — which source produced it, so
+        # the new-vs-updated split below can still be attributed per source
+        # even though existing_hashes is looked up for all rows at once.
+        unique_row_sources: list[str] = []
         seen_hashes: set[str] = set()
         for slug in slugs:
             company_id = company_id_by_slug.get(slug)
@@ -229,6 +241,7 @@ async def _ingest(
                 digest = content_hash(slug, job.title, job.city)
                 if digest in seen_hashes:
                     stats.duplicate_jobs += 1
+                    stats.record_source_outcome(job.source, duplicate=1, verified=1)
                     continue
                 seen_hashes.add(digest)
                 unique_rows.append(
@@ -247,6 +260,7 @@ async def _ingest(
                         "content_hash": digest,
                     }
                 )
+                unique_row_sources.append(job.source)
         stats.normalized_jobs = len(unique_rows)
 
     # Which of the unique rows already exist (updated vs inserted)?
@@ -264,6 +278,11 @@ async def _ingest(
             1 for row in unique_rows if row["content_hash"] in existing_hashes
         )
         stats.inserted_jobs = len(unique_rows) - stats.updated_jobs
+        for row, row_source in zip(unique_rows, unique_row_sources):
+            if row["content_hash"] in existing_hashes:
+                stats.record_source_outcome(row_source, duplicate=1, verified=1)
+            else:
+                stats.record_source_outcome(row_source, new=1, verified=1)
 
     # Batch upsert (insert new + refresh existing) by content_hash.
     with stage("upsert_jobs", f"({len(unique_rows)} rows)"):
@@ -313,13 +332,54 @@ async def _execute(
 
 
 def _is_missing_column_error(exc: httpx.HTTPStatusError) -> bool:
-    """True when PostgREST rejected a write because a column does not exist.
-
-    Signals that `crawl_runs` predates migration 0005 and has no statistics
-    columns yet.
-    """
+    """True when PostgREST rejected a write because a column does not exist."""
     body = exc.response.text or ""
     return "PGRST204" in body or "does not exist" in body
+
+
+async def _write_crawl_run(
+    client: httpx.AsyncClient,
+    rest: SupabaseRest,
+    run_id: str,
+    tiers: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Try each payload tier, most complete first; use the first that the live
+    schema actually accepts.
+
+    A PostgREST UPDATE is all-or-nothing: bundling even one column the table
+    doesn't have fails the *entire* statement, not just that field. Earlier,
+    the crawl statistics were only ever attempted in a single payload
+    alongside columns (`raw_jobs`, `normalized_jobs`, `inserted_jobs`,
+    `companies_created`) that migration 0005 added but was never actually
+    applied to the live database — so that one statement always failed, and
+    the fallback threw away every statistic, including the ones the table
+    genuinely had a column for (`duplicate_jobs`, `companies_updated`). The
+    tiers below only ever combine columns whose existence is independently
+    justified (see `as_persisted_columns`), narrowing on failure instead of
+    collapsing straight to nothing.
+
+    Returns the payload that was actually written, for logging.
+    """
+    last_exc: httpx.HTTPStatusError | None = None
+    for index, payload in enumerate(tiers):
+        try:
+            await rest.update(client, "crawl_runs", {"id": f"eq.{run_id}"}, payload)
+        except httpx.HTTPStatusError as exc:
+            if not _is_missing_column_error(exc):
+                raise
+            last_exc = exc
+            print(
+                f"[finalize] crawl_runs rejected payload tier {index} "
+                f"(missing column) — trying a narrower tier. run_id={run_id} "
+                f"rejected={sorted(payload)} detail={exc.response.text}",
+                flush=True,
+            )
+            continue
+        return payload
+    # Every tier failed, including the bare {status, completed_at, error}
+    # tier — nothing left to narrow to. Re-raise rather than silently no-op.
+    assert last_exc is not None
+    raise last_exc
 
 
 async def _finalize(
@@ -341,47 +401,43 @@ async def _finalize(
     there is no second tally anywhere, and nothing is recomputed from database
     totals.
 
-    Falls back to the status-only write if the database still lacks the
-    statistics columns (migration 0005 not yet applied): a run must always reach
-    a terminal state, even on an old schema. The fallback is logged loudly and
-    never silently swallows anything else.
+    Writes to `crawl_runs` using the columns confirmed to exist on the live
+    table (see `CrawlStats.as_persisted_columns`), narrowing via
+    `_write_crawl_run` if even those turn out to be incomplete. A run must
+    always reach a terminal state, on any schema; every narrowing step is
+    logged loudly and nothing is ever silently swallowed.
     """
     completed_at = _now_iso()
-    payload: dict[str, Any] = {
+    base: dict[str, Any] = {
         "status": status,
         "completed_at": completed_at,
         "error": error_note,
-        **stats.as_columns(),
     }
+    persisted = stats.as_persisted_columns()
+    tiers = [
+        {**base, **persisted},
+        {**base, **{k: v for k, v in persisted.items() if k != "jobs_found"}},
+        dict(base),
+    ]
 
     async with httpx.AsyncClient() as client:
         with stage("update_crawl_run"):
-            try:
-                await rest.update(
-                    client, "crawl_runs", {"id": f"eq.{run_id}"}, payload
-                )
-            except httpx.HTTPStatusError as exc:
-                if not _is_missing_column_error(exc):
-                    raise
-                print(
-                    "[finalize] crawl_runs is missing the statistics columns — "
-                    "apply infra/supabase/migrations/"
-                    "0005_crawl_run_stats_columns.sql. Falling back to a "
-                    f"status-only write. run_id={run_id} stats={stats.as_columns()}",
-                    flush=True,
-                )
-                await rest.update(
-                    client,
-                    "crawl_runs",
-                    {"id": f"eq.{run_id}"},
-                    {"status": status, "completed_at": completed_at},
-                )
+            written = await _write_crawl_run(client, rest, run_id, tiers)
 
     print(
-        f"[finalize] persisted run_id={run_id} status={status} "
-        f"stats={stats.as_columns()}",
+        f"[finalize] persisted run_id={run_id} status={status} payload={written}",
         flush=True,
     )
+
+    for source, bucket in stats.per_source.items():
+        print(
+            f"[crawl-source] {source}: new={bucket['new']} "
+            f"duplicate={bucket['duplicate']} "
+            f"companies_created={bucket['companies_created']} "
+            f"verified={bucket['verified']}",
+            flush=True,
+        )
+
     columns = stats.as_columns()
     display = stats.as_display_columns()
     print(
@@ -390,12 +446,18 @@ async def _finalize(
         f"inserted={columns['inserted_jobs']} updated={columns['updated_jobs']} "
         f"duplicates={columns['duplicate_jobs']} "
         f"companies_created={columns['companies_created']} "
-        f"companies_updated={columns['companies_updated']} "
-        f"| display: new_jobs={display['new_jobs']} "
-        f"duplicate_jobs_total={display['duplicate_jobs_total']} "
+        f"companies_updated={columns['companies_updated']} run_id={run_id}",
+        flush=True,
+    )
+    print(
+        "[crawl-final] manual_discovery: "
+        f"new_jobs={display['new_jobs']} "
+        f"duplicate_jobs={display['duplicate_jobs_total']} "
+        f"companies_created={columns['companies_created']} "
         f"jobs_verified={display['jobs_verified']} run_id={run_id}",
         flush=True,
     )
+    print(f"[finalize] payload written to crawl_runs: {written}", flush=True)
     if error_note:
         print(f"[finalize] run_id={run_id} note={error_note!r}", flush=True)
 

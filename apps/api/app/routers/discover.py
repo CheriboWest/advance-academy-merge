@@ -10,7 +10,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from app.auth import get_current_user
 from app.config import Settings, get_settings
-from app.crawler.models import compute_display_stats
 from app.crawler.normalize import normalize_query
 from app.crawler.pipeline import run_crawl
 from app.crawler.supabase_rest import SupabaseRest
@@ -49,37 +48,51 @@ def _hours_since(iso: Optional[str]) -> Optional[float]:
 
 
 def _row_to_status(row: dict[str, Any]) -> CrawlRunStatus:
+    """Map a `crawl_runs` row to the API response.
+
+    Reads the columns `_finalize` actually writes to (see
+    `CrawlStats.as_persisted_columns`): `new_jobs`, `duplicate_jobs`,
+    `companies_discovered`, `companies_updated`, `jobs_found` — all
+    confirmed live on a real completed run's row. It deliberately does NOT
+    read `raw_jobs`/`normalized_jobs`/`inserted_jobs`/`companies_created` —
+    those migration-0002/0005 columns are never written by this code, so
+    reading them back would always yield 0 regardless of what the crawl
+    actually did.
+
+    The legacy `raw_jobs`/`normalized_jobs`/`inserted_jobs`/`updated_jobs`/
+    `companies_created` fields on `CrawlRunStatus` still exist (the "Recent
+    crawls" history table binds to some of them) and are filled in as the
+    closest honest approximation from the same real columns, rather than
+    left to read back as a permanent, misleading 0.
+    """
+
     def _int(key: str) -> int:
         value = row.get(key)
         return int(value) if isinstance(value, (int, float)) else 0
 
-    normalized_jobs = _int("normalized_jobs")
-    inserted_jobs = _int("inserted_jobs")
-    updated_jobs = _int("updated_jobs")
+    new_jobs = _int("new_jobs")
     duplicate_jobs = _int("duplicate_jobs")
-    companies_created = _int("companies_created")
-    display = compute_display_stats(
-        normalized_jobs=normalized_jobs,
-        inserted_jobs=inserted_jobs,
-        updated_jobs=updated_jobs,
-        duplicate_jobs=duplicate_jobs,
-    )
+    companies_created = _int("companies_discovered")
+    companies_updated = _int("companies_updated")
+    jobs_verified = _int("jobs_found")
 
     return CrawlRunStatus(
         id=str(row.get("id")),
         status=str(row.get("status") or "unknown"),
         query=row.get("query"),
         location=row.get("location"),
-        raw_jobs=_int("raw_jobs"),
-        normalized_jobs=normalized_jobs,
-        inserted_jobs=inserted_jobs,
-        updated_jobs=updated_jobs,
+        # Best-effort approximations — the live schema has no separate raw/
+        # normalized/updated counters, only the four fields above.
+        raw_jobs=jobs_verified,
+        normalized_jobs=jobs_verified,
+        inserted_jobs=new_jobs,
+        updated_jobs=0,
         duplicate_jobs=duplicate_jobs,
         companies_created=companies_created,
-        companies_updated=_int("companies_updated"),
-        new_jobs=display["new_jobs"],
-        duplicate_jobs_total=display["duplicate_jobs_total"],
-        jobs_verified=display["jobs_verified"],
+        companies_updated=companies_updated,
+        new_jobs=new_jobs,
+        duplicate_jobs_total=duplicate_jobs,
+        jobs_verified=jobs_verified,
         error=row.get("error"),
         created_at=row.get("started_at"),   # use started_at
         finished_at=row.get("completed_at"), # use completed_at
@@ -89,13 +102,21 @@ def _row_to_status(row: dict[str, Any]) -> CrawlRunStatus:
 async def _cached_jobs_available(
     client: httpx.AsyncClient, rest: SupabaseRest, query: str, location: str
 ) -> int:
+    """Jobs available for a cached (query, location) — read back from
+    whichever run last refreshed it.
+
+    Was selecting `jobs_found` but reading back `raw_jobs`, a column this
+    code never asked for and that PostgREST would never include in the
+    result — so this always returned 0 regardless of what the cached run
+    actually found. Fixed to read the column it selects.
+    """
     rows = await rest.select(
         client,
         "crawl_runs",
         { "query": f"eq.{query}", "location": f"eq.{location}", "status": "eq.success", "select": "jobs_found", "order": "started_at.desc", "limit": "1", },
     )
-    if rows and isinstance(rows[0].get("raw_jobs"), (int, float)):
-        return int(rows[0]["raw_jobs"])
+    if rows and isinstance(rows[0].get("jobs_found"), (int, float)):
+        return int(rows[0]["jobs_found"])
     return 0
 
 

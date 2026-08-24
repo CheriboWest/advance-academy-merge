@@ -55,8 +55,11 @@ check("B: both jobs count as duplicates (already existed)",
       b_status.duplicate_jobs_total == 2, f"got {b_status.duplicate_jobs_total}")
 check("B: both jobs were still verified (successfully normalized)",
       b_status.jobs_verified == 2, f"got {b_status.jobs_verified}")
-check("B: internal updated_jobs counter is preserved, not folded away",
-      b_row.get("updated_jobs") == 2, f"got {b_row.get('updated_jobs')}")
+check("B: persisted under the real column names (new_jobs/duplicate_jobs/jobs_found)",
+      (b_row.get("new_jobs"), b_row.get("duplicate_jobs"), b_row.get("jobs_found"))
+      == (0, 2, 2),
+      f"got new_jobs={b_row.get('new_jobs')} duplicate_jobs={b_row.get('duplicate_jobs')} "
+      f"jobs_found={b_row.get('jobs_found')}")
 
 # ---------------------------------------------------------------------------
 # C. A mix: one brand-new job, one in-crawl repeat of it, and one job that
@@ -84,10 +87,11 @@ check("C: jobs_verified counts all three raw jobs — the new one, the "
       "successfully normalized/content-hashed before being recognized as "
       "a repeat of c_new)",
       c_status.jobs_verified == 3, f"got {c_status.jobs_verified}")
-check("C: internal duplicate_jobs (in-crawl only) is exactly the repeat",
-      c_row.get("duplicate_jobs") == 1, f"got {c_row.get('duplicate_jobs')}")
-check("C: internal updated_jobs (already-existing only) is exactly one",
-      c_row.get("updated_jobs") == 1, f"got {c_row.get('updated_jobs')}")
+check("C: persisted duplicate_jobs folds the in-crawl repeat and the "
+      "pre-existing job together (1 + 1 = 2)",
+      c_row.get("duplicate_jobs") == 2, f"got {c_row.get('duplicate_jobs')}")
+check("C: persisted jobs_found is 3 (matches jobs_verified)",
+      c_row.get("jobs_found") == 3, f"got {c_row.get('jobs_found')}")
 
 # ---------------------------------------------------------------------------
 # D. Two sources: results are merged before ingest runs once, so the second
@@ -118,10 +122,12 @@ run_crawl_with(
 )
 d_row = d_rest.crawl_runs[RUN_ID]
 
-check("D: raw_jobs aggregates both sources (2 + 1), not just the last one",
-      d_row.get("raw_jobs") == 3, f"got {d_row.get('raw_jobs')}")
-check("D: companies_created counts both companies across sources",
-      d_row.get("companies_created") == 2, f"got {d_row.get('companies_created')}")
+check("D: new_jobs aggregates both sources (2 + 1), not just the last one",
+      d_row.get("new_jobs") == 3, f"got {d_row.get('new_jobs')}")
+check("D: companies_discovered counts both companies across sources",
+      d_row.get("companies_discovered") == 2, f"got {d_row.get('companies_discovered')}")
+check("D: jobs_found aggregates both sources",
+      d_row.get("jobs_found") == 3, f"got {d_row.get('jobs_found')}")
 check("D: crawl_runs is written exactly once for the combined run",
       len([1 for t, _, _ in d_rest.updates if t == "crawl_runs"]) == 1)
 
@@ -145,6 +151,106 @@ check("H: companies_created is not the frontend's default zero",
       h_status.companies_created == 2, f"got {h_status.companies_created}")
 check("H: jobs_verified is not the frontend's default zero",
       h_status.jobs_verified == 2, f"got {h_status.jobs_verified}")
+
+# ---------------------------------------------------------------------------
+# I. Integration: 5 normalized jobs — 2 inserted, 1 updated existing, 2 more
+#    already-existing (all three folded into "duplicate" for the coach),
+#    2 companies newly created. Expected public stats: new_jobs=2,
+#    duplicate_jobs=3, companies_created=2, jobs_verified=5. Asserts the
+#    crawler's own result, the persisted crawl_runs row, and the
+#    /discover/status response all agree — the exact chain the bug broke.
+# ---------------------------------------------------------------------------
+i_new_1 = crawled("Software Engineer", "Acme Ltd")
+i_updated_1 = crawled("Data Analyst", "Acme Ltd")
+i_new_2 = crawled("QA Engineer", "Globex Inc")
+i_updated_2 = crawled("Support Engineer", "Globex Inc")
+i_updated_3 = crawled("Sales Manager", "Globex Inc")
+i_jobs = [i_new_1, i_updated_1, i_new_2, i_updated_2, i_updated_3]
+i_rest = FakeRest(
+    jobs=[existing_job_row(j) for j in (i_updated_1, i_updated_2, i_updated_3)]
+)
+run_crawl_with(i_rest, i_jobs, run_id=RUN_ID)
+i_row = i_rest.crawl_runs[RUN_ID]
+i_status = _row_to_status(i_row)
+
+check("I: persisted crawl_runs row matches the expected public stats",
+      (i_row.get("new_jobs"), i_row.get("duplicate_jobs"),
+       i_row.get("companies_discovered"), i_row.get("jobs_found"))
+      == (2, 3, 2, 5),
+      f"got new_jobs={i_row.get('new_jobs')} duplicate_jobs={i_row.get('duplicate_jobs')} "
+      f"companies_discovered={i_row.get('companies_discovered')} "
+      f"jobs_found={i_row.get('jobs_found')}")
+check("I: /discover/status response matches the persisted row",
+      (i_status.new_jobs, i_status.duplicate_jobs_total,
+       i_status.companies_created, i_status.jobs_verified)
+      == (i_row.get("new_jobs"), i_row.get("duplicate_jobs"),
+          i_row.get("companies_discovered"), i_row.get("jobs_found")),
+      f"got {i_status}")
+check("I: /discover/status response matches the expected public stats exactly",
+      (i_status.new_jobs, i_status.duplicate_jobs_total,
+       i_status.companies_created, i_status.jobs_verified)
+      == (2, 3, 2, 5),
+      f"got {i_status}")
+
+# ---------------------------------------------------------------------------
+# J. Integration, multi-source: Adzuna and Reed each contribute nonzero new/
+#    duplicate/companies_created stats to ONE crawl_runs row. The parent run
+#    must SUM them, not let the second source overwrite the first — and the
+#    persisted row and the /discover/status response must agree.
+# ---------------------------------------------------------------------------
+j_adzuna_new = [crawled("Frontend Engineer", "Initech", source="adzuna")]
+j_adzuna_existing = [
+    crawled("Backend Engineer", "Initech", source="adzuna"),
+    crawled("DevOps Engineer", "Initech", source="adzuna"),
+    crawled("Platform Engineer", "Initech", source="adzuna"),
+]
+j_reed_new = [
+    crawled("Support Engineer", "Umbrella Corp", source="reed"),
+    crawled("Sales Engineer", "Umbrella Corp", source="reed"),
+]
+j_reed_existing = [crawled("Test Engineer", "Umbrella Corp", source="reed")]
+
+j_adzuna_jobs = j_adzuna_new + j_adzuna_existing
+j_reed_jobs = j_reed_new + j_reed_existing
+
+
+async def j_fake_fetch_all(client, settings, query, city, sources, stats):
+    jobs: list[NormalizedJob] = []
+    if "adzuna" in sources:
+        jobs.extend(j_adzuna_jobs)
+    if "reed" in sources:
+        jobs.extend(j_reed_jobs)
+    return jobs
+
+
+j_rest = FakeRest(
+    jobs=[existing_job_row(job) for job in (*j_adzuna_existing, *j_reed_existing)]
+)
+run_crawl_with(
+    j_rest, [], run_id=RUN_ID, sources=["adzuna", "reed"], fetch_all=j_fake_fetch_all
+)
+j_row = j_rest.crawl_runs[RUN_ID]
+j_status = _row_to_status(j_row)
+
+# Adzuna alone: 1 new + 3 duplicate, 1 company. Reed alone: 2 new +
+# 1 duplicate, 1 company. Neither is zero, so an overwrite bug (second
+# source replacing the first) would be caught by either total being wrong.
+check("J: new_jobs is the SUM across sources (1 + 2 = 3), not just one source",
+      j_row.get("new_jobs") == 3, f"got {j_row.get('new_jobs')}")
+check("J: duplicate_jobs is the SUM across sources (3 + 1 = 4)",
+      j_row.get("duplicate_jobs") == 4, f"got {j_row.get('duplicate_jobs')}")
+check("J: companies_discovered is the SUM across sources (1 + 1 = 2)",
+      j_row.get("companies_discovered") == 2, f"got {j_row.get('companies_discovered')}")
+check("J: jobs_found is the SUM across sources (4 + 3 = 7)",
+      j_row.get("jobs_found") == 7, f"got {j_row.get('jobs_found')}")
+check("J: /discover/status agrees with the persisted, summed row",
+      (j_status.new_jobs, j_status.duplicate_jobs_total,
+       j_status.companies_created, j_status.jobs_verified)
+      == (3, 4, 2, 7),
+      f"got {j_status}")
+check("J: crawl_runs is written exactly once for the combined run — one row, "
+      "not one per source",
+      len([1 for t, _, _ in j_rest.updates if t == "crawl_runs"]) == 1)
 
 # ---------------------------------------------------------------------------
 # compute_display_stats itself: the formulas, pinned directly.
