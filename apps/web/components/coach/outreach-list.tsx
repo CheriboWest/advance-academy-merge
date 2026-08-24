@@ -2,18 +2,26 @@ import * as React from "react";
 import Link from "next/link";
 import { ArrowUpRight, Briefcase, MapPin, PenLine } from "lucide-react";
 
-import type { OutreachCompany } from "@/lib/types";
+import type { CompanySponsorshipStatusCompact, OutreachCompany } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LeadScoreBadge } from "@/components/lead-score-badge";
+import { SponsorshipBadge } from "@/components/coach/sponsorship-badge";
 import { EmptyState } from "@/components/empty-state";
 
 interface OutreachListProps {
   companies: OutreachCompany[];
+  /** Keyed by company_id. A company absent here (a failed batch fetch, or
+   *  simply never checked) renders no sponsorship badge — the card is still
+   *  fully usable without one. */
+  sponsorshipStatuses?: Record<string, CompanySponsorshipStatusCompact>;
 }
 
 /** Grid of companies with an entry point into the outreach composer. */
-export function OutreachList({ companies }: OutreachListProps) {
+export function OutreachList({
+  companies,
+  sponsorshipStatuses = {},
+}: OutreachListProps) {
   if (companies.length === 0) {
     return (
       <EmptyState
@@ -37,11 +45,16 @@ export function OutreachList({ companies }: OutreachListProps) {
                 <h3 className="text-lg leading-tight">
                   {company.name}
                 </h3>
-                {company.hasDraft && (
-                  <Badge variant="secondary">
-                    Draft saved
-                  </Badge>
-                )}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {company.hasDraft && (
+                    <Badge variant="secondary">
+                      Draft saved
+                    </Badge>
+                  )}
+                  <SponsorshipBadge
+                    status={sponsorshipStatuses[company.company_id]}
+                  />
+                </div>
               </div>
               <LeadScoreBadge score={company.lead_score} />
             </div>

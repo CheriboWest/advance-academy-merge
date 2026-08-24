@@ -1,8 +1,28 @@
-"""Sponsor-register ingestion: download → parse → upsert → mark withdrawn.
+"""Sponsor-register ingestion: download → parse → stage → finalize.
 
 Safe to run repeatedly. Rows are keyed by `natural_key`, so a second run over an
-unchanged file inserts nothing, updates nothing, and reports every row as
-unchanged.
+unchanged file rewrites the same rows rather than duplicating them.
+
+Writing a row and publishing it are two different acts
+-----------------------------------------------------
+Every batch upsert stamps `staged_import_id` and touches nothing that decides
+what the register currently says. Only the finalization RPCs — begin, then repeated promote/withdraw chunk
+calls, then complete, run after every staging batch has been confirmed —
+promote this edition's rows to current and withdraw the live rows it did not
+carry. See migration 0010 for why publication is chunked rather than one
+statement.
+
+That split is what makes a failed import harmless. A run that dies halfway
+leaves rows carrying its marker, and no reader looks at that marker: the rows it
+inserted are `is_current = false` by column default, the rows it updated keep
+the currency the last successful edition gave them, and a licence a previous
+edition withdrew is NOT resurrected by a partial write. The previous edition
+stays authoritative until a new one finishes in full.
+
+It is also what makes six-figure imports possible at all. Deciding what to
+withdraw used to mean paging the entire table over PostgREST — 138 requests
+before the first row was written, of which the real import survived four. The
+database can answer the same question with one UPDATE.
 
 Register rows are never deleted. A row that stops appearing is marked
 `is_current = false` with a `withdrawn_at` stamp: absence from today's file means
@@ -13,9 +33,12 @@ existed, and deleting it would destroy the only record that it once was.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import random
+import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
@@ -64,6 +87,55 @@ BATCH_MAX_BACKOFF = 30.0
 # wrong — the schema, the payload, the key — and will fail identically forever.
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
+# Adaptive splitting. A batch that exhausts its retries on a transient error is
+# halved and each half retried on its own, repeatedly, until either the rows go
+# through or the chunk is small enough to name the offending rows outright.
+#
+# The floor is where narrowing stops paying: at ten rows the log can print every
+# row in the chunk, which is the actual goal — a batch that cannot be written
+# should end with "these rows", not "somewhere in those 250".
+MIN_SPLIT_ROWS = int(os.getenv("SPONSOR_MIN_SPLIT_ROWS", "10"))
+
+# How many rows a failing chunk may print. A chunk at the floor prints in full;
+# a full-size batch that failed permanently prints its head and says so.
+_MAX_LOGGED_ROWS = 25
+
+# Splitting is bounded in wall-clock as well as in depth. Unbounded, a dead
+# endpoint would generate 63 chunks x 5 attempts x a 120-second timeout — hours
+# of retrying an import that was never going to finish. Past the budget the
+# batch fails and names its rows.
+SPLIT_MAX_SECONDS = float(os.getenv("SPONSOR_SPLIT_BUDGET", "900"))
+
+# The final `sponsor_register_imports` write gets its own short-lived client.
+# When the import dies, the pooled connection is by definition the one that just
+# stalled; reusing it to record the failure is how a failed run ends up stuck at
+# "running" forever.
+STATUS_WRITE_TIMEOUT = float(os.getenv("SPONSOR_STATUS_TIMEOUT", "20"))
+STATUS_WRITE_ATTEMPTS = int(os.getenv("SPONSOR_STATUS_ATTEMPTS", "3"))
+
+# Finalization is one statement over the whole table, so it gets its own,
+# larger budget. It is idempotent — promoting the same rows twice is a no-op —
+# which is what makes retrying a timed-out call safe.
+FINALIZE_TIMEOUT = float(os.getenv("SPONSOR_FINALIZE_TIMEOUT", "60"))
+FINALIZE_ATTEMPTS = int(os.getenv("SPONSOR_FINALIZE_ATTEMPTS", "3"))
+
+# Publication runs as many small RPC calls rather than the one giant UPDATE
+# migration 0009 used. The real 141,904-row edition timed out (Postgres error
+# 57014, ~8.5s) on that single statement every time it was attempted, entirely
+# in index maintenance and an FK check — the fix is bounding how much of that
+# work any one statement can be asked to do, not raising the timeout, which
+# only postpones the same wall for the next, larger edition.
+#
+# 2,000 measured at ~0.1s per chunk against a representative 141,904-row table
+# (see migration 0010's commentary) — a wide margin under the production limit,
+# leaving headroom for slower moments without tuning the chunk size down.
+FINALIZE_CHUNK_SIZE = int(os.getenv("SPONSOR_FINALIZE_CHUNK_SIZE", "2000"))
+
+BEGIN_FINALIZE_FUNCTION = "begin_sponsor_register_finalization"
+PROMOTE_CHUNK_FUNCTION = "promote_sponsor_register_import_chunk"
+WITHDRAW_CHUNK_FUNCTION = "withdraw_sponsor_register_chunk"
+COMPLETE_FINALIZE_FUNCTION = "complete_sponsor_register_import"
+
 TABLE = "sponsor_licences"
 IMPORTS_TABLE = "sponsor_register_imports"
 
@@ -102,6 +174,224 @@ def _is_retryable(exc: Exception) -> bool:
     return False
 
 
+@dataclass
+class _WriteProgress:
+    """Running totals for one call to `_write_batches`, shared by its children."""
+
+    label: str
+    total_batches: int
+    total_rows: int
+    written: int = 0
+    retries: int = 0
+
+
+def _short_key(value: Any) -> str:
+    """The first 12 characters of a natural key — enough to grep a log with."""
+    return (str(value) if value else "?")[:12]
+
+
+def _endpoints(rows: list[dict[str, Any]]) -> str:
+    """First and last row of a chunk, for the line logged before it is sent.
+
+    Withdrawal batches carry only `natural_key`, so the organisation name is
+    optional here.
+    """
+    first, last = rows[0], rows[-1]
+    return (
+        f'first={_short_key(first.get("natural_key"))} '
+        f'"{first.get("organisation_name") or "-"}" | '
+        f'last={_short_key(last.get("natural_key"))} '
+        f'"{last.get("organisation_name") or "-"}"'
+    )
+
+
+def _log_offending_rows(
+    rows: list[dict[str, Any]], *, start_index: int, tag: str
+) -> None:
+    """Name every row of a chunk that could not be written.
+
+    This is the point of splitting. A 250-row batch that fails tells you
+    nothing; a chunk this size can be printed in full, and the natural keys are
+    exactly what `--inspect-batch` and a `sponsor_licences` query take.
+    """
+    # A chunk that reached the split floor is small enough to print whole. A
+    # full-size batch that failed permanently is not, and 250 error lines would
+    # bury the reason it failed — the first few plus the row range are enough to
+    # take to `--inspect-batch`.
+    shown = rows[:_MAX_LOGGED_ROWS]
+    logger.error(
+        "[sponsor-import] batch %s could not be written. The %d row(s) it "
+        "carries, in file order%s:",
+        tag, len(rows),
+        "" if len(shown) == len(rows) else f" (first {len(shown)} shown)",
+    )
+    for offset, row in enumerate(shown):
+        logger.error(
+            "[sponsor-import]   row %d natural_key=%s organisation_name=%r "
+            "town_city=%r county=%r type_rating=%r route=%r bytes=%d",
+            start_index + offset,
+            row.get("natural_key"),
+            row.get("organisation_name"),
+            row.get("town_city"),
+            row.get("county"),
+            row.get("type_rating"),
+            row.get("route"),
+            len(json.dumps(row, default=str).encode("utf-8")),
+        )
+    if len(shown) != len(rows):
+        logger.error(
+            "[sponsor-import]   ...and %d more, rows %d-%d. Run "
+            "`scripts/import_sponsor_register.py --file <csv> --inspect-batch "
+            "%s` to see the whole batch.",
+            len(rows) - len(shown), start_index + len(shown),
+            start_index + len(rows) - 1, tag.rstrip("AB") or tag,
+        )
+
+
+async def _write_chunk(
+    client: httpx.AsyncClient,
+    rest: SupabaseRest,
+    rows: list[dict[str, Any]],
+    *,
+    progress: _WriteProgress,
+    number: int,
+    suffix: str,
+    depth: int,
+    start_index: int,
+    deadline: float,
+    on_conflict: str,
+    sleeper: Any,
+) -> None:
+    """Write one chunk, halving it and recursing if it will not go through.
+
+    Retries first, on the normal policy. If the chunk still fails on a transient
+    error it is split in two and each half written independently — a batch that
+    times out repeatedly is usually one slow or oversized row dragging its 249
+    neighbours down with it, and halving isolates it in a handful of rounds.
+
+    Deeper chunks get fewer attempts: by then the transient explanation is
+    losing credibility, and the same total patience is better spent narrowing
+    than repeating. Splitting stops at `MIN_SPLIT_ROWS`, or when the batch's
+    time budget runs out; either way the chunk's rows are logged by name and the
+    failure is raised, so the caller never reaches withdrawal.
+
+    Re-sending is safe at every level: the write is an upsert keyed on
+    `natural_key`, so a parent that committed before its client gave up is
+    updated by its children rather than duplicated.
+    """
+    tag = f"{number}{suffix}"
+    attempts = BATCH_MAX_ATTEMPTS if depth == 0 else max(2, BATCH_MAX_ATTEMPTS - depth)
+    span = f"{start_index}-{start_index + len(rows) - 1}"
+    started = time.monotonic()
+
+    logger.info(
+        "[sponsor-import] %s batch %s/%d depth=%d rows=%d range=%s sending | %s",
+        progress.label, tag, progress.total_batches, depth, len(rows), span,
+        _endpoints(rows),
+    )
+
+    for attempt in range(1, attempts + 1):
+        try:
+            await rest.upsert(
+                client,
+                TABLE,
+                rows,
+                on_conflict=on_conflict,
+                # merge-duplicates makes the re-send an update rather than a
+                # conflict; return=minimal keeps a 250-row response empty.
+                prefer="resolution=merge-duplicates,return=minimal",
+                timeout=IMPORT_REQUEST_TIMEOUT,
+            )
+        except Exception as exc:  # noqa: BLE001 — classified immediately
+            retryable = _is_retryable(exc)
+            elapsed = time.monotonic() - started
+
+            if retryable and attempt < attempts:
+                progress.retries += 1
+                delay = min(
+                    BATCH_BASE_BACKOFF * (2 ** (attempt - 1)), BATCH_MAX_BACKOFF
+                )
+                delay += random.uniform(0, delay / 2)
+                logger.warning(
+                    "[sponsor-import] %s batch %s retry=%d reason=%s "
+                    "elapsed=%.1fs backoff=%.1fs",
+                    progress.label, tag, attempt, type(exc).__name__, elapsed, delay,
+                )
+                await sleeper(delay)
+                continue
+
+            if not retryable:
+                logger.error(
+                    "[sponsor-import] %s batch %s/%d rows=%d range=%s FAILED with "
+                    "%s, which is permanent — the request itself is wrong, so "
+                    "neither retrying nor splitting it would help.",
+                    progress.label, tag, progress.total_batches, len(rows), span,
+                    type(exc).__name__,
+                )
+                _log_offending_rows(rows, start_index=start_index, tag=tag)
+                raise
+
+            if len(rows) <= MIN_SPLIT_ROWS:
+                logger.error(
+                    "[sponsor-import] %s batch %s/%d rows=%d range=%s FAILED after "
+                    "%d attempt(s) with %s and is at the %d-row split floor, so it "
+                    "cannot be narrowed further. The import stops here: %d/%d rows "
+                    "are written, nothing has been withdrawn, and re-running the "
+                    "same file will skip straight past the rows already stored.",
+                    progress.label, tag, progress.total_batches, len(rows), span,
+                    attempt, type(exc).__name__, MIN_SPLIT_ROWS,
+                    progress.written, progress.total_rows,
+                )
+                _log_offending_rows(rows, start_index=start_index, tag=tag)
+                raise
+
+            if time.monotonic() >= deadline:
+                logger.error(
+                    "[sponsor-import] %s batch %s/%d rows=%d range=%s FAILED with "
+                    "%s and batch %d has now spent its %.0fs split budget, so it "
+                    "will not be narrowed further. The import stops here: %d/%d "
+                    "rows are written and nothing has been withdrawn.",
+                    progress.label, tag, progress.total_batches, len(rows), span,
+                    type(exc).__name__, number, SPLIT_MAX_SECONDS,
+                    progress.written, progress.total_rows,
+                )
+                _log_offending_rows(rows, start_index=start_index, tag=tag)
+                raise
+
+            half = len(rows) // 2
+            left, right = rows[:half], rows[half:]
+            logger.warning(
+                "[sponsor-import] %s batch %s/%d failed after %d attempts (%s); "
+                "splitting %d → %d + %d (depth %d, elapsed %.1fs)",
+                progress.label, tag, progress.total_batches, attempt,
+                type(exc).__name__, len(rows), len(left), len(right),
+                depth + 1, elapsed,
+            )
+            for child, child_suffix, child_start in (
+                (left, suffix + "A", start_index),
+                (right, suffix + "B", start_index + half),
+            ):
+                await _write_chunk(
+                    client, rest, child,
+                    progress=progress, number=number, suffix=child_suffix,
+                    depth=depth + 1, start_index=child_start, deadline=deadline,
+                    on_conflict=on_conflict, sleeper=sleeper,
+                )
+            return
+
+        progress.written += len(rows)
+        logger.info(
+            "[sponsor-import] %s batch %s/%d rows=%d range=%s completed "
+            "attempts=%d elapsed=%.1fs | processed=%d remaining=%d (%.1f%%)",
+            progress.label, tag, progress.total_batches, len(rows), span,
+            attempt, time.monotonic() - started,
+            progress.written, progress.total_rows - progress.written,
+            100.0 * progress.written / progress.total_rows
+            if progress.total_rows else 100.0,
+        )
+        return
+
+
 async def _write_batches(
     client: httpx.AsyncClient,
     rest: SupabaseRest,
@@ -111,118 +401,36 @@ async def _write_batches(
     on_conflict: str = "natural_key",
     sleeper: Any = asyncio.sleep,
 ) -> int:
-    """Upsert `rows` in batches, retrying transient failures. Returns retries used.
+    """Upsert `rows` in batches, retrying and splitting. Returns retries used.
 
     A `ReadTimeout` does NOT prove the server discarded the request — PostgREST
     may well have committed it and simply answered too late. That is exactly why
-    the retry is safe: `natural_key` is unique and the write is an upsert, so
-    re-sending a batch that already landed updates the same rows instead of
-    duplicating them. The alternative — treating a timeout as a failure and
-    stopping — leaves an import half-applied with no way to tell how far it got.
+    both the retry and the split are safe: `natural_key` is unique and the write
+    is an upsert, so re-sending rows that already landed updates them instead of
+    duplicating them.
 
-    Raises if a batch exhausts its attempts, so the caller never proceeds to
+    Raises if a chunk cannot be written, so the caller never proceeds to
     withdrawal on a partial edition.
     """
-    batches = [chunk for chunk in _chunks(rows, UPSERT_CHUNK)]
-    total_batches = len(batches)
-    total_rows = len(rows)
-    written = 0
-    retries_used = 0
-
-    for index, chunk in enumerate(batches, start=1):
-        for attempt in range(1, BATCH_MAX_ATTEMPTS + 1):
-            try:
-                await rest.upsert(
-                    client,
-                    TABLE,
-                    chunk,
-                    on_conflict=on_conflict,
-                    prefer="resolution=merge-duplicates,return=minimal",
-                    timeout=IMPORT_REQUEST_TIMEOUT,
-                )
-                break
-            except Exception as exc:  # noqa: BLE001 — classified immediately
-                if not _is_retryable(exc) or attempt == BATCH_MAX_ATTEMPTS:
-                    logger.error(
-                        "[sponsor-import] %s batch %d/%d FAILED after %d attempt(s): "
-                        "%s. %d/%d rows were written before this batch; the stored "
-                        "register is untouched by withdrawal.",
-                        label, index, total_batches, attempt,
-                        type(exc).__name__, written, total_rows,
-                    )
-                    raise
-                retries_used += 1
-                delay = min(
-                    BATCH_BASE_BACKOFF * (2 ** (attempt - 1)), BATCH_MAX_BACKOFF
-                )
-                delay += random.uniform(0, delay / 2)
-                logger.warning(
-                    "[sponsor-import] %s batch %d/%d retry=%d reason=%s "
-                    "backoff=%.1fs",
-                    label, index, total_batches, attempt,
-                    type(exc).__name__, delay,
-                )
-                await sleeper(delay)
-
-        written += len(chunk)
-        logger.info(
-            "[sponsor-import] %s batch %d/%d rows=%d completed | "
-            "processed=%d remaining=%d (%.1f%%)",
-            label, index, total_batches, len(chunk),
-            written, total_rows - written,
-            100.0 * written / total_rows if total_rows else 100.0,
-        )
-
-    return retries_used
-
-
-async def _existing_rows(
-    client: httpx.AsyncClient, rest: SupabaseRest
-) -> dict[str, dict[str, Any]]:
-    """Every stored register row, keyed by `natural_key`.
-
-    Paged rather than fetched in one request: PostgREST caps rows per response,
-    and a silent truncation here would make existing rows look new and
-    everything absent look withdrawn.
-    """
-    stored: dict[str, dict[str, Any]] = {}
-    offset = 0
-    columns = (
-        "id,natural_key,organisation_name,town_city,county,type_rating,route,"
-        "licence_type,rating,is_current"
+    batches = list(_chunks(rows, UPSERT_CHUNK))
+    progress = _WriteProgress(
+        label=label, total_batches=len(batches), total_rows=len(rows)
     )
-    while True:
-        rows = await rest.select(
-            client,
-            TABLE,
-            {
-                "select": columns,
-                "order": "natural_key.asc",
-                "limit": str(SELECT_PAGE),
-                "offset": str(offset),
-            },
+
+    start_index = 0
+    for number, chunk in enumerate(batches, start=1):
+        await _write_chunk(
+            client, rest, chunk,
+            progress=progress, number=number, suffix="", depth=0,
+            start_index=start_index,
+            # Per batch, not per import: a slow batch must not eat the budget of
+            # the batches after it.
+            deadline=time.monotonic() + SPLIT_MAX_SECONDS,
+            on_conflict=on_conflict, sleeper=sleeper,
         )
-        for row in rows:
-            key = row.get("natural_key")
-            if key:
-                stored[str(key)] = row
-        if len(rows) < SELECT_PAGE:
-            break
-        offset += SELECT_PAGE
-    return stored
+        start_index += len(chunk)
 
-
-def _is_unchanged(record: SponsorRecord, stored: dict[str, Any]) -> bool:
-    """Whether the stored row already carries this record's published values."""
-    return record.content_fields() == (
-        stored.get("organisation_name"),
-        stored.get("town_city"),
-        stored.get("county"),
-        stored.get("type_rating"),
-        stored.get("route"),
-        stored.get("licence_type"),
-        stored.get("rating"),
-    ) and bool(stored.get("is_current"))
+    return progress.retries
 
 
 async def ingest_records(
@@ -232,105 +440,292 @@ async def ingest_records(
     source_url: str,
     published_at: Optional[str],
     stats: ImportStats,
+    *,
+    import_id: str,
     sleeper: Any = asyncio.sleep,
 ) -> None:
-    """Upsert `records` and withdraw stored rows the file no longer contains.
+    """Stage `records` under `import_id`. Publishes nothing.
+
+    Every row carries the edition's marker and its published content. What it
+    deliberately does NOT carry is `is_current`, `withdrawn_at` or
+    `last_seen_at`: those decide what the register says today, and a batch that
+    might be one of many still to fail has no business deciding that. New rows
+    take the column default (`is_current = false`, since migration 0009) and
+    existing rows keep whatever the last successful edition left them.
+
+    `finalize_edition` publishes the result, and only after every batch here has
+    been confirmed.
 
     Split out from `run_import` so the whole write path can be exercised with a
     fixture file and no network.
     """
-    stored = await _existing_rows(client, rest)
-    seen_now = datetime.now(timezone.utc).isoformat()
+    if not import_id:
+        raise RuntimeError(
+            "Refusing to stage rows without an import id: rows written without "
+            "one could never be published, and would be indistinguishable from "
+            "the previous edition's."
+        )
 
-    # Classify first, count later. These tallies describe what the edition WILL
-    # do; they are copied into `stats` only after every batch is confirmed, so a
-    # failed import never reports rows it did not write.
-    to_write: list[dict[str, Any]] = []
-    planned_inserted = planned_updated = planned_unchanged = 0
-
+    staged_at = datetime.now(timezone.utc).isoformat()
+    rows: list[dict[str, Any]] = []
     for record in records:
-        existing = stored.get(record.natural_key)
         row = record.as_row(source_url, published_at)
-        row["last_seen_at"] = seen_now
-        row["is_current"] = True
-        row["withdrawn_at"] = None
-
-        if existing is None:
-            planned_inserted += 1
-            row["first_seen_at"] = seen_now
-        elif _is_unchanged(record, existing):
-            planned_unchanged += 1
-            # Still written: `last_seen_at` is how we prove the row is in
-            # today's edition, which is what stops it being withdrawn below.
-        else:
-            planned_updated += 1
-        to_write.append(row)
+        row["staged_import_id"] = import_id
+        row["staged_seen_at"] = staged_at
+        rows.append(row)
 
     logger.info(
-        "[sponsor-import] writing %d rows in %d batches of %d "
-        "(insert=%d update=%d unchanged=%d)",
-        len(to_write), -(-len(to_write) // UPSERT_CHUNK), UPSERT_CHUNK,
-        planned_inserted, planned_updated, planned_unchanged,
+        "[sponsor-import] staging %d rows for import %s in %d batches of %d",
+        len(rows), import_id, -(-len(rows) // UPSERT_CHUNK), UPSERT_CHUNK,
     )
 
-    # Stage the whole edition first. `_write_batches` raises if any batch
-    # exhausts its retries, so the withdrawal below is unreachable unless every
-    # new row is safely in place. Withdrawal is the only step that changes what
-    # the register says is current, so it happens last and only on success.
+    # `_write_batches` raises if any chunk cannot be written, so the caller
+    # never reaches finalization on a partial edition.
     retries = await _write_batches(
-        client, rest, to_write, label="edition", sleeper=sleeper
+        client, rest, rows, label="edition", sleeper=sleeper
     )
-
-    # Every batch confirmed. Only now do the numbers become facts.
-    stats.rows_inserted = planned_inserted
-    stats.rows_updated = planned_updated
-    stats.rows_unchanged = planned_unchanged
+    stats.rows_processed = len(rows)
     if retries:
-        logger.info("[sponsor-import] edition completed with %d retries", retries)
-
-    # Anything currently marked live that this edition did not contain.
-    present = {record.natural_key for record in records}
-    withdrawn = [
-        row for key, row in stored.items()
-        if key not in present and row.get("is_current")
-    ]
-    if withdrawn:
-        await _write_batches(
-            client,
-            rest,
-            [
-                {
-                    "natural_key": row["natural_key"],
-                    "is_current": False,
-                    "withdrawn_at": seen_now,
-                }
-                for row in withdrawn
-            ],
-            label="withdrawal",
-            sleeper=sleeper,
-        )
-    stats.rows_withdrawn = len(withdrawn)
+        logger.info("[sponsor-import] staging completed with %d retries", retries)
 
 
-async def _confirm_edition(
-    client: httpx.AsyncClient, rest: SupabaseRest, source_url: str
-) -> Optional[int]:
-    """Count the rows the database actually holds for this edition.
+class FinalizationFailed(RuntimeError):
+    """Staging finished; publishing the staged edition did not.
 
-    Reconciliation, not bookkeeping: a timed-out batch may have committed, so
-    the only trustworthy count comes from asking the database afterwards.
-    Best-effort — a failure here must not fail an import that already succeeded.
+    Raised only after `ingest_records` has already succeeded — every row of the
+    edition is safely staged, and what failed is the database work that would
+    have promoted and withdrawn rows to publish it. Kept distinct from a
+    staging failure so the log, and the run's operator, are never left
+    wondering whether the CSV needs re-uploading (it does not: `--resume-finalize`
+    picks this exact run back up without touching the file again).
+    """
+
+
+async def _call_finalize_rpc(
+    client: httpx.AsyncClient,
+    rest: SupabaseRest,
+    function: str,
+    payload: dict[str, Any],
+    *,
+    sleeper: Any,
+) -> Any:
+    """Call one finalization RPC, retrying transient failures.
+
+    Every finalization function — begin, promote a chunk, withdraw a chunk,
+    complete — is idempotent by construction (see migration 0010): re-sending
+    the same call after a timeout either finds the same work still outstanding
+    or finds it already done and reports that. That is what makes retrying here
+    safe, unlike retrying an arbitrary write.
+    """
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, FINALIZE_ATTEMPTS + 1):
+        started = time.monotonic()
+        try:
+            return await rest.rpc(client, function, payload, timeout=FINALIZE_TIMEOUT)
+        except Exception as exc:  # noqa: BLE001 — classified immediately
+            last_exc = exc
+            if not _is_retryable(exc) or attempt == FINALIZE_ATTEMPTS:
+                raise
+            delay = min(BATCH_BASE_BACKOFF * (2 ** (attempt - 1)), BATCH_MAX_BACKOFF)
+            logger.warning(
+                "[sponsor-import] %s retry=%d reason=%s elapsed=%.1fs backoff=%.1fs",
+                function, attempt, type(exc).__name__,
+                time.monotonic() - started, delay,
+            )
+            await sleeper(delay)
+    raise last_exc  # pragma: no cover — loop always returns or raises above
+
+
+async def finalize_edition(
+    client: httpx.AsyncClient,
+    rest: SupabaseRest,
+    import_id: str,
+    stats: ImportStats,
+    *,
+    chunk_size: int = FINALIZE_CHUNK_SIZE,
+    sleeper: Any = asyncio.sleep,
+) -> None:
+    """Publish the staged edition, as many small database calls instead of one.
+
+    Four steps, each its own RPC and each safe to repeat:
+
+      1. begin   — locks the import, refuses if nothing was staged, moves
+                   status to 'finalizing'. Idempotent: calling it again
+                   (resuming) just reports where the run stands.
+      2. promote — repeatedly, until `remaining=0`. Each call promotes up to
+                   `chunk_size` still-unpublished rows of THIS edition. Bounded
+                   by construction, so no single call can approach the
+                   production statement timeout however large the edition is.
+      3. withdraw — repeatedly, until `remaining=0`. Only runs once promotion
+                   is complete (the database refuses it otherwise): an edition
+                   is fully live before anything is retired.
+      4. complete — verifies both phases are actually finished and that the
+                   live set is exactly this edition, then marks the import
+                   success with counts it re-derives from the table.
+
+    A failure at any step raises `FinalizationFailed` and leaves the import
+    exactly where the last successful call left it — `finalizing`, with
+    whatever has been promoted or withdrawn so far intact. Nothing here needs
+    to know whether it is running for the first time or resuming a run that
+    failed partway: the four functions answer that from the table itself.
     """
     try:
-        return await rest.count(
-            client,
-            TABLE,
-            {"source_url": f"eq.{source_url}", "is_current": "eq.true"},
-            timeout=IMPORT_REQUEST_TIMEOUT,
+        began = await _call_finalize_rpc(
+            client, rest, BEGIN_FINALIZE_FUNCTION,
+            {"p_import_id": import_id}, sleeper=sleeper,
         )
-    except Exception:  # noqa: BLE001 — reconciliation is advisory
-        logger.warning("[sponsor-import] could not reconcile the edition count")
-        return None
+        begin_row = _first_row(began) or {}
+        staged = int(begin_row.get("staged_rows") or 0)
+        logger.info(
+            "[sponsor-import] finalization begun for import %s: %d rows staged "
+            "(status=%s)", import_id, staged, begin_row.get("status"),
+        )
+
+        if begin_row.get("status") != "success":
+            promoted_total = 0
+            remaining = staged
+            while remaining > 0:
+                result = await _call_finalize_rpc(
+                    client, rest, PROMOTE_CHUNK_FUNCTION,
+                    {"p_import_id": import_id, "p_limit": chunk_size},
+                    sleeper=sleeper,
+                )
+                row = _first_row(result) or {}
+                processed = int(row.get("processed") or 0)
+                remaining = int(row.get("remaining") or 0)
+                promoted_total += processed
+                logger.info(
+                    "[sponsor-import] promote chunk: +%d rows, %d remaining "
+                    "(%d promoted so far)", processed, remaining, promoted_total,
+                )
+                if processed == 0 and remaining > 0:
+                    # Every retry is idempotent; a chunk reporting zero progress
+                    # with rows still outstanding means something is stuck, not
+                    # transient — looping would just spin forever.
+                    raise RuntimeError(
+                        f"{PROMOTE_CHUNK_FUNCTION} made no progress with "
+                        f"{remaining} row(s) still unpromoted"
+                    )
+
+            withdrawn_total = 0
+            remaining = -1
+            while remaining != 0:
+                result = await _call_finalize_rpc(
+                    client, rest, WITHDRAW_CHUNK_FUNCTION,
+                    {"p_import_id": import_id, "p_limit": chunk_size},
+                    sleeper=sleeper,
+                )
+                row = _first_row(result) or {}
+                processed = int(row.get("processed") or 0)
+                remaining = int(row.get("remaining") or 0)
+                withdrawn_total += processed
+                logger.info(
+                    "[sponsor-import] withdraw chunk: +%d rows, %d remaining "
+                    "(%d withdrawn so far)", processed, remaining, withdrawn_total,
+                )
+                if processed == 0 and remaining > 0:
+                    raise RuntimeError(
+                        f"{WITHDRAW_CHUNK_FUNCTION} made no progress with "
+                        f"{remaining} row(s) still needing withdrawal"
+                    )
+
+        completed = await _call_finalize_rpc(
+            client, rest, COMPLETE_FINALIZE_FUNCTION,
+            {"p_import_id": import_id}, sleeper=sleeper,
+        )
+    except Exception as exc:  # noqa: BLE001 — every finalization failure, tagged
+        raise FinalizationFailed(
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
+
+    row = _first_row(completed)
+    if row is None:
+        raise FinalizationFailed(
+            f"{COMPLETE_FINALIZE_FUNCTION} returned no counts; the edition's "
+            "publication state is unknown. Check sponsor_register_imports and "
+            "sponsor_licences before treating this run as done."
+        )
+
+    stats.rows_processed = int(row.get("rows_processed") or 0)
+    stats.rows_current_after = int(row.get("rows_current_after") or 0)
+    stats.rows_withdrawn = int(row.get("rows_withdrawn") or 0)
+
+    logger.info(
+        "[sponsor-import] finalized import %s: processed=%d withdrawn=%d "
+        "current=%d",
+        import_id, stats.rows_processed, stats.rows_withdrawn,
+        stats.rows_current_after,
+    )
+
+
+def _first_row(result: Any) -> Optional[dict[str, Any]]:
+    """The single row a set-returning RPC produced, whatever shape it arrives in.
+
+    PostgREST returns a list for a `returns table` function, but returns the
+    object directly when the function is declared to return one row.
+    """
+    if isinstance(result, list):
+        return result[0] if result else None
+    if isinstance(result, dict):
+        return result
+    return None
+
+
+async def _record_status(
+    rest: SupabaseRest,
+    run_id: str,
+    values: dict[str, Any],
+    *,
+    client_factory: Any = httpx.AsyncClient,
+    sleeper: Any = asyncio.sleep,
+) -> bool:
+    """Write the run's final row on a connection of its own. Never raises.
+
+    Deliberately not the client the import has been using: by the time this
+    matters, that client is the one whose request just timed out, and its pooled
+    connection may be wedged behind a response that is never coming. A run that
+    dies AND fails to record why is indistinguishable from a run still going, so
+    this gets a fresh client, a short timeout, and its own small retry.
+    """
+    if not run_id:
+        return False
+
+    last_error: Optional[Exception] = None
+    for attempt in range(1, STATUS_WRITE_ATTEMPTS + 1):
+        try:
+            async with client_factory(timeout=STATUS_WRITE_TIMEOUT) as fresh:
+                await rest.update(
+                    fresh,
+                    IMPORTS_TABLE,
+                    {"id": f"eq.{run_id}"},
+                    values,
+                    timeout=STATUS_WRITE_TIMEOUT,
+                )
+            if attempt > 1:
+                logger.info(
+                    "[sponsor-import] recorded status=%s on attempt %d",
+                    values.get("status"), attempt,
+                )
+            return True
+        except Exception as exc:  # noqa: BLE001 — reported, never raised
+            last_error = exc
+            if attempt < STATUS_WRITE_ATTEMPTS:
+                logger.warning(
+                    "[sponsor-import] could not record status=%s (%s); "
+                    "retrying on a new connection (%d/%d)",
+                    values.get("status"), type(exc).__name__,
+                    attempt, STATUS_WRITE_ATTEMPTS,
+                )
+                await sleeper(min(2.0 * attempt, 5.0))
+
+    logger.error(
+        "[sponsor-import] FAILED to record status=%s for run %s after %d "
+        "attempts (%s: %s). The run row is left as it was — check "
+        "sponsor_register_imports before trusting its status.",
+        values.get("status"), run_id, STATUS_WRITE_ATTEMPTS,
+        type(last_error).__name__, last_error,
+    )
+    return False
 
 
 async def previous_successful_rows(
@@ -352,6 +747,160 @@ async def previous_successful_rows(
     return None
 
 
+class ResumeRefused(RuntimeError):
+    """A `--resume-finalize` request was refused before touching anything.
+
+    Distinct from `FinalizationFailed`: this means finalization was never
+    attempted because the run was not a safe candidate for it, not that it ran
+    and failed.
+    """
+
+
+async def resume_finalize_import(
+    rest: SupabaseRest,
+    import_id: str,
+    *,
+    client: Optional[httpx.AsyncClient] = None,
+    sleeper: Any = asyncio.sleep,
+    client_factory: Any = httpx.AsyncClient,
+) -> tuple[str, ImportStats]:
+    """Publish an edition that finished staging but never finished publishing.
+
+    Reads NOTHING from a CSV and downloads nothing from GOV.UK — the file was
+    already parsed and every row is already in `sponsor_licences` under
+    `import_id`. This resumes `finalize_edition` for that exact run, which
+    picks up in whichever chunk-promote/withdraw phase it last reached rather
+    than starting the edition over.
+
+    Refuses, without changing anything, unless the run is a safe candidate:
+
+    - it must exist,
+    - it must not already be `success` (nothing to resume),
+    - it must not be `running` (staging may still be in flight — resuming
+      publication of an edition that has not finished being written would
+      publish an incomplete one),
+    - and staging must actually have finished: `rows_processed == rows_parsed`
+      on the stored run, OR the number of rows in `sponsor_licences` actually
+      carrying this run's `staged_import_id` matches `rows_parsed`. Either is
+      sufficient on its own — `rows_processed` is set in the stored row ONLY
+      after `_write_batches` returns without raising (see `ingest_records`),
+      so on the real code path it already means "every row was confirmed
+      written"; the staged-count check exists for a run whose stored row
+      predates that column, or otherwise cannot be trusted on its own, and
+      still needs a second way to prove staging genuinely finished.
+    """
+    owns_client = client is None
+    client = client or httpx.AsyncClient()
+    stats = ImportStats()
+
+    try:
+        rows = await rest.select(
+            client,
+            IMPORTS_TABLE,
+            {"select": "*", "id": f"eq.{import_id}", "limit": "1"},
+        )
+        if not rows:
+            raise ResumeRefused(f"No sponsor_register_imports row with id {import_id}.")
+        record = rows[0]
+        status = record.get("status")
+
+        if status == "success":
+            raise ResumeRefused(
+                f"Import {import_id} already has status=success; there is "
+                "nothing to resume. (Its edition is already published.)"
+            )
+        if status == "running":
+            raise ResumeRefused(
+                f"Import {import_id} has status=running: data staging may "
+                "still be in progress. Resuming publication now could publish "
+                "an edition that never finished being written. Wait for it to "
+                "reach status=error or status=finalizing first."
+            )
+        if status not in ("error", "finalizing"):
+            raise ResumeRefused(
+                f"Import {import_id} has unrecognised status={status!r}; "
+                "refusing to guess what that means."
+            )
+
+        rows_parsed = record.get("rows_parsed")
+        rows_processed = record.get("rows_processed")
+        stats.rows_downloaded = record.get("rows_downloaded") or 0
+        stats.rows_parsed = rows_parsed or 0
+        stats.rows_rejected = record.get("rows_rejected") or 0
+
+        # A count, not a page of rows: this runs once per resume and only
+        # needs the number, which `SupabaseRest.count` gets in a single HEAD
+        # request regardless of how large the edition is.
+        staged_count = await rest.count(
+            client, TABLE, {"staged_import_id": f"eq.{import_id}"},
+        )
+
+        eligible = (
+            rows_parsed is not None and rows_processed == rows_parsed
+        ) or (
+            rows_parsed is not None and staged_count == rows_parsed
+        )
+        if not eligible:
+            raise ResumeRefused(
+                f"Import {import_id} does not look like a complete staging "
+                f"run: rows_parsed={rows_parsed}, rows_processed={rows_processed}, "
+                f"rows actually staged={staged_count}. Refusing to publish a "
+                "possibly-incomplete edition; re-run the import from the CSV "
+                "instead."
+            )
+
+        logger.info(
+            "[sponsor-import] resuming finalization of import %s: "
+            "rows_parsed=%s rows_processed=%s staged_in_table=%s status=%s",
+            import_id, rows_parsed, rows_processed, staged_count, status,
+        )
+
+        await finalize_edition(client, rest, import_id, stats, sleeper=sleeper)
+
+        await _record_status(
+            rest,
+            import_id,
+            {
+                "status": "success",
+                "source_url": record.get("source_url"),
+                "register_published_at": record.get("register_published_at"),
+                "finished_at": _now_iso(),
+                **stats.as_columns(),
+            },
+            client_factory=client_factory,
+            sleeper=sleeper,
+        )
+        logger.info(
+            "[sponsor-import] resume finalized import %s: %s",
+            import_id, stats.as_columns(),
+        )
+        return import_id, stats
+
+    except ResumeRefused:
+        raise
+    except Exception as exc:  # noqa: BLE001 — recorded, then re-raised
+        logger.exception(
+            "[sponsor-import] resume of import %s failed during "
+            "publication/finalization", import_id,
+        )
+        await _record_status(
+            rest,
+            import_id,
+            {
+                "status": "error",
+                "error": f"{type(exc).__name__}: {exc}"[:1000],
+                "finished_at": _now_iso(),
+                **stats.as_columns(),
+            },
+            client_factory=client_factory,
+            sleeper=sleeper,
+        )
+        raise
+    finally:
+        if owns_client:
+            await client.aclose()
+
+
 async def run_import(
     rest: SupabaseRest,
     *,
@@ -360,6 +909,7 @@ async def run_import(
     source_url: Optional[str] = None,
     force: bool = False,
     sleeper: Any = asyncio.sleep,
+    client_factory: Any = httpx.AsyncClient,
 ) -> tuple[str, ImportStats]:
     """Ingest the current register. Returns `(import_run_id, stats)`.
 
@@ -389,6 +939,14 @@ async def run_import(
             [{"status": "running", "source_url": resolved_url}],
         )
         run_id = str(created[0]["id"]) if created else ""
+        if not run_id:
+            # Everything downstream is keyed on this id: rows are staged under
+            # it and published by it. Without one there is no way to publish an
+            # edition, and no way to tell its rows from the last one's.
+            raise RuntimeError(
+                "Could not create the sponsor_register_imports row, so this run "
+                "has no id to stage rows under. Nothing was written."
+            )
 
         if csv_bytes is None:
             located = await govuk.find_current_csv(client)
@@ -437,57 +995,58 @@ async def run_import(
 
         await ingest_records(
             client, rest, records, resolved_url, published_at, stats,
-            sleeper=sleeper,
+            import_id=run_id, sleeper=sleeper,
         )
 
-        confirmed = await _confirm_edition(client, rest, resolved_url)
-        if confirmed is not None:
-            logger.info(
-                "[sponsor-import] reconciled: %d rows in the database carry this "
-                "edition's source URL (parsed %d)",
-                confirmed, stats.rows_parsed,
-            )
-            if confirmed < stats.rows_parsed:
-                logger.warning(
-                    "[sponsor-import] the database holds fewer rows for this "
-                    "edition (%d) than were parsed (%d); re-run the import to "
-                    "finish it",
-                    confirmed, stats.rows_parsed,
-                )
+        # Every batch is confirmed. Only now does anything become current, and
+        # only now can anything be withdrawn.
+        await finalize_edition(client, rest, run_id, stats, sleeper=sleeper)
 
-        if run_id:
-            await rest.update(
-                client,
-                IMPORTS_TABLE,
-                {"id": f"eq.{run_id}"},
-                {
-                    "status": "success",
-                    "source_url": resolved_url,
-                    "register_published_at": published_at,
-                    "finished_at": _now_iso(),
-                    **stats.as_columns(),
-                },
-            )
+        await _record_status(
+            rest,
+            run_id,
+            {
+                "status": "success",
+                "source_url": resolved_url,
+                "register_published_at": published_at,
+                "finished_at": _now_iso(),
+                **stats.as_columns(),
+            },
+            client_factory=client_factory,
+            sleeper=sleeper,
+        )
         logger.info("Register import finished: %s", stats.as_columns())
         return run_id, stats
 
     except Exception as exc:  # noqa: BLE001 — recorded, then re-raised
-        logger.exception("Register import failed")
-        if run_id:
-            try:
-                await rest.update(
-                    client,
-                    IMPORTS_TABLE,
-                    {"id": f"eq.{run_id}"},
-                    {
-                        "status": "error",
-                        "error": f"{type(exc).__name__}: {exc}"[:1000],
-                        "finished_at": _now_iso(),
-                        **stats.as_columns(),
-                    },
-                )
-            except Exception:  # noqa: BLE001 — never mask the original failure
-                logger.exception("Could not record the import failure")
+        if isinstance(exc, FinalizationFailed):
+            # Staging already succeeded — every row is safely in
+            # sponsor_licences under this run's id. Said explicitly so nobody
+            # reaches for the CSV again: `--resume-finalize` picks this run up
+            # from exactly where it stopped.
+            logger.exception(
+                "Register import failed: publication/finalization failed "
+                "AFTER data staging completed (%d rows staged under run %s). "
+                "Nothing needs re-uploading — resume with: "
+                "--resume-finalize %s",
+                stats.rows_processed, run_id, run_id,
+            )
+        else:
+            logger.exception("Register import failed: data staging failed")
+        # `_record_status` swallows its own failures, so the original
+        # exception below is never masked by a bookkeeping error.
+        await _record_status(
+            rest,
+            run_id,
+            {
+                "status": "error",
+                "error": f"{type(exc).__name__}: {exc}"[:1000],
+                "finished_at": _now_iso(),
+                **stats.as_columns(),
+            },
+            client_factory=client_factory,
+            sleeper=sleeper,
+        )
         raise
     finally:
         if owns_client:

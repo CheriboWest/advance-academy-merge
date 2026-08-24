@@ -45,11 +45,12 @@ def _fold_accents(text: str) -> str:
     decomposed = unicodedata.normalize("NFKD", text)
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
-# "Worker (A rating)", "Temporary Worker (A rating)", "Worker (B rating)".
-_TYPE_RATING_RE = re.compile(
-    r"^\s*(?P<type>.+?)\s*\(\s*(?P<rating>[A-Za-z0-9+\- ]+?)\s*rating\s*\)\s*$",
-    re.IGNORECASE,
-)
+# A trailing " rating" inside the brackets, as the older editions wrote it:
+# "Worker (A rating)" carries the same grade as today's "Worker (A (Premium))".
+_TRAILING_RATING_RE = re.compile(r"\s*rating\s*$", re.IGNORECASE)
+# A bare grade — "A", "B", "A+" — is upper-cased so editions that differ only in
+# case agree. Anything longer is a phrase GOV.UK wrote, and is left as published.
+_BARE_GRADE_RE = re.compile(r"^[A-Za-z][+\-]?$")
 
 
 def normalize_organisation_name(name: str) -> str:
@@ -82,19 +83,57 @@ def normalize_town(town: Optional[str]) -> Optional[str]:
 
 
 def parse_type_rating(value: Optional[str]) -> tuple[Optional[str], Optional[str]]:
-    """Split "Worker (A rating)" into ("Worker", "A").
+    """Split the register's "Type & Rating" column into (licence type, rating).
 
-    Returns (None, None) when the published value does not follow that shape —
-    the register's own wording is kept in `type_rating` either way, so an
-    unparsed value loses nothing.
+        "Worker (A rating)"                        -> ("Worker", "A")
+        "Worker (A (Premium))"                     -> ("Worker", "A (Premium)")
+        "Temporary Worker (A (SME+))"              -> ("Temporary Worker", "A (SME+)")
+        "Worker (UK Expansion Worker: Provisional )"
+                                    -> ("Worker", "UK Expansion Worker: Provisional")
+
+    The current register nests brackets inside the rating, so the split is made
+    at the LAST balanced bracket group rather than by a pattern that assumes the
+    rating is a single letter followed by the word "rating". A regex written for
+    the old wording matched none of the values above and stored two NULLs for
+    the whole file.
+
+    Returns (None, None) when the value has no trailing bracket group, or when
+    its brackets do not balance — the register's own wording is kept verbatim in
+    `type_rating` either way, so an unparsed value loses nothing.
     """
     if not value:
         return None, None
-    match = _TYPE_RATING_RE.match(value)
-    if not match:
+    text = _WS_RE.sub(" ", value).strip()
+    if not text.endswith(")"):
         return None, None
-    licence_type = _WS_RE.sub(" ", match.group("type")).strip() or None
-    rating = _WS_RE.sub(" ", match.group("rating")).strip().upper() or None
+
+    # Walk back from the final ")" to its partner, counting nesting, so the
+    # inner brackets of "A (Premium)" do not end the scan early.
+    depth = 0
+    open_at = -1
+    for index in range(len(text) - 1, -1, -1):
+        char = text[index]
+        if char == ")":
+            depth += 1
+        elif char == "(":
+            depth -= 1
+            if depth == 0:
+                open_at = index
+                break
+    if open_at < 0:
+        return None, None
+
+    type_part = text[:open_at].strip()
+    if type_part.count("(") != type_part.count(")"):
+        return None, None  # malformed: an unclosed bracket before the group
+
+    inner = text[open_at + 1 : -1].strip()
+    stripped = _TRAILING_RATING_RE.sub("", inner).strip()
+    if stripped:
+        inner = stripped
+
+    licence_type = type_part or None
+    rating = inner.upper() if _BARE_GRADE_RE.match(inner) else (inner or None)
     return licence_type, rating
 
 

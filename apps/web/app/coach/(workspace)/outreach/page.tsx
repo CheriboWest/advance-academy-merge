@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { TriangleAlert } from "lucide-react";
 
 import { getOutreachCompanies } from "@/lib/coach";
+import { getSponsorshipStatuses } from "@/lib/sponsorship";
 import type { OutreachCompany } from "@/lib/types";
 import { OutreachList } from "@/components/coach/outreach-list";
 import { EmptyState } from "@/components/empty-state";
@@ -34,6 +35,12 @@ export default async function OutreachPage() {
     );
   }
 
+  // One batched request for every company on the page — not one per company,
+  // which an outreach list this size would otherwise turn into an N+1.
+  const sponsorshipStatuses = await getSponsorshipStatuses(
+    companies.map((company) => company.company_id)
+  );
+
   return (
     <div className="space-y-4">
       <header className="space-y-1">
@@ -41,7 +48,7 @@ export default async function OutreachPage() {
           Draft AI-assisted outreach for any company. Drafts are private to you.
         </p>
       </header>
-      <OutreachList companies={companies} />
+      <OutreachList companies={companies} sponsorshipStatuses={sponsorshipStatuses} />
     </div>
   );
 }

@@ -14,10 +14,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.auth import get_current_user
 from app.config import Settings, get_settings
 from app.crawler.supabase_rest import SupabaseRest
-from app.schemas import SponsorImportResponse, SponsorResolutionResponse
+from app.schemas import (
+    CompanySponsorshipStatus,
+    CompanySponsorshipStatusCompact,
+    SponsorImportResponse,
+    SponsorResolutionResponse,
+    SponsorshipStatusBatchRequest,
+)
 from app.sponsors import govuk
 from app.sponsors.importer import run_import
-from app.sponsors.service import resolve_company
+from app.sponsors.service import (
+    bulk_company_sponsorship_status,
+    company_sponsorship_status,
+    load_company,
+    resolve_company,
+)
 from app.sponsors.worker import resolve_companies
 
 router = APIRouter(prefix="/sponsors", tags=["sponsors"])
@@ -166,34 +177,113 @@ async def bulk_resolve(
     return {"status": "completed", **stats.as_dict(), "errors": stats.errors[:10]}
 
 
-@router.get("/companies/{company_id}", response_model=dict)
-async def company_sponsorship_status(
-    company_id: str,
+@router.post("/companies/statuses", response_model=dict[str, CompanySponsorshipStatusCompact])
+async def bulk_company_sponsorship_statuses(
+    body: SponsorshipStatusBatchRequest,
     _user_id: str = Depends(get_current_user),
-) -> dict:
-    """This company's confirmed sponsorship, plus when it was last checked.
+) -> dict[str, CompanySponsorshipStatusCompact]:
+    """Compact sponsorship status for many companies at once, keyed by id.
 
-    `sponsorships` is drawn from `company_sponsorship_current`, so it contains
-    confirmed matches against currently-listed register rows and nothing else —
-    an ambiguous or failed check never appears as a sponsorship.
+    For a list/badge view (e.g. the outreach company list) that would
+    otherwise call GET /sponsors/companies/{id} once per company — an N+1
+    the browser would pay for on every page load. This is the batched
+    alternative: one request regardless of how many companies are shown,
+    reusing the exact same status classification
+    `GET /sponsors/companies/{id}` uses (`_classify_check` in service.py) —
+    nothing about what counts as licensed/ambiguous/stale is redecided here.
+
+    Returns only `{status, stale, checked_at}` per company — no organisation
+    name, routes, confidence or error text. A requested id with no row in the
+    response was not found; that is not raised as an error, so one bad id in
+    a batch does not fail the rest of the list.
     """
     settings = get_settings()
     rest = _require_supabase(settings)
 
     async with httpx.AsyncClient() as client:
-        sponsorships = await rest.select(
-            client,
-            "company_sponsorship_current",
-            {"select": "*", "company_id": f"eq.{company_id}"},
-        )
-        checks = await rest.select(
-            client,
-            "company_sponsorship_checks",
-            {"select": "*", "company_id": f"eq.{company_id}", "limit": "1"},
+        statuses = await bulk_company_sponsorship_status(
+            client, rest, body.company_ids
         )
 
     return {
-        "company_id": company_id,
-        "sponsorships": sponsorships,
-        "last_check": checks[0] if checks else None,
+        company_id: CompanySponsorshipStatusCompact(**status)
+        for company_id, status in statuses.items()
     }
+
+
+@router.get("/companies/{company_id}", response_model=CompanySponsorshipStatus)
+async def get_company_sponsorship_status(
+    company_id: str,
+    _user_id: str = Depends(get_current_user),
+) -> CompanySponsorshipStatus:
+    """This company's coach-facing sponsorship status.
+
+    One of five normalized states — licensed | ambiguous | no_match | error |
+    not_checked — never the raw register/check rows. Coach-authenticated the
+    same way every other route on this router is: this project has no separate
+    coach/student role anywhere (no JWT claim, no profiles table), so
+    `get_current_user` — "the request carries a valid Supabase session" — IS
+    the coach gate, exactly as it already is for /sponsors/import,
+    /sponsors/resolve and every route in companies.py/ai.py/email.py. The
+    sponsorship tables stay service-role-only; nothing here is queried by the
+    browser directly.
+
+    See `CompanySponsorshipStatus` for exactly what each field means and why
+    `licensed` and the other four states are trusted for freshness differently.
+    """
+    settings = get_settings()
+    rest = _require_supabase(settings)
+
+    async with httpx.AsyncClient() as client:
+        if await load_company(client, rest, company_id) is None:
+            raise HTTPException(status_code=404, detail="Company not found.")
+        status = await company_sponsorship_status(client, rest, company_id)
+
+    return CompanySponsorshipStatus(**status)
+
+
+@router.post("/companies/{company_id}/recheck", response_model=CompanySponsorshipStatus)
+async def recheck_company_sponsorship(
+    company_id: str,
+    _user_id: str = Depends(get_current_user),
+) -> CompanySponsorshipStatus:
+    """Force a fresh sponsorship check for one company, then return its status.
+
+    Reuses the batch worker (`resolve_companies`, force=True, one company) —
+    NOT `service.resolve_company` — because the worker is the only path that
+    writes `company_sponsorship_checks` as well as `company_sponsorship`;
+    calling the one-shot resolver directly would leave the check row stale for
+    an ambiguous/no_match outcome. No matching logic is duplicated here.
+    """
+    settings = get_settings()
+    rest = _require_supabase(settings)
+
+    if not settings.anthropic_api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="Server is not configured with an Anthropic API key.",
+        )
+
+    async with httpx.AsyncClient() as client:
+        if await load_company(client, rest, company_id) is None:
+            raise HTTPException(status_code=404, detail="Company not found.")
+
+        batch = await resolve_companies(
+            client,
+            rest,
+            [company_id],
+            api_key=settings.anthropic_api_key,
+            model=settings.sponsor_resolver_model,
+            timeout=settings.request_timeout,
+            concurrency=1,
+            max_companies=1,
+            force=True,
+        )
+        if batch.skipped_reason:
+            raise HTTPException(
+                status_code=409,
+                detail="No sponsor register has been imported yet.",
+            )
+        status = await company_sponsorship_status(client, rest, company_id)
+
+    return CompanySponsorshipStatus(**status)

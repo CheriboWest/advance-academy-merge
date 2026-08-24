@@ -66,24 +66,45 @@ class RejectedRow:
 
 @dataclass
 class ImportStats:
-    """Statistics for one ingestion run, mirroring sponsor_register_imports."""
+    """Statistics for one ingestion run, mirroring sponsor_register_imports.
+
+    `rows_inserted` / `rows_updated` / `rows_unchanged` are deprecated and stay
+    None. Telling an insert from an update meant holding every stored row in
+    memory to compare against — the full-table prefetch that made a 138,000-row
+    import impossible. They are left NULL rather than zeroed, because zero would
+    read as "this import wrote nothing" instead of "this was not measured".
+
+    What replaces them is counted by the database while it is finalizing, and is
+    a fact about the register rather than about our bookkeeping:
+
+        rows_processed      rows this edition staged and finalization promoted
+        rows_current_after  rows left current across the table afterwards
+        rows_withdrawn      live rows this edition did not carry
+    """
 
     rows_downloaded: int = 0
     rows_parsed: int = 0
-    rows_inserted: int = 0
-    rows_updated: int = 0
-    rows_unchanged: int = 0
     rows_rejected: int = 0
+    rows_processed: int = 0
+    rows_current_after: int = 0
     rows_withdrawn: int = 0
+
+    # Deprecated since migration 0009. Never set; written as NULL.
+    rows_inserted: Optional[int] = None
+    rows_updated: Optional[int] = None
+    rows_unchanged: Optional[int] = None
+
     rejections: list[RejectedRow] = field(default_factory=list)
 
-    def as_columns(self) -> dict[str, int]:
+    def as_columns(self) -> dict[str, Optional[int]]:
         return {
             "rows_downloaded": self.rows_downloaded,
             "rows_parsed": self.rows_parsed,
+            "rows_rejected": self.rows_rejected,
+            "rows_processed": self.rows_processed,
+            "rows_current_after": self.rows_current_after,
+            "rows_withdrawn": self.rows_withdrawn,
             "rows_inserted": self.rows_inserted,
             "rows_updated": self.rows_updated,
             "rows_unchanged": self.rows_unchanged,
-            "rows_rejected": self.rows_rejected,
-            "rows_withdrawn": self.rows_withdrawn,
         }

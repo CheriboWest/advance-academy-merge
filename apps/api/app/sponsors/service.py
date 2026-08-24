@@ -18,6 +18,7 @@ COMPANY_COLUMNS = "id,name,slug,website,sector,region,hq_location"
 LINK_TABLE = "company_sponsorship"
 CHECK_TABLE = "company_sponsorship_checks"
 IMPORTS_TABLE = "sponsor_register_imports"
+LICENCES_TABLE = "sponsor_licences"
 
 
 async def latest_register_import_id(
@@ -174,7 +175,7 @@ async def checks_for(
             {
                 "select": (
                     "company_id,last_decision,register_import_id,attempts,"
-                    "checked_at"
+                    "checked_at,candidate_count"
                 ),
                 "company_id": f"in.({','.join(chunk)})",
             },
@@ -241,6 +242,267 @@ async def store_resolution(
         resolution.selected_candidate_id,
         resolution.confidence,
     )
+
+
+async def _current_match(
+    client: httpx.AsyncClient, rest: SupabaseRest, company_id: str
+) -> Optional[dict[str, Any]]:
+    """The confirmed, currently-live sponsor match for a company, or None.
+
+    Reads `company_sponsorship` directly rather than the
+    `company_sponsorship_current` view: the view gives everything the response
+    needs about the matched row EXCEPT `normalized_name`/`normalized_town`,
+    which grouping sibling routes needs, so this queries `sponsor_licences`
+    itself for both the matched row's display fields and its grouping key in
+    one place.
+
+    `None` when there is no `match` link, or when the matched licence has
+    stopped being current — the latter cannot happen for a check run against
+    today's edition (identity is confirmed at the moment the row was live), but
+    is handled rather than assumed, since it costs nothing to check.
+    """
+    links = await rest.select(
+        client,
+        LINK_TABLE,
+        {
+            "select": "sponsor_licence_id,confidence,resolved_at",
+            "company_id": f"eq.{company_id}",
+            "decision": "eq.match",
+            "limit": "1",
+        },
+    )
+    if not links:
+        return None
+    link = links[0]
+
+    licences = await rest.select(
+        client,
+        LICENCES_TABLE,
+        {
+            "select": (
+                "organisation_name,town_city,county,type_rating,licence_type,"
+                "rating,route,normalized_name,normalized_town,is_current"
+            ),
+            "id": f"eq.{link['sponsor_licence_id']}",
+            "limit": "1",
+        },
+    )
+    if not licences or not licences[0].get("is_current"):
+        return None
+    licence = licences[0]
+
+    # Sibling routes for the same organisation at the same registered site —
+    # the register carries no organisation-level id, so (normalized_name,
+    # normalized_town) is the closest safe grouping key, and it is the same
+    # key the candidate matcher itself uses for exact identity lookup.
+    town = licence.get("normalized_town")
+    sibling_filter = {
+        "select": "route",
+        "is_current": "eq.true",
+        "normalized_name": f"eq.{licence['normalized_name']}",
+    }
+    sibling_filter["normalized_town"] = (
+        f"eq.{town}" if town else "is.null"
+    )
+    siblings = await rest.select(client, LICENCES_TABLE, sibling_filter)
+    routes = sorted({s["route"] for s in siblings if s.get("route")})
+    if licence.get("route") and licence["route"] not in routes:
+        routes.append(licence["route"])
+        routes.sort()
+
+    return {
+        "organisation_name": licence["organisation_name"],
+        "town_city": licence.get("town_city"),
+        "county": licence.get("county"),
+        "type_rating": licence.get("type_rating"),
+        "licence_type": licence.get("licence_type"),
+        "rating": licence.get("rating"),
+        "routes": routes,
+        "confidence": float(link.get("confidence") or 0.0),
+        "resolved_at": link.get("resolved_at"),
+    }
+
+
+def _classify_check(
+    *,
+    matched: bool,
+    check: Optional[dict[str, Any]],
+    latest_import: Optional[str],
+    match_checked_at: Optional[str] = None,
+) -> dict[str, Any]:
+    """The one place `status`/`stale`/`checked_at`/`candidate_count` are decided.
+
+    Both `company_sponsorship_status` (full detail, one company) and
+    `bulk_company_sponsorship_status` (compact, many companies) call this —
+    neither re-derives the state machine itself, only what feeds it differs
+    (a per-company `_current_match` lookup for the former, a batched set
+    membership check for the latter). See `CompanySponsorshipStatus` in
+    app/schemas.py for why `licensed` needs no staleness check while the other
+    four states do.
+    """
+    if matched:
+        return {
+            "status": "licensed",
+            "checked_at": (check or {}).get("checked_at") or match_checked_at,
+            "candidate_count": (check or {}).get("candidate_count"),
+            "stale": False,
+        }
+
+    if check is None:
+        return {
+            "status": "not_checked",
+            "checked_at": None,
+            "candidate_count": None,
+            "stale": False,
+        }
+
+    check_import = check.get("register_import_id")
+    is_stale = (
+        latest_import is not None and str(check_import or "") != latest_import
+    )
+    if is_stale:
+        return {
+            "status": "not_checked",
+            "checked_at": check.get("checked_at"),
+            "candidate_count": check.get("candidate_count"),
+            "stale": True,
+        }
+
+    decision = check.get("last_decision")
+    status_value = (
+        decision if decision in ("ambiguous", "no_match", "error") else "not_checked"
+    )
+    return {
+        "status": status_value,
+        "checked_at": check.get("checked_at"),
+        "candidate_count": check.get("candidate_count"),
+        "stale": False,
+    }
+
+
+async def company_sponsorship_status(
+    client: httpx.AsyncClient, rest: SupabaseRest, company_id: str
+) -> dict[str, Any]:
+    """The coach-facing sponsorship status for one company, full detail.
+
+    See `CompanySponsorshipStatus` (app/schemas.py) for the field-by-field
+    contract. For many companies at once, see
+    `bulk_company_sponsorship_status` — this makes 2-3 database round trips
+    per call and is not meant to be called in a per-company loop.
+    """
+    latest_import = await latest_register_import_id(client, rest)
+    match = await _current_match(client, rest, company_id)
+    checks = await checks_for(client, rest, [company_id])
+    check = checks.get(str(company_id))
+
+    classified = _classify_check(
+        matched=match is not None,
+        check=check,
+        latest_import=latest_import,
+        match_checked_at=(match or {}).get("resolved_at"),
+    )
+    return {
+        "company_id": company_id,
+        "register_import_id": latest_import,
+        "match": {k: v for k, v in match.items() if k != "resolved_at"}
+        if match is not None
+        else None,
+        **classified,
+    }
+
+
+async def _current_matches_bulk(
+    client: httpx.AsyncClient, rest: SupabaseRest, company_ids: list[str]
+) -> dict[str, dict[str, Any]]:
+    """Which of these companies have a confirmed, currently-live match.
+
+    Keyed by company id; each value carries only `resolved_at` — the compact
+    status the list badge needs has no use for organisation name, routes or
+    confidence, so this skips the per-company sibling-route lookup
+    `_current_match` does and stays to two batched queries regardless of how
+    many companies are asked for.
+    """
+    if not company_ids:
+        return {}
+
+    links: dict[str, dict[str, Any]] = {}
+    for index in range(0, len(company_ids), 100):
+        chunk = company_ids[index : index + 100]
+        rows = await rest.select(
+            client,
+            LINK_TABLE,
+            {
+                "select": "company_id,sponsor_licence_id,resolved_at",
+                "company_id": f"in.({','.join(chunk)})",
+                "decision": "eq.match",
+            },
+        )
+        for row in rows:
+            links[str(row["company_id"])] = row
+
+    if not links:
+        return {}
+
+    licence_ids = sorted({row["sponsor_licence_id"] for row in links.values()})
+    current_licence_ids: set[str] = set()
+    for index in range(0, len(licence_ids), 100):
+        chunk = licence_ids[index : index + 100]
+        rows = await rest.select(
+            client,
+            LICENCES_TABLE,
+            {
+                "select": "id,is_current",
+                "id": f"in.({','.join(chunk)})",
+                "is_current": "eq.true",
+            },
+        )
+        current_licence_ids.update(str(row["id"]) for row in rows)
+
+    return {
+        company_id: {"resolved_at": row.get("resolved_at")}
+        for company_id, row in links.items()
+        if str(row["sponsor_licence_id"]) in current_licence_ids
+    }
+
+
+async def bulk_company_sponsorship_status(
+    client: httpx.AsyncClient, rest: SupabaseRest, company_ids: list[str]
+) -> dict[str, dict[str, Any]]:
+    """Compact sponsorship status for many companies, for a list/badge view.
+
+    Keyed by company id: `{status, stale, checked_at}` — deliberately not the
+    organisation name, routes, confidence or error text
+    `company_sponsorship_status` returns; a coach scanning a list of company
+    names has no use for those, and the full detail stays one click away at
+    the single-company endpoint. A company id with no row in the result was
+    not found (the caller decides what that means — this function does not
+    raise for an unknown id, so one bad id in a batch does not fail the rest).
+
+    Three queries total, however many companies are asked for: one for the
+    latest successful register, one (chunked at 100) for confirmed matches,
+    one (chunked at 100) for which of those matches are still current. Bounds
+    the per-company work at O(1) database round trips instead of O(n) — the
+    reason this function exists rather than the caller looping
+    `company_sponsorship_status` once per id.
+    """
+    if not company_ids:
+        return {}
+
+    latest_import = await latest_register_import_id(client, rest)
+    matches = await _current_matches_bulk(client, rest, company_ids)
+    checks = await checks_for(client, rest, company_ids)
+
+    result: dict[str, dict[str, Any]] = {}
+    for company_id in company_ids:
+        match = matches.get(company_id)
+        check = checks.get(company_id)
+        result[company_id] = _classify_check(
+            matched=match is not None,
+            check=check,
+            latest_import=latest_import,
+            match_checked_at=(match or {}).get("resolved_at"),
+        )
+    return result
 
 
 async def resolve_company(

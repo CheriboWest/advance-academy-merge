@@ -103,6 +103,52 @@ export interface OutreachCompanyContext {
   lead_score: number;
 }
 
+/**
+ * The coach-facing sponsorship status for one company, from
+ * GET /sponsors/companies/{id}. One of five normalized states; see
+ * apps/api/app/schemas.py CompanySponsorshipStatus for the full contract
+ * (in particular why `licensed` needs no `stale` check while the others do).
+ */
+export type SponsorshipStatus =
+  | "licensed"
+  | "ambiguous"
+  | "no_match"
+  | "error"
+  | "not_checked";
+
+export interface SponsorshipMatch {
+  organisation_name: string;
+  town_city: string | null;
+  county: string | null;
+  type_rating: string | null;
+  licence_type: string | null;
+  rating: string | null;
+  routes: string[];
+  confidence: number;
+}
+
+export interface CompanySponsorshipStatus {
+  company_id: string;
+  status: SponsorshipStatus;
+  checked_at: string | null;
+  register_import_id: string | null;
+  candidate_count: number | null;
+  stale: boolean;
+  match: SponsorshipMatch | null;
+}
+
+/**
+ * The list-badge shape from POST /sponsors/companies/statuses — enough to
+ * render a compact status chip. Deliberately not the full
+ * CompanySponsorshipStatus: no organisation name, routes, confidence, or
+ * error text on a page that shows many companies at once.
+ */
+export interface CompanySponsorshipStatusCompact {
+  status: SponsorshipStatus;
+  stale: boolean;
+  checked_at: string | null;
+}
+
 /** Aggregated data for the coach dashboard. */
 export interface CoachDashboardData {
   totalCompanies: number;

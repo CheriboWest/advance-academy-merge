@@ -12,14 +12,95 @@ select is_current, count(*) as rows
 from public.sponsor_licences group by is_current order by is_current desc;
 
 \echo '== 3. latest successful import =='
+-- rows_inserted / rows_updated / rows_unchanged are NULL from migration 0009
+-- onward. Telling an insert from an update meant downloading the whole table;
+-- rows_processed and rows_current_after are counted by the database instead.
 select id, source_url, register_published_at, status,
-       rows_downloaded, rows_parsed, rows_inserted, rows_updated,
-       rows_unchanged, rows_rejected, rows_withdrawn,
+       rows_downloaded, rows_parsed, rows_rejected,
+       rows_processed, rows_current_after, rows_withdrawn,
        started_at, finished_at
 from public.sponsor_register_imports
 where status = 'success'
 order by started_at desc
 limit 1;
+
+\echo '== 3b. does the published edition match the table? =='
+-- rows_processed is what finalization promoted; rows_current_after is what was
+-- left current across the whole table. They should agree with each other and
+-- with the live count below. A gap means an older edition still holds rows the
+-- newest one did not carry, which should be impossible after a success.
+with latest as (
+  select id, rows_parsed, rows_processed, rows_current_after
+  from public.sponsor_register_imports
+  where status = 'success'
+  order by started_at desc
+  limit 1
+)
+select l.rows_parsed,
+       l.rows_processed,
+       l.rows_current_after,
+       (select count(*) from public.sponsor_licences where is_current)
+         as current_now,
+       (select count(*) from public.sponsor_licences
+         where last_import_id = l.id) as credited_to_this_edition
+from latest l;
+
+\echo '== 3c. rows staged by a run that never published (harmless, but visible) =='
+-- A failed import leaves its marker on the rows it wrote. They are not current
+-- unless a successful edition also carried them; this is what that looks like.
+select i.id as staged_by_import, i.status, count(*) as rows,
+       count(*) filter (where sl.is_current) as of_which_current
+from public.sponsor_licences sl
+join public.sponsor_register_imports i on i.id = sl.staged_import_id
+where sl.last_import_id is distinct from sl.staged_import_id
+group by i.id, i.status
+order by rows desc
+limit 10;
+
+\echo '== 3d. impossible states (must be 0) =='
+-- Staging deliberately omits is_current / withdrawn_at / last_seen_at from the
+-- payload so PostgREST leaves them alone (ON CONFLICT DO UPDATE only touches
+-- the columns the request carries). If that ever stopped holding, it would show
+-- up here as a row that is not current but was never withdrawn — a combination
+-- nothing in the importer can produce on purpose. The direction is safe (a
+-- licence goes missing rather than being invented) and the next successful
+-- import repairs it, but it should never be non-zero.
+select count(*) as not_current_but_never_withdrawn
+from public.sponsor_licences
+where is_current = false
+  and withdrawn_at is null
+  and last_import_id is not null;
+
+\echo '== 3e. any run stuck mid-publication (status=finalizing)? =='
+-- finalizing means begin_sponsor_register_finalization() ran but
+-- complete_sponsor_register_import() has not. A row here after a resume
+-- attempt failed again means the chunk loop is still not reaching the end —
+-- worth checking rows_parsed vs the counts below rather than just re-running.
+select i.id, i.source_url, i.rows_parsed, i.rows_processed, i.started_at,
+       (select count(*) from public.sponsor_licences sl
+         where sl.staged_import_id = i.id
+           and sl.last_import_id is distinct from sl.staged_import_id)
+         as still_unpromoted,
+       (select count(*) from public.sponsor_licences sl
+         where sl.is_current and sl.staged_import_id is distinct from i.id)
+         as still_needs_withdrawal
+  from public.sponsor_register_imports i
+ where i.status = 'finalizing'
+ order by i.started_at desc;
+
+\echo '== 3f. runs eligible for --resume-finalize (status=error, fully staged) =='
+select i.id, i.source_url, i.rows_parsed, i.rows_processed, i.error, i.started_at,
+       (select count(*) from public.sponsor_licences sl
+         where sl.staged_import_id = i.id) as rows_actually_staged
+  from public.sponsor_register_imports i
+ where i.status = 'error'
+   and i.rows_parsed is not null
+   and (
+     i.rows_processed = i.rows_parsed
+     or (select count(*) from public.sponsor_licences sl
+          where sl.staged_import_id = i.id) = i.rows_parsed
+   )
+ order by i.started_at desc;
 
 \echo '== 4. all recent import runs (did any fail?) =='
 select id, status, rows_parsed, rows_withdrawn, left(coalesce(error,''), 80) as error,

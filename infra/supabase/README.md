@@ -28,6 +28,8 @@ infra/supabase/
 | `0006_sponsor_register.sql` | `sponsor_licences`, `sponsor_register_imports`, `company_sponsorship` + the `company_sponsorship_current` view |
 | `0007_company_sponsorship_checks.sql` | `company_sponsorship_checks` — per-company resolution state (what the last attempt concluded, against which register edition) |
 | `0008_sponsorship_rls.sql` | Deny-by-default RLS + revoked grants on the four sponsorship tables; `company_sponsorship_current` becomes `security_invoker` |
+| `0009_sponsor_import_staging.sql` | Stage-then-promote sponsor imports: `staged_import_id` / `last_import_id` on `sponsor_licences`, `is_current` defaults to false, and `finalize_sponsor_register_import()` (service_role only) does withdrawal in the database |
+| `0010_sponsor_chunked_finalization.sql` | Publishes a staged edition in bounded chunks instead of one statement: `begin_sponsor_register_finalization()`, `promote_sponsor_register_import_chunk()`, `withdraw_sponsor_register_chunk()`, `complete_sponsor_register_import()` (all service_role only), plus `withdrawn_by_import_id` and a self-shrinking partial index backing chunk selection |
 
 All migrations are additive and idempotent: re-running one is a no-op.
 

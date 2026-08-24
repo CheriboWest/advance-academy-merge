@@ -121,11 +121,16 @@ class SponsorImportResponse(BaseModel):
     register_published_at: Optional[str] = None
     rows_downloaded: int = 0
     rows_parsed: int = 0
-    rows_inserted: int = 0
-    rows_updated: int = 0
-    rows_unchanged: int = 0
     rows_rejected: int = 0
+    rows_processed: int = 0
+    rows_current_after: int = 0
     rows_withdrawn: int = 0
+
+    # Deprecated since migration 0009 and always null. Kept so existing clients
+    # keep parsing the response; see ImportStats for why they are not computed.
+    rows_inserted: Optional[int] = None
+    rows_updated: Optional[int] = None
+    rows_unchanged: Optional[int] = None
 
 
 class SponsorCandidate(BaseModel):
@@ -152,3 +157,82 @@ class SponsorResolutionResponse(BaseModel):
     candidates_considered: int = 0
     search_strategies: list[str] = Field(default_factory=list)
     persisted: bool = False
+
+
+class SponsorshipMatch(BaseModel):
+    """The confirmed sponsor, with sibling licence routes grouped in.
+
+    One legal sponsor is several rows in `sponsor_licences` — one per route.
+    `organisation_name`/`town_city`/`county`/`type_rating`/`licence_type`/
+    `rating` describe the SPECIFIC row the resolver matched; `routes` lists
+    every route currently live for that same organisation at that same
+    registered location (grouped by `normalized_name`/`normalized_town`, since
+    the register carries no organisation-level id). A sibling route with a
+    different `type_rating` is not reflected here — see the endpoint's
+    docstring.
+    """
+
+    organisation_name: str
+    town_city: Optional[str] = None
+    county: Optional[str] = None
+    type_rating: Optional[str] = None
+    licence_type: Optional[str] = None
+    rating: Optional[str] = None
+    routes: list[str] = Field(default_factory=list)
+    confidence: float
+
+
+class CompanySponsorshipStatus(BaseModel):
+    """The coach-facing sponsorship status for one company.
+
+    `status` is one of: licensed | ambiguous | no_match | error | not_checked.
+
+    `licensed` is read from `company_sponsorship_current`, which is always
+    current by construction (it joins `sponsor_licences.is_current`, kept live
+    by register finalization) — so it needs no separate staleness check.
+
+    The other four states come from `company_sponsorship_checks`, which DOES
+    need one: `stale=true` means a check exists but was run against an older
+    register edition than `register_import_id` (the current one), so its
+    negative/inconclusive conclusion is not trusted as still current. The
+    check's own `checked_at`/`candidate_count` are still returned when stale,
+    so the UI can show "last checked <date>, against a previous edition"
+    rather than nothing at all.
+
+    `error` never carries the underlying exception text — only that a check
+    failed.
+    """
+
+    company_id: str
+    status: str
+    checked_at: Optional[str] = None
+    register_import_id: Optional[str] = None
+    candidate_count: Optional[int] = None
+    stale: bool = False
+    match: Optional[SponsorshipMatch] = None
+
+
+class CompanySponsorshipStatusCompact(BaseModel):
+    """The list-badge shape: enough to render a status chip, nothing more.
+
+    Deliberately excludes organisation name, routes, confidence and error
+    text — a coach scanning a list of company names has no use for them, and
+    they stay one click away via GET /sponsors/companies/{id}.
+    """
+
+    status: str
+    stale: bool = False
+    checked_at: Optional[str] = None
+
+
+# One POST body, one JSON response — the cap keeps both to a sane size and
+# bounds the chunked internal queries batch_company_sponsorship_status makes.
+MAX_COMPANIES_PER_STATUS_BATCH = 500
+
+
+class SponsorshipStatusBatchRequest(BaseModel):
+    """Body for POST /sponsors/companies/statuses."""
+
+    company_ids: list[str] = Field(
+        default_factory=list, max_length=MAX_COMPANIES_PER_STATUS_BATCH
+    )
