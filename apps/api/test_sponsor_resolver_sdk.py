@@ -20,6 +20,27 @@ checks close that gap: they inspect the installed `anthropic.Messages.create`
 directly, and add the two structured-output scenarios
 (malformed output, an explicit no_match with candidates present) that
 `test_sponsor_matching.py` does not already cover.
+
+With the SDK compatible, the next production run of the same 20-company batch
+hit a second, distinct failure — a real 400 from the API rather than a local
+TypeError:
+
+    400 invalid_request_error: "output_config.format.schema: For 'number'
+    type, properties maximum, minimum are not supported"
+
+`resolve()` calls `client.messages.create(..., output_config=...)` directly
+with a hand-authored schema dict — unlike `client.messages.parse()`, which
+transforms an unsupported schema (stripping `minimum`/`maximum` etc.) before
+sending it, `.create()` sends the schema exactly as given. `RESOLUTION_SCHEMA`
+had `"minimum": 0, "maximum": 1` on `confidence`, which the Messages API
+structured-output validator rejects outright on any `"number"` property.
+Confirmed against the current docs that no numeric constraint
+(`minimum`/`maximum`/`multipleOf`) is supported, and that nothing else in
+`RESOLUTION_SCHEMA` uses an unsupported keyword (no `minLength`/`maxLength`/
+`pattern`, and `matched_on`'s `items` carries no `minItems`/`maxItems`). The
+checks below assert the schema actually sent contains neither keyword,
+anywhere, so a future field added to the schema with a numeric bound would
+fail this test rather than fail in production again.
 """
 
 from __future__ import annotations
@@ -256,6 +277,97 @@ res = resolve(
 check("F: a below-threshold match is downgraded to ambiguous",
       res.decision == "ambiguous", f"got {res.decision}")
 check("F: the downgraded match carries no selection", res.selected_candidate_id is None)
+
+
+# ---------------------------------------------------------------------------
+# Regression test for the production 400: "For 'number' type, properties
+# maximum, minimum are not supported". The schema actually sent to
+# Messages.create() — not just the module-level RESOLUTION_SCHEMA constant —
+# must carry neither keyword, on confidence or anywhere else, recursively.
+# ---------------------------------------------------------------------------
+from app.sponsors.resolver import RESOLUTION_SCHEMA  # noqa: E402
+
+
+def _find_unsupported_numeric_keywords(node: object, path: str = "$") -> list[str]:
+    """Every JSON-Pointer-ish path under `node` carrying minimum/maximum."""
+    found: list[str] = []
+    if isinstance(node, dict):
+        for keyword in ("minimum", "maximum"):
+            if keyword in node:
+                found.append(f"{path}.{keyword}")
+        for key, value in node.items():
+            found.extend(_find_unsupported_numeric_keywords(value, f"{path}.{key}"))
+    elif isinstance(node, list):
+        for index, item in enumerate(node):
+            found.extend(_find_unsupported_numeric_keywords(item, f"{path}[{index}]"))
+    return found
+
+
+class RecordingStub:
+    """Captures the exact kwargs resolve() passes to Messages.create()."""
+
+    def __init__(self, payload: dict) -> None:
+        self.messages = self
+        self._payload = payload
+        self.calls: list[dict] = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        return _stub_message(self._payload)
+
+
+check("the module-level schema constant carries no minimum/maximum",
+      _find_unsupported_numeric_keywords(RESOLUTION_SCHEMA) == [],
+      f"found at {_find_unsupported_numeric_keywords(RESOLUTION_SCHEMA)}")
+check("confidence is still declared as a plain number (not narrowed away)",
+      RESOLUTION_SCHEMA["properties"]["confidence"] == {"type": "number"},
+      f"got {RESOLUTION_SCHEMA['properties']['confidence']}")
+
+recorder = RecordingStub({
+    "selected_candidate_id": "lic-1", "confidence": 0.9, "decision": "match",
+    "matched_on": ["name_exact"], "reasoning": "Clear match.",
+})
+resolve(COMPANY, CANDIDATES, api_key="k", model="m", client=recorder)
+sent_schema = recorder.calls[0]["output_config"]["format"]["schema"]
+check("the schema actually sent to Messages.create() carries no minimum/maximum",
+      _find_unsupported_numeric_keywords(sent_schema) == [],
+      f"found at {_find_unsupported_numeric_keywords(sent_schema)}")
+check("...and it is the real RESOLUTION_SCHEMA, not a stand-in with fewer fields",
+      sent_schema == RESOLUTION_SCHEMA)
+
+# The 0..1 range and the <0.75 => ambiguous rule must still hold, entirely in
+# Python, now that the schema itself enforces nothing about magnitude.
+res = resolve(
+    COMPANY, CANDIDATES, api_key="k", model="m",
+    client=PayloadStub(json.dumps({
+        "selected_candidate_id": "lic-1", "confidence": 1.7,  # out of range
+        "decision": "match", "matched_on": ["name_exact"], "reasoning": "x",
+    })),
+)
+check("an out-of-range confidence from the model is still clamped to 1.0",
+      res.confidence == 1.0, f"got {res.confidence}")
+
+res = resolve(
+    COMPANY, CANDIDATES, api_key="k", model="m",
+    client=PayloadStub(json.dumps({
+        "selected_candidate_id": "lic-1", "confidence": -3,  # out of range
+        "decision": "match", "matched_on": ["name_exact"], "reasoning": "x",
+    })),
+)
+check("a negative confidence from the model is still clamped to 0.0",
+      res.confidence == 0.0, f"got {res.confidence}")
+check("...and a clamped-to-0 confidence is still below threshold, so ambiguous",
+      res.decision == "ambiguous", f"got {res.decision}")
+
+res = resolve(
+    COMPANY, CANDIDATES, api_key="k", model="m",
+    client=PayloadStub(json.dumps({
+        "selected_candidate_id": "lic-1", "confidence": MIN_MATCH_CONFIDENCE,
+        "decision": "match", "matched_on": ["name_exact"], "reasoning": "x",
+    })),
+)
+check(f"confidence exactly at the {MIN_MATCH_CONFIDENCE} threshold is still a match",
+      res.decision == "match", f"got {res.decision}")
 
 
 print()

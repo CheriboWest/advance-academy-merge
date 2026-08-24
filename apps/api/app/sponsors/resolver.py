@@ -68,7 +68,15 @@ RESOLUTION_SCHEMA = {
     "type": "object",
     "properties": {
         "selected_candidate_id": {"type": ["string", "null"]},
-        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        # No `minimum`/`maximum`: the Messages API structured-output schema
+        # validator rejects them on a "number" property ("For 'number' type,
+        # properties maximum, minimum are not supported" — a real 400 hit in
+        # production). The 0..1 range is enforced in Python instead, in
+        # `_coerce` below, which is also where it always needed to live: a
+        # model-reported 1.0 is not trustworthy just because the schema
+        # allowed it, so the clamp and the <0.75 => ambiguous rule apply to
+        # every value regardless of what the schema could constrain.
+        "confidence": {"type": "number"},
         "decision": {"type": "string", "enum": ["match", "no_match", "ambiguous"]},
         "matched_on": {"type": "array", "items": {"type": "string"}},
         "reasoning": {"type": "string"},
