@@ -210,3 +210,29 @@ class CompanySponsorshipStatus(BaseModel):
     candidate_count: Optional[int] = None
     stale: bool = False
     match: Optional[SponsorshipMatch] = None
+
+
+class CompanySponsorshipStatusCompact(BaseModel):
+    """The list-badge shape: enough to render a status chip, nothing more.
+
+    Deliberately excludes organisation name, routes, confidence and error
+    text — a coach scanning a list of company names has no use for them, and
+    they stay one click away via GET /sponsors/companies/{id}.
+    """
+
+    status: str
+    stale: bool = False
+    checked_at: Optional[str] = None
+
+
+# One POST body, one JSON response — the cap keeps both to a sane size and
+# bounds the chunked internal queries batch_company_sponsorship_status makes.
+MAX_COMPANIES_PER_STATUS_BATCH = 500
+
+
+class SponsorshipStatusBatchRequest(BaseModel):
+    """Body for POST /sponsors/companies/statuses."""
+
+    company_ids: list[str] = Field(
+        default_factory=list, max_length=MAX_COMPANIES_PER_STATUS_BATCH
+    )

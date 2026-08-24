@@ -137,6 +137,18 @@ export interface CompanySponsorshipStatus {
   match: SponsorshipMatch | null;
 }
 
+/**
+ * The list-badge shape from POST /sponsors/companies/statuses — enough to
+ * render a compact status chip. Deliberately not the full
+ * CompanySponsorshipStatus: no organisation name, routes, confidence, or
+ * error text on a page that shows many companies at once.
+ */
+export interface CompanySponsorshipStatusCompact {
+  status: SponsorshipStatus;
+  stale: boolean;
+  checked_at: string | null;
+}
+
 /** Aggregated data for the coach dashboard. */
 export interface CoachDashboardData {
   totalCompanies: number;

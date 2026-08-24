@@ -16,12 +16,19 @@ from app.config import Settings, get_settings
 from app.crawler.supabase_rest import SupabaseRest
 from app.schemas import (
     CompanySponsorshipStatus,
+    CompanySponsorshipStatusCompact,
     SponsorImportResponse,
     SponsorResolutionResponse,
+    SponsorshipStatusBatchRequest,
 )
 from app.sponsors import govuk
 from app.sponsors.importer import run_import
-from app.sponsors.service import company_sponsorship_status, load_company, resolve_company
+from app.sponsors.service import (
+    bulk_company_sponsorship_status,
+    company_sponsorship_status,
+    load_company,
+    resolve_company,
+)
 from app.sponsors.worker import resolve_companies
 
 router = APIRouter(prefix="/sponsors", tags=["sponsors"])
@@ -168,6 +175,40 @@ async def bulk_resolve(
         )
 
     return {"status": "completed", **stats.as_dict(), "errors": stats.errors[:10]}
+
+
+@router.post("/companies/statuses", response_model=dict[str, CompanySponsorshipStatusCompact])
+async def bulk_company_sponsorship_statuses(
+    body: SponsorshipStatusBatchRequest,
+    _user_id: str = Depends(get_current_user),
+) -> dict[str, CompanySponsorshipStatusCompact]:
+    """Compact sponsorship status for many companies at once, keyed by id.
+
+    For a list/badge view (e.g. the outreach company list) that would
+    otherwise call GET /sponsors/companies/{id} once per company — an N+1
+    the browser would pay for on every page load. This is the batched
+    alternative: one request regardless of how many companies are shown,
+    reusing the exact same status classification
+    `GET /sponsors/companies/{id}` uses (`_classify_check` in service.py) —
+    nothing about what counts as licensed/ambiguous/stale is redecided here.
+
+    Returns only `{status, stale, checked_at}` per company — no organisation
+    name, routes, confidence or error text. A requested id with no row in the
+    response was not found; that is not raised as an error, so one bad id in
+    a batch does not fail the rest of the list.
+    """
+    settings = get_settings()
+    rest = _require_supabase(settings)
+
+    async with httpx.AsyncClient() as client:
+        statuses = await bulk_company_sponsorship_status(
+            client, rest, body.company_ids
+        )
+
+    return {
+        company_id: CompanySponsorshipStatusCompact(**status)
+        for company_id, status in statuses.items()
+    }
 
 
 @router.get("/companies/{company_id}", response_model=CompanySponsorshipStatus)
