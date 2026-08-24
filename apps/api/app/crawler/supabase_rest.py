@@ -70,6 +70,36 @@ class SupabaseRest:
         except ValueError:
             return None
 
+    async def rpc(
+        self,
+        client: httpx.AsyncClient,
+        function: str,
+        payload: Optional[dict[str, Any]] = None,
+        timeout: Optional[float] = None,
+    ) -> Any:
+        """Call a Postgres function through PostgREST's /rpc endpoint.
+
+        Used for work that belongs in the database rather than in Python — a
+        statement over six figures of rows costs one request here and hundreds
+        of pages if it is assembled client-side.
+        """
+        response = await client.post(
+            f"{self._rest}/rpc/{function}",
+            headers=self._headers,
+            json=payload or {},
+            timeout=timeout or self._timeout,
+        )
+        if response.status_code >= 400:
+            print(" === SUPABASE RPC ERROR ===", flush=True)
+            print("FUNCTION:", function, flush=True)
+            print("STATUS:", response.status_code, flush=True)
+            print("RESPONSE:", response.text, flush=True)
+            print("========================== ", flush=True)
+        response.raise_for_status()
+        if not response.content:
+            return None
+        return response.json()
+
     async def insert(
         self,
         client: httpx.AsyncClient,

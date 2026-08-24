@@ -20,9 +20,13 @@
     python scripts/import_sponsor_register.py
 
 Needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment (or in
-apps/api/.env) unless --dry-run is used. Safe to run repeatedly: rows are keyed
-by their register identity, so a second run over an unchanged file inserts
-nothing.
+apps/api/.env) unless --dry-run or --inspect-batch is used. Safe to run
+repeatedly: rows are keyed by their register identity, and an edition only
+becomes current once every batch has landed.
+
+Requires migration 0009. Rows are staged under the run's import id and published
+by finalize_sponsor_register_import(); without it the import fails before it
+writes anything, rather than half-publishing an edition.
 """
 
 from __future__ import annotations
@@ -138,7 +142,9 @@ async def _ingest(path: Path | None, force: bool) -> int:
 
     print(f"import {run_id or '(unrecorded)'} finished")
     for key, value in stats.as_columns().items():
-        print(f"  {key:16} {value}")
+        # The deprecated counters are null, not zero: "not measured" is a
+        # different claim from "nothing happened".
+        print(f"  {key:20} {'n/a (deprecated)' if value is None else value}")
     return 0
 
 

@@ -16,6 +16,7 @@ from typing import Any, Optional
 
 import httpx
 
+from fake_supabase import FakeSupabase
 from app.sponsors.importer import (
     BATCH_MAX_ATTEMPTS,
     IMPORT_REQUEST_TIMEOUT,
@@ -48,50 +49,26 @@ def timeout_error() -> httpx.ReadTimeout:
     return httpx.ReadTimeout("timed out", request=httpx.Request("POST", "https://x/y"))
 
 
-class FakeRest:
-    """Supabase stand-in that enforces UNIQUE(natural_key) and can fail batches.
+class FakeRest(FakeSupabase):
+    """The shared double, plus a batch-numbered fail plan.
 
-    `fail_plan` maps a 1-based batch number to the number of consecutive times
-    that batch should raise before succeeding.
+    `fail_plan` maps a 1-based batch number to how many consecutive times that
+    batch raises before succeeding. Splitting re-sends subsets of a batch, so a
+    plan keyed this way fails a batch and every chunk it is narrowed into —
+    which is what these checks want.
     """
 
     def __init__(self, fail_plan: Optional[dict[int, int]] = None,
                  error_factory: Any = timeout_error) -> None:
-        self.rows: dict[str, dict] = {}
-        self.imports: list[dict] = []
+        super().__init__()
         self.fail_plan = dict(fail_plan or {})
         self.error_factory = error_factory
         self.batch_no = 0
-        self.attempts: list[int] = []
         self.timeouts_raised = 0
-        self.write_timeouts: list[Optional[float]] = []
         self.committed_despite_timeout = False
-
-    async def select(self, client, table, params=None):
-        params = params or {}
-        if table == "sponsor_register_imports":
-            rows = [r for r in self.imports if r.get("status") == "success"]
-            return [dict(r) for r in reversed(rows)][: int(params.get("limit", "50"))]
-        if table == "sponsor_licences":
-            offset = int(params.get("offset", "0"))
-            limit = int(params.get("limit", "1000"))
-            ordered = sorted(self.rows.values(), key=lambda r: r["natural_key"])
-            return [dict(r) for r in ordered[offset : offset + limit]]
-        return []
-
-    async def count(self, client, table, params=None, timeout=None):
-        return len([r for r in self.rows.values() if r.get("is_current")])
-
-    async def insert(self, client, table, rows, prefer="return=representation", timeout=None):
-        if table == "sponsor_register_imports":
-            created = [{**r, "id": f"import-{len(self.imports) + 1}"} for r in rows]
-            self.imports.extend(created)
-            return created
-        return rows
 
     async def upsert(self, client, table, rows, on_conflict, prefer="", timeout=None):
         self.batch_no += 1
-        self.write_timeouts.append(timeout)
         remaining = self.fail_plan.get(self.batch_no, 0)
         if remaining:
             self.fail_plan[self.batch_no] = remaining - 1
@@ -103,24 +80,11 @@ class FakeRest:
                 self.committed_despite_timeout = True
                 self._apply(rows)
             self.batch_no -= 1  # the retry re-sends this same batch
+            self.write_timeouts.append(timeout)
             raise self.error_factory()
-        self._apply(rows)
-        return []
-
-    def _apply(self, rows):
-        for row in rows:
-            key = row["natural_key"]
-            if key in self.rows:
-                self.rows[key].update(row)
-            else:
-                self.rows[key] = dict(row)
-
-    async def update(self, client, table, match, values, prefer="", timeout=None):
-        if table == "sponsor_register_imports":
-            run_id = match.get("id", "").removeprefix("eq.")
-            for record in self.imports:
-                if record["id"] == run_id:
-                    record.update(values)
+        return await super().upsert(
+            client, table, rows, on_conflict, prefer=prefer, timeout=timeout
+        )
 
 
 def ingest(rest: FakeRest, payload: bytes, force: bool = True):
@@ -133,7 +97,7 @@ def ingest(rest: FakeRest, payload: bytes, force: bool = True):
 
 
 def current_rows(rest: FakeRest) -> int:
-    return len([r for r in rest.rows.values() if r.get("is_current")])
+    return len(rest.current())
 
 
 # ---------------------------------------------------------------------------
@@ -168,12 +132,13 @@ check("SCENARIO 1: a timeout really was raised", rest.timeouts_raised == 1)
 check("SCENARIO 1: every row is stored", current_rows(rest) == ROWS,
       f"got {current_rows(rest)}")
 check("SCENARIO 1: no duplicate natural keys",
-      len(rest.rows) == len({r["natural_key"] for r in rest.rows.values()}) == ROWS)
+      len(rest.rows) == len({r["natural_key"] for r in rest.rows}) == ROWS)
 check("SCENARIO 1: the retried batch was not double-counted",
-      stats.rows_inserted == ROWS, f"got {stats.rows_inserted}")
+      stats.rows_processed == ROWS, f"got {stats.rows_processed}")
 check("SCENARIO 1: nothing was withdrawn", stats.rows_withdrawn == 0)
 check("SCENARIO 1: the run's statistics were persisted",
-      rest.imports[-1]["rows_inserted"] == ROWS)
+      rest.imports[-1]["rows_processed"] == ROWS,
+      f"got {rest.imports[-1].get('rows_processed')}")
 
 # The timed-out batch had in fact committed server-side; the retry must not
 # have duplicated it.
@@ -203,16 +168,18 @@ check("SCENARIO 2: the run is marked error",
 check("SCENARIO 2: the error detail is kept",
       "ReadTimeout" in (rest.imports[-1].get("error") or ""),
       f"got {rest.imports[-1].get('error')}")
-partial = current_rows(rest)
-check("SCENARIO 2: earlier batches remain in the database", partial > 0,
+partial = len(rest.rows)
+check("SCENARIO 2: earlier batches remain in the database, staged", partial > 0,
       f"got {partial}")
+check("SCENARIO 2: but nothing the failed run staged is live",
+      current_rows(rest) == 0, f"got {current_rows(rest)}")
 check("SCENARIO 2: NOTHING was withdrawn",
-      all(r.get("is_current") for r in rest.rows.values()))
+      not [r for r in rest.rows if r.get("withdrawn_at")])
 check("SCENARIO 2: the failed run is not the latest successful edition",
       not [i for i in rest.imports if i.get("status") == "success"])
-check("SCENARIO 2: statistics were not claimed for unwritten rows",
-      (rest.imports[-1].get("rows_inserted") or 0) == 0,
-      f"got {rest.imports[-1].get('rows_inserted')}")
+check("SCENARIO 2: statistics were not claimed for an unpublished edition",
+      (rest.imports[-1].get("rows_current_after") or 0) == 0,
+      f"got {rest.imports[-1].get('rows_current_after')}")
 
 # ---------------------------------------------------------------------------
 # Scenario 3 — rerunning the same file after a partial import.
@@ -225,10 +192,10 @@ check("RESUME: the rerun succeeds", rest.imports[-1]["status"] == "success")
 check("RESUME: no manual cleanup was needed — the partial rows were reused",
       current_rows(rest) == ROWS, f"got {current_rows(rest)}")
 check("RESUME: no duplicates after the rerun", len(rest.rows) == ROWS)
-check("RESUME: rows written by the failed attempt count as unchanged, not new",
-      stats.rows_unchanged == partial, f"unchanged={stats.rows_unchanged} partial={partial}")
-check("RESUME: the remainder counts as inserted",
-      stats.rows_inserted == ROWS - partial, f"got {stats.rows_inserted}")
+check("RESUME: the rows the failed attempt staged were reused, not re-created",
+      len(rest.rows) == ROWS, f"staged {partial}, now {len(rest.rows)}")
+check("RESUME: the whole edition is published",
+      stats.rows_processed == ROWS, f"got {stats.rows_processed}")
 check("RESUME: still nothing withdrawn", stats.rows_withdrawn == 0)
 
 # ---------------------------------------------------------------------------
@@ -251,7 +218,7 @@ check("PERMANENT ERROR: a 400 fails the import", raised4)
 check("PERMANENT ERROR: it is attempted once, not retried",
       rest.timeouts_raised == 1, f"got {rest.timeouts_raised}")
 check("PERMANENT ERROR: nothing is withdrawn",
-      all(r.get("is_current") for r in rest.rows.values()))
+      not [r for r in rest.rows if r.get("withdrawn_at")])
 
 # A 503 is retried.
 def unavailable() -> httpx.HTTPStatusError:

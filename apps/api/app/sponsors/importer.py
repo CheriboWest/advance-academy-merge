@@ -1,8 +1,26 @@
-"""Sponsor-register ingestion: download → parse → upsert → mark withdrawn.
+"""Sponsor-register ingestion: download → parse → stage → finalize.
 
 Safe to run repeatedly. Rows are keyed by `natural_key`, so a second run over an
-unchanged file inserts nothing, updates nothing, and reports every row as
-unchanged.
+unchanged file rewrites the same rows rather than duplicating them.
+
+Writing a row and publishing it are two different acts
+-----------------------------------------------------
+Every batch upsert stamps `staged_import_id` and touches nothing that decides
+what the register currently says. Only `finalize_sponsor_register_import()` —
+one database call, made after every batch has been confirmed — promotes this
+edition's rows to current and withdraws the live rows it did not carry.
+
+That split is what makes a failed import harmless. A run that dies halfway
+leaves rows carrying its marker, and no reader looks at that marker: the rows it
+inserted are `is_current = false` by column default, the rows it updated keep
+the currency the last successful edition gave them, and a licence a previous
+edition withdrew is NOT resurrected by a partial write. The previous edition
+stays authoritative until a new one finishes in full.
+
+It is also what makes six-figure imports possible at all. Deciding what to
+withdraw used to mean paging the entire table over PostgREST — 138 requests
+before the first row was written, of which the real import survived four. The
+database can answer the same question with one UPDATE.
 
 Register rows are never deleted. A row that stops appearing is marked
 `is_current = false` with a `withdrawn_at` stamp: absence from today's file means
@@ -92,6 +110,13 @@ SPLIT_MAX_SECONDS = float(os.getenv("SPONSOR_SPLIT_BUDGET", "900"))
 # "running" forever.
 STATUS_WRITE_TIMEOUT = float(os.getenv("SPONSOR_STATUS_TIMEOUT", "20"))
 STATUS_WRITE_ATTEMPTS = int(os.getenv("SPONSOR_STATUS_ATTEMPTS", "3"))
+
+# Finalization is one statement over the whole table, so it gets its own,
+# larger budget. It is idempotent — promoting the same rows twice is a no-op —
+# which is what makes retrying a timed-out call safe.
+FINALIZE_TIMEOUT = float(os.getenv("SPONSOR_FINALIZE_TIMEOUT", "300"))
+FINALIZE_ATTEMPTS = int(os.getenv("SPONSOR_FINALIZE_ATTEMPTS", "3"))
+FINALIZE_FUNCTION = "finalize_sponsor_register_import"
 
 TABLE = "sponsor_licences"
 IMPORTS_TABLE = "sponsor_register_imports"
@@ -390,55 +415,6 @@ async def _write_batches(
     return progress.retries
 
 
-async def _existing_rows(
-    client: httpx.AsyncClient, rest: SupabaseRest
-) -> dict[str, dict[str, Any]]:
-    """Every stored register row, keyed by `natural_key`.
-
-    Paged rather than fetched in one request: PostgREST caps rows per response,
-    and a silent truncation here would make existing rows look new and
-    everything absent look withdrawn.
-    """
-    stored: dict[str, dict[str, Any]] = {}
-    offset = 0
-    columns = (
-        "id,natural_key,organisation_name,town_city,county,type_rating,route,"
-        "licence_type,rating,is_current"
-    )
-    while True:
-        rows = await rest.select(
-            client,
-            TABLE,
-            {
-                "select": columns,
-                "order": "natural_key.asc",
-                "limit": str(SELECT_PAGE),
-                "offset": str(offset),
-            },
-        )
-        for row in rows:
-            key = row.get("natural_key")
-            if key:
-                stored[str(key)] = row
-        if len(rows) < SELECT_PAGE:
-            break
-        offset += SELECT_PAGE
-    return stored
-
-
-def _is_unchanged(record: SponsorRecord, stored: dict[str, Any]) -> bool:
-    """Whether the stored row already carries this record's published values."""
-    return record.content_fields() == (
-        stored.get("organisation_name"),
-        stored.get("town_city"),
-        stored.get("county"),
-        stored.get("type_rating"),
-        stored.get("route"),
-        stored.get("licence_type"),
-        stored.get("rating"),
-    ) and bool(stored.get("is_current"))
-
-
 async def ingest_records(
     client: httpx.AsyncClient,
     rest: SupabaseRest,
@@ -446,105 +422,143 @@ async def ingest_records(
     source_url: str,
     published_at: Optional[str],
     stats: ImportStats,
+    *,
+    import_id: str,
     sleeper: Any = asyncio.sleep,
 ) -> None:
-    """Upsert `records` and withdraw stored rows the file no longer contains.
+    """Stage `records` under `import_id`. Publishes nothing.
+
+    Every row carries the edition's marker and its published content. What it
+    deliberately does NOT carry is `is_current`, `withdrawn_at` or
+    `last_seen_at`: those decide what the register says today, and a batch that
+    might be one of many still to fail has no business deciding that. New rows
+    take the column default (`is_current = false`, since migration 0009) and
+    existing rows keep whatever the last successful edition left them.
+
+    `finalize_edition` publishes the result, and only after every batch here has
+    been confirmed.
 
     Split out from `run_import` so the whole write path can be exercised with a
     fixture file and no network.
     """
-    stored = await _existing_rows(client, rest)
-    seen_now = datetime.now(timezone.utc).isoformat()
+    if not import_id:
+        raise RuntimeError(
+            "Refusing to stage rows without an import id: rows written without "
+            "one could never be published, and would be indistinguishable from "
+            "the previous edition's."
+        )
 
-    # Classify first, count later. These tallies describe what the edition WILL
-    # do; they are copied into `stats` only after every batch is confirmed, so a
-    # failed import never reports rows it did not write.
-    to_write: list[dict[str, Any]] = []
-    planned_inserted = planned_updated = planned_unchanged = 0
-
+    staged_at = datetime.now(timezone.utc).isoformat()
+    rows: list[dict[str, Any]] = []
     for record in records:
-        existing = stored.get(record.natural_key)
         row = record.as_row(source_url, published_at)
-        row["last_seen_at"] = seen_now
-        row["is_current"] = True
-        row["withdrawn_at"] = None
-
-        if existing is None:
-            planned_inserted += 1
-            row["first_seen_at"] = seen_now
-        elif _is_unchanged(record, existing):
-            planned_unchanged += 1
-            # Still written: `last_seen_at` is how we prove the row is in
-            # today's edition, which is what stops it being withdrawn below.
-        else:
-            planned_updated += 1
-        to_write.append(row)
+        row["staged_import_id"] = import_id
+        row["staged_seen_at"] = staged_at
+        rows.append(row)
 
     logger.info(
-        "[sponsor-import] writing %d rows in %d batches of %d "
-        "(insert=%d update=%d unchanged=%d)",
-        len(to_write), -(-len(to_write) // UPSERT_CHUNK), UPSERT_CHUNK,
-        planned_inserted, planned_updated, planned_unchanged,
+        "[sponsor-import] staging %d rows for import %s in %d batches of %d",
+        len(rows), import_id, -(-len(rows) // UPSERT_CHUNK), UPSERT_CHUNK,
     )
 
-    # Stage the whole edition first. `_write_batches` raises if any batch
-    # exhausts its retries, so the withdrawal below is unreachable unless every
-    # new row is safely in place. Withdrawal is the only step that changes what
-    # the register says is current, so it happens last and only on success.
+    # `_write_batches` raises if any chunk cannot be written, so the caller
+    # never reaches finalization on a partial edition.
     retries = await _write_batches(
-        client, rest, to_write, label="edition", sleeper=sleeper
+        client, rest, rows, label="edition", sleeper=sleeper
+    )
+    stats.rows_processed = len(rows)
+    if retries:
+        logger.info("[sponsor-import] staging completed with %d retries", retries)
+
+
+async def finalize_edition(
+    client: httpx.AsyncClient,
+    rest: SupabaseRest,
+    import_id: str,
+    stats: ImportStats,
+    *,
+    sleeper: Any = asyncio.sleep,
+) -> None:
+    """Publish the staged edition, in the database, in one call.
+
+    `finalize_sponsor_register_import` promotes every row this import staged and
+    withdraws every live row it did not carry. Doing it there rather than here
+    is the whole point: the alternative is downloading 138,000 natural keys to
+    work out a set difference Postgres can compute without moving any of them.
+
+    Retried on transient failures because it is idempotent — a call that
+    committed and then timed out is republished to the same state by the next
+    one. Raises if it cannot be completed, so a run whose edition was never
+    published cannot be recorded as a success.
+    """
+    for attempt in range(1, FINALIZE_ATTEMPTS + 1):
+        started = time.monotonic()
+        try:
+            result = await rest.rpc(
+                client,
+                FINALIZE_FUNCTION,
+                {"p_import_id": import_id},
+                timeout=FINALIZE_TIMEOUT,
+            )
+            break
+        except Exception as exc:  # noqa: BLE001 — classified immediately
+            if not _is_retryable(exc) or attempt == FINALIZE_ATTEMPTS:
+                logger.error(
+                    "[sponsor-import] finalization FAILED after %d attempt(s): "
+                    "%s. The edition stays staged and unpublished; the previous "
+                    "edition is still the authoritative one, and re-running this "
+                    "file will stage and publish it in full.",
+                    attempt, type(exc).__name__,
+                )
+                raise
+            delay = min(BATCH_BASE_BACKOFF * (2 ** (attempt - 1)), BATCH_MAX_BACKOFF)
+            logger.warning(
+                "[sponsor-import] finalization retry=%d reason=%s elapsed=%.1fs "
+                "backoff=%.1fs",
+                attempt, type(exc).__name__, time.monotonic() - started, delay,
+            )
+            await sleeper(delay)
+
+    row = _first_row(result)
+    if row is None:
+        raise RuntimeError(
+            f"{FINALIZE_FUNCTION} returned no counts; the edition's state is "
+            "unknown. Check sponsor_licences before treating this run as done."
+        )
+
+    promoted = int(row.get("rows_promoted") or 0)
+    stats.rows_withdrawn = int(row.get("rows_withdrawn") or 0)
+    stats.rows_current_after = int(row.get("rows_current") or 0)
+
+    logger.info(
+        "[sponsor-import] finalized import %s: promoted=%d withdrawn=%d "
+        "current=%d",
+        import_id, promoted, stats.rows_withdrawn, stats.rows_current_after,
     )
 
-    # Every batch confirmed. Only now do the numbers become facts.
-    stats.rows_inserted = planned_inserted
-    stats.rows_updated = planned_updated
-    stats.rows_unchanged = planned_unchanged
-    if retries:
-        logger.info("[sponsor-import] edition completed with %d retries", retries)
-
-    # Anything currently marked live that this edition did not contain.
-    present = {record.natural_key for record in records}
-    withdrawn = [
-        row for key, row in stored.items()
-        if key not in present and row.get("is_current")
-    ]
-    if withdrawn:
-        await _write_batches(
-            client,
-            rest,
-            [
-                {
-                    "natural_key": row["natural_key"],
-                    "is_current": False,
-                    "withdrawn_at": seen_now,
-                }
-                for row in withdrawn
-            ],
-            label="withdrawal",
-            sleeper=sleeper,
+    # Reconciliation, not bookkeeping. `rows_promoted` is counted from the rows
+    # the database actually holds for this import, so a disagreement with what
+    # we sent means rows went missing between here and there.
+    if promoted != stats.rows_processed:
+        logger.warning(
+            "[sponsor-import] staged %d rows but the database promoted %d. "
+            "Re-run the import over the same file to finish it.",
+            stats.rows_processed, promoted,
         )
-    stats.rows_withdrawn = len(withdrawn)
+    stats.rows_processed = promoted
 
 
-async def _confirm_edition(
-    client: httpx.AsyncClient, rest: SupabaseRest, source_url: str
-) -> Optional[int]:
-    """Count the rows the database actually holds for this edition.
+def _first_row(result: Any) -> Optional[dict[str, Any]]:
+    """The single row a set-returning RPC produced, whatever shape it arrives in.
 
-    Reconciliation, not bookkeeping: a timed-out batch may have committed, so
-    the only trustworthy count comes from asking the database afterwards.
-    Best-effort — a failure here must not fail an import that already succeeded.
+    PostgREST returns a list for a `returns table` function, but returns the
+    object directly when the function is declared to return one row.
     """
-    try:
-        return await rest.count(
-            client,
-            TABLE,
-            {"source_url": f"eq.{source_url}", "is_current": "eq.true"},
-            timeout=IMPORT_REQUEST_TIMEOUT,
-        )
-    except Exception:  # noqa: BLE001 — reconciliation is advisory
-        logger.warning("[sponsor-import] could not reconcile the edition count")
-        return None
+    if isinstance(result, list):
+        return result[0] if result else None
+    if isinstance(result, dict):
+        return result
+    return None
 
 
 async def _record_status(
@@ -661,6 +675,14 @@ async def run_import(
             [{"status": "running", "source_url": resolved_url}],
         )
         run_id = str(created[0]["id"]) if created else ""
+        if not run_id:
+            # Everything downstream is keyed on this id: rows are staged under
+            # it and published by it. Without one there is no way to publish an
+            # edition, and no way to tell its rows from the last one's.
+            raise RuntimeError(
+                "Could not create the sponsor_register_imports row, so this run "
+                "has no id to stage rows under. Nothing was written."
+            )
 
         if csv_bytes is None:
             located = await govuk.find_current_csv(client)
@@ -709,23 +731,12 @@ async def run_import(
 
         await ingest_records(
             client, rest, records, resolved_url, published_at, stats,
-            sleeper=sleeper,
+            import_id=run_id, sleeper=sleeper,
         )
 
-        confirmed = await _confirm_edition(client, rest, resolved_url)
-        if confirmed is not None:
-            logger.info(
-                "[sponsor-import] reconciled: %d rows in the database carry this "
-                "edition's source URL (parsed %d)",
-                confirmed, stats.rows_parsed,
-            )
-            if confirmed < stats.rows_parsed:
-                logger.warning(
-                    "[sponsor-import] the database holds fewer rows for this "
-                    "edition (%d) than were parsed (%d); re-run the import to "
-                    "finish it",
-                    confirmed, stats.rows_parsed,
-                )
+        # Every batch is confirmed. Only now does anything become current, and
+        # only now can anything be withdrawn.
+        await finalize_edition(client, rest, run_id, stats, sleeper=sleeper)
 
         await _record_status(
             rest,

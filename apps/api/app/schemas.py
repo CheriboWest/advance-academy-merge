@@ -121,11 +121,16 @@ class SponsorImportResponse(BaseModel):
     register_published_at: Optional[str] = None
     rows_downloaded: int = 0
     rows_parsed: int = 0
-    rows_inserted: int = 0
-    rows_updated: int = 0
-    rows_unchanged: int = 0
     rows_rejected: int = 0
+    rows_processed: int = 0
+    rows_current_after: int = 0
     rows_withdrawn: int = 0
+
+    # Deprecated since migration 0009 and always null. Kept so existing clients
+    # keep parsing the response; see ImportStats for why they are not computed.
+    rows_inserted: Optional[int] = None
+    rows_updated: Optional[int] = None
+    rows_unchanged: Optional[int] = None
 
 
 class SponsorCandidate(BaseModel):

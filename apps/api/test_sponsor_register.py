@@ -13,7 +13,7 @@ import asyncio
 from pathlib import Path
 from typing import Any, Optional
 
-from app.sponsors.importer import ingest_records, run_import
+from app.sponsors.importer import run_import
 from app.sponsors.models import ImportStats, SponsorRecord
 from app.sponsors.normalize import (
     natural_key,
@@ -28,6 +28,7 @@ from app.sponsors.parser import (
     map_headers,
     parse_register,
 )
+from fake_supabase import FakeSupabase
 
 FIXTURE = Path(__file__).parent / "tests" / "fixtures" / "sponsor_register_sample.csv"
 SOURCE_URL = "https://assets.publishing.service.gov.uk/media/2026-08-01/register.csv"
@@ -51,66 +52,10 @@ def raises(fn, exc) -> bool:
     return False
 
 
-class FakeRest:
-    """In-memory Supabase stand-in enforcing the natural_key unique index."""
-
-    def __init__(self, rows: Optional[list[dict]] = None) -> None:
-        self.rows: list[dict] = rows or []
-        self.imports: list[dict] = []
-        self.requests: list[str] = []
-
-    async def select(self, client, table, params=None, timeout=None):
-        params = params or {}
-        self.requests.append(f"select:{table}")
-        if table == "sponsor_register_imports":
-            # The importer reads the previous successful edition's row count to
-            # size-check the new one. Without this the comparison silently never
-            # runs and the shrink guard looks like it passed.
-            rows = list(self.imports)
-            status = params.get("status")
-            if status and status.startswith("eq."):
-                rows = [r for r in rows if r.get("status") == status[3:]]
-            if (params.get("order") or "").startswith("started_at.desc"):
-                rows = list(reversed(rows))
-            return [dict(r) for r in rows][: int(params.get("limit", "50"))]
-        if table == "sponsor_licences":
-            offset = int(params.get("offset", "0"))
-            limit = int(params.get("limit", "1000"))
-            ordered = sorted(self.rows, key=lambda r: r["natural_key"])
-            return [dict(r) for r in ordered[offset : offset + limit]]
-        return []
-
-    async def insert(self, client, table, rows, prefer="return=representation", timeout=None):
-        self.requests.append(f"insert:{table}")
-        if table == "sponsor_register_imports":
-            created = [{**r, "id": f"import-{len(self.imports) + 1}"} for r in rows]
-            self.imports.extend(created)
-            return created
-        return rows
-
-    async def upsert(self, client, table, rows, on_conflict, prefer="", timeout=None):
-        self.requests.append(f"upsert:{table}:{on_conflict}")
-        for row in rows:
-            existing = next(
-                (r for r in self.rows if r["natural_key"] == row["natural_key"]), None
-            )
-            if existing:
-                existing.update(row)
-            else:
-                self.rows.append({**row, "id": f"lic-{len(self.rows) + 1}"})
-        keys = [r["natural_key"] for r in self.rows]
-        if len(keys) != len(set(keys)):
-            raise AssertionError("sponsor_licences_natural_key_idx violated")
-        return []
-
-    async def update(self, client, table, match, values, prefer="", timeout=None):
-        self.requests.append(f"update:{table}")
-        if table == "sponsor_register_imports":
-            run_id = match.get("id", "").removeprefix("eq.")
-            for record in self.imports:
-                if record["id"] == run_id:
-                    record.update(values)
-        return None
+# The shared double. It mirrors the unique index, PostgREST's column-level
+# merge, the post-0009 `is_current` default and the finalization function; see
+# fake_supabase.py for why that is worth keeping in one place.
+FakeRest = FakeSupabase
 
 
 def ingest(rest: FakeRest, csv_bytes: bytes, force: bool = True) -> ImportStats:
@@ -249,42 +194,51 @@ check("windows-1252 bytes decode without an exception",
 # ---------------------------------------------------------------------------
 rest = FakeRest()
 stats = ingest(rest, raw)
-check("first run inserts every parsed row", stats.rows_inserted == 8, f"got {stats.rows_inserted}")
-check("first run updates nothing", stats.rows_updated == 0)
+check("first run publishes every parsed row", stats.rows_processed == 8,
+      f"got {stats.rows_processed}")
 check("first run reports the rejected and duplicate lines",
       stats.rows_rejected == 2, f"got {stats.rows_rejected}")
 check("rows_downloaded reflects the file, not what survived",
       stats.rows_downloaded == 10, f"got {stats.rows_downloaded}")
 check("rows_parsed reflects what survived", stats.rows_parsed == 8)
+check("rows_current_after describes the table, not the file",
+      stats.rows_current_after == 8, f"got {stats.rows_current_after}")
 check("the import run is recorded as successful",
       rest.imports[-1]["status"] == "success")
 check("the import run carries the statistics",
-      rest.imports[-1]["rows_inserted"] == 8)
+      rest.imports[-1]["rows_processed"] == 8)
+check("the counters that needed a full-table scan are null, not zero",
+      stats.rows_inserted is None and stats.rows_updated is None
+      and stats.rows_unchanged is None)
 check("provenance is stored on every row",
       all(r["source_url"] == SOURCE_URL for r in rest.rows))
 check("the register publication date is stored",
       all(r["register_published_at"] is None for r in rest.rows))
+check("every row is credited to the import that published it",
+      all(r["last_import_id"] == rest.imports[-1]["id"] for r in rest.rows))
 
 stats = ingest(rest, raw)
-check("RE-RUN: nothing is inserted", stats.rows_inserted == 0, f"got {stats.rows_inserted}")
-check("RE-RUN: nothing is updated", stats.rows_updated == 0, f"got {stats.rows_updated}")
-check("RE-RUN: every row is unchanged", stats.rows_unchanged == 8, f"got {stats.rows_unchanged}")
-check("RE-RUN: no duplicate rows are created", len(rest.rows) == 8, f"got {len(rest.rows)}")
+check("RE-RUN: no duplicate rows are created", len(rest.rows) == 8,
+      f"got {len(rest.rows)}")
 check("RE-RUN: nothing is withdrawn", stats.rows_withdrawn == 0)
+check("RE-RUN: the same rows are published again", stats.rows_processed == 8,
+      f"got {stats.rows_processed}")
+check("RE-RUN: the whole table is still current", stats.rows_current_after == 8)
 
 changed = text.replace("Northgate Analytics Ltd", "Northgate Analytics Group Ltd")
 stats = ingest(rest, changed.encode("utf-8"))
-check("a renamed organisation is inserted as a new register line",
-      stats.rows_inserted == 1, f"got {stats.rows_inserted}")
+check("a renamed organisation is a new register line",
+      stats.rows_processed == 8 and len(rest.rows) == 9,
+      f"processed={stats.rows_processed} rows={len(rest.rows)}")
 check("the line it replaced is withdrawn, not deleted",
       stats.rows_withdrawn == 1, f"got {stats.rows_withdrawn}")
-check("withdrawn rows remain in the table",
-      len(rest.rows) == 9, f"got {len(rest.rows)}")
 withdrawn = [r for r in rest.rows if not r.get("is_current")]
 check("the withdrawn row is flagged and stamped",
       len(withdrawn) == 1 and withdrawn[0].get("withdrawn_at"))
 check("the withdrawn row keeps its original organisation name",
       withdrawn[0]["organisation_name"] == "Northgate Analytics Ltd")
+check("the withdrawn row is not credited to the edition that dropped it",
+      withdrawn[0]["last_import_id"] != rest.imports[-1]["id"])
 
 # A row whose published details change keeps its identity and is updated.
 rest2 = FakeRest()
@@ -293,22 +247,27 @@ rerated = text.replace("Riverside Care Group PLC,Bristol,,Worker (B rating)",
                        "Riverside Care Group PLC,Bristol,,Worker (A rating)")
 stats = ingest(rest2, rerated.encode("utf-8"))
 check("a re-rated licence is a new register line (rating is part of identity)",
-      stats.rows_inserted == 1 and stats.rows_withdrawn == 1,
-      f"inserted={stats.rows_inserted} withdrawn={stats.rows_withdrawn}")
+      stats.rows_withdrawn == 1 and len(rest2.rows) == 9,
+      f"withdrawn={stats.rows_withdrawn} rows={len(rest2.rows)}")
 
 # ---------------------------------------------------------------------------
-# An empty register must not withdraw the world silently — it still reports it.
+# An empty register cannot withdraw the world — it cannot publish at all.
 # ---------------------------------------------------------------------------
 rest3 = FakeRest()
 ingest(rest3, raw)
 header_only = b"Organisation Name,Town/City,County,Type & Rating,Route\n"
-stats = ingest(rest3, header_only)
-check("an empty edition parses to zero rows", stats.rows_parsed == 0)
-check("an empty edition withdraws rather than deletes",
-      stats.rows_withdrawn == 8 and len(rest3.rows) == 8,
-      f"withdrawn={stats.rows_withdrawn} remaining={len(rest3.rows)}")
-check("no row is left marked current after an empty edition",
-      not any(r.get("is_current") for r in rest3.rows))
+try:
+    ingest(rest3, header_only)
+    empty_published = True
+except Exception:  # noqa: BLE001 — the database refuses it
+    empty_published = False
+check("an edition that stages no rows cannot publish", not empty_published)
+check("an empty edition withdraws nothing",
+      len([r for r in rest3.rows if r.get("is_current")]) == 8,
+      f"got {len([r for r in rest3.rows if r.get('is_current')])}")
+check("and the run is recorded as an error", rest3.imports[-1]["status"] == "error",
+      f"got {rest3.imports[-1]['status']}")
+
 
 # ---------------------------------------------------------------------------
 # A failed import is recorded, not silent.

@@ -61,10 +61,11 @@ def batch_rows(
     rows = []
     for record in slice_:
         row = record.as_row(source_url, published_at)
-        # Exactly what `ingest_records` adds before sending.
-        row["last_seen_at"] = "2000-01-01T00:00:00+00:00"
-        row["is_current"] = True
-        row["withdrawn_at"] = None
+        # Exactly what `ingest_records` adds before sending. Note what is NOT
+        # here: staging a row never writes is_current, withdrawn_at or
+        # last_seen_at — finalization does.
+        row["staged_import_id"] = "00000000-0000-0000-0000-000000000000"
+        row["staged_seen_at"] = "2000-01-01T00:00:00+00:00"
         rows.append(row)
     return slice_, rows, start
 

@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 import httpx
 
+from fake_supabase import FakeSupabase
 from app.sponsors.importer import (
     BATCH_MAX_ATTEMPTS,
     MIN_SPLIT_ROWS,
@@ -82,12 +83,12 @@ class ClientFactory:
         return client
 
 
-class SplitRest:
-    """Supabase stand-in enforcing UNIQUE(natural_key), failing chosen chunks.
+class SplitRest(FakeSupabase):
+    """The shared double, with the upsert traffic recorded chunk by chunk.
 
-    `should_fail(rows)` decides whether a given upsert raises. Because the
-    splitter re-sends subsets of a batch, the decision has to be made on the
-    rows themselves — a batch number would not survive the first split.
+    `should_fail(rows)` decides whether an upsert raises. The decision has to be
+    made on the rows themselves: the splitter re-sends subsets of a batch, and a
+    batch number would not survive the first split.
     """
 
     def __init__(
@@ -96,71 +97,28 @@ class SplitRest:
         *,
         commit_on_failure: bool = False,
     ) -> None:
-        self.rows: dict[str, dict] = {}
-        self.imports: list[dict] = []
+        super().__init__()
         self.should_fail = should_fail
         self.commit_on_failure = commit_on_failure
         self.sent: list[int] = []          # row count of every upsert attempted
         self.succeeded: list[int] = []     # ...and of every one that landed
-        self.failures = 0
-        self.update_clients: list[Any] = []
-
-    async def select(self, client, table, params=None, timeout=None):
-        params = params or {}
-        if table == "sponsor_register_imports":
-            rows = [r for r in self.imports if r.get("status") == "success"]
-            return [dict(r) for r in reversed(rows)][: int(params.get("limit", "50"))]
-        if table == "sponsor_licences":
-            offset = int(params.get("offset", "0"))
-            limit = int(params.get("limit", "1000"))
-            ordered = sorted(self.rows.values(), key=lambda r: r["natural_key"])
-            return [dict(r) for r in ordered[offset : offset + limit]]
-        return []
-
-    async def count(self, client, table, params=None, timeout=None):
-        return len([r for r in self.rows.values() if r.get("is_current")])
-
-    async def insert(self, client, table, rows, prefer="return=representation", timeout=None):
-        if table == "sponsor_register_imports":
-            created = [{**r, "id": f"import-{len(self.imports) + 1}"} for r in rows]
-            self.imports.extend(created)
-            return created
-        return rows
 
     async def upsert(self, client, table, rows, on_conflict, prefer="", timeout=None):
-        assert on_conflict == "natural_key", on_conflict
-        assert "resolution=merge-duplicates" in prefer, prefer
-        assert "return=minimal" in prefer, prefer
         self.sent.append(len(rows))
-        if self.should_fail(rows):
-            self.failures += 1
-            if self.commit_on_failure:
-                # PostgREST committed and answered too late. The retry and the
-                # split both have to survive this.
-                self._apply(rows)
-            raise timeout_error()
-        self._apply(rows)
+        result = await super().upsert(
+            client, table, rows, on_conflict, prefer=prefer, timeout=timeout
+        )
         self.succeeded.append(len(rows))
-        return []
-
-    def _apply(self, rows):
-        for row in rows:
-            key = row["natural_key"]
-            if key in self.rows:
-                self.rows[key].update(row)
-            else:
-                self.rows[key] = dict(row)
+        return result
 
     async def update(self, client, table, match, values, prefer="", timeout=None):
-        self.update_clients.append(client)
         if isinstance(client, FakeClient) and client.factory.fail_first > 0:
             client.factory.fail_first -= 1
+            self.update_clients.append(client)
             raise timeout_error()
-        if table == "sponsor_register_imports":
-            run_id = match.get("id", "").removeprefix("eq.")
-            for record in self.imports:
-                if record["id"] == run_id:
-                    record.update(values)
+        return await super().update(
+            client, table, match, values, prefer=prefer, timeout=timeout
+        )
 
 
 timeout_error = timeout
@@ -208,7 +166,11 @@ def ingest(rest: SplitRest, payload: bytes, factory: Optional[ClientFactory] = N
 
 
 def current_rows(rest: SplitRest) -> int:
-    return len([r for r in rest.rows.values() if r.get("is_current")])
+    return len(rest.current())
+
+
+def staged_rows(rest: SplitRest) -> int:
+    return len(rest.rows)
 
 
 def status(rest: SplitRest) -> str:
@@ -231,8 +193,8 @@ check("A: each batch was split in two, and only in two",
 check("A: the halves cover the batch exactly", half + other == UPSERT_CHUNK)
 check("A: every row is stored", current_rows(rest) == ROWS, f"got {current_rows(rest)}")
 check("A: no duplicate natural keys", len(rest.rows) == ROWS)
-check("A: the split rows are still counted once", stats.rows_inserted == ROWS,
-      f"got {stats.rows_inserted}")
+check("A: the split rows are still counted once", stats.rows_processed == ROWS,
+      f"got {stats.rows_processed}")
 check("A: nothing was withdrawn", stats.rows_withdrawn == 0)
 
 # ---------------------------------------------------------------------------
@@ -292,10 +254,12 @@ check("C: the chunk at the floor was not split any further",
       and (smallest_failed - _floor_half) not in rest.sent,
       f"sent {sorted(set(rest.sent))}")
 check("C: the healthy rows before the bad one were written and kept",
-      current_rows(rest) > UPSERT_CHUNK // 2,
-      f"got {current_rows(rest)} of {UPSERT_CHUNK}")
+      staged_rows(rest) > UPSERT_CHUNK // 2,
+      f"got {staged_rows(rest)} of {UPSERT_CHUNK}")
 check("C: the import stopped at the bad chunk instead of pressing on",
-      current_rows(rest) < UPSERT_CHUNK)
+      staged_rows(rest) < UPSERT_CHUNK)
+check("C: and none of what it staged became live",
+      current_rows(rest) == 0, f"got {current_rows(rest)}")
 check("C: the offending row is named in the log",
       f"Org {POISON_INDEX:05d} Ltd" in log.text)
 check("C: its natural key is logged so it can be looked up",
@@ -303,10 +267,10 @@ check("C: its natural key is logged so it can be looked up",
 check("C: every row of the failing chunk is listed, not just the first",
       log.text.count("  row ") >= 2)
 check("C: NOTHING was withdrawn",
-      all(r.get("is_current") for r in rest.rows.values()))
+      not [r for r in rest.rows if r.get("withdrawn_at")])
 check("C: the failed run did not claim statistics",
-      (rest.imports[-1].get("rows_inserted") or 0) == 0,
-      f"got {rest.imports[-1].get('rows_inserted')}")
+      (rest.imports[-1].get("rows_current_after") or 0) == 0,
+      f"got {rest.imports[-1].get('rows_current_after')}")
 check("C: the failed run is not a usable edition",
       not [i for i in rest.imports if i.get("status") == "success"])
 
@@ -336,6 +300,8 @@ check("PERMANENT: a 400 fails immediately", raised and rest.failures == 1,
       f"attempts {rest.failures}")
 check("PERMANENT: it is not split", rest.sent == [UPSERT_CHUNK], f"got {rest.sent}")
 check("PERMANENT: the rows are still named", "could not be written" in log.text)
+check("PERMANENT: nothing was withdrawn",
+      not [r for r in rest.rows if r.get("withdrawn_at")])
 
 # ---------------------------------------------------------------------------
 # D — the parent committed before the client gave up.
