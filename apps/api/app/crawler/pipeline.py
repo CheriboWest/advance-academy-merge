@@ -382,6 +382,20 @@ async def _finalize(
         f"stats={stats.as_columns()}",
         flush=True,
     )
+    columns = stats.as_columns()
+    display = stats.as_display_columns()
+    print(
+        "[finalize] crawl finalized: "
+        f"raw={columns['raw_jobs']} normalized={columns['normalized_jobs']} "
+        f"inserted={columns['inserted_jobs']} updated={columns['updated_jobs']} "
+        f"duplicates={columns['duplicate_jobs']} "
+        f"companies_created={columns['companies_created']} "
+        f"companies_updated={columns['companies_updated']} "
+        f"| display: new_jobs={display['new_jobs']} "
+        f"duplicate_jobs_total={display['duplicate_jobs_total']} "
+        f"jobs_verified={display['jobs_verified']} run_id={run_id}",
+        flush=True,
+    )
     if error_note:
         print(f"[finalize] run_id={run_id} note={error_note!r}", flush=True)
 

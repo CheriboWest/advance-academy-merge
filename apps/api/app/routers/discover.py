@@ -10,6 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from app.auth import get_current_user
 from app.config import Settings, get_settings
+from app.crawler.models import compute_display_stats
 from app.crawler.normalize import normalize_query
 from app.crawler.pipeline import run_crawl
 from app.crawler.supabase_rest import SupabaseRest
@@ -52,18 +53,33 @@ def _row_to_status(row: dict[str, Any]) -> CrawlRunStatus:
         value = row.get(key)
         return int(value) if isinstance(value, (int, float)) else 0
 
+    normalized_jobs = _int("normalized_jobs")
+    inserted_jobs = _int("inserted_jobs")
+    updated_jobs = _int("updated_jobs")
+    duplicate_jobs = _int("duplicate_jobs")
+    companies_created = _int("companies_created")
+    display = compute_display_stats(
+        normalized_jobs=normalized_jobs,
+        inserted_jobs=inserted_jobs,
+        updated_jobs=updated_jobs,
+        duplicate_jobs=duplicate_jobs,
+    )
+
     return CrawlRunStatus(
         id=str(row.get("id")),
         status=str(row.get("status") or "unknown"),
         query=row.get("query"),
         location=row.get("location"),
         raw_jobs=_int("raw_jobs"),
-        normalized_jobs=_int("normalized_jobs"),
-        inserted_jobs=_int("inserted_jobs"),
-        updated_jobs=_int("updated_jobs"),
-        duplicate_jobs=_int("duplicate_jobs"),
-        companies_created=_int("companies_created"),
+        normalized_jobs=normalized_jobs,
+        inserted_jobs=inserted_jobs,
+        updated_jobs=updated_jobs,
+        duplicate_jobs=duplicate_jobs,
+        companies_created=companies_created,
         companies_updated=_int("companies_updated"),
+        new_jobs=display["new_jobs"],
+        duplicate_jobs_total=display["duplicate_jobs_total"],
+        jobs_verified=display["jobs_verified"],
         error=row.get("error"),
         created_at=row.get("started_at"),   # use started_at
         finished_at=row.get("completed_at"), # use completed_at

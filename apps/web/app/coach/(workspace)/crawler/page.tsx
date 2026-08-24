@@ -4,12 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  Briefcase,
   Building2,
   CheckCircle2,
   Clock,
   Copy,
-  Gauge,
   Loader2,
   RefreshCcw,
   Search,
@@ -417,26 +415,11 @@ export default function CrawlerPage() {
             </p>
           )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <KPICard label="Raw jobs" value={run.raw_jobs} icon={Briefcase} />
-            <KPICard
-              label="Normalized jobs"
-              value={run.normalized_jobs}
-              icon={Gauge}
-            />
-            <KPICard
-              label="Inserted jobs"
-              value={run.inserted_jobs}
-              icon={Sparkles}
-            />
-            <KPICard
-              label="Updated jobs"
-              value={run.updated_jobs}
-              icon={RefreshCcw}
-            />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <KPICard label="New jobs" value={run.new_jobs} icon={Sparkles} />
             <KPICard
               label="Duplicate jobs"
-              value={run.duplicate_jobs}
+              value={run.duplicate_jobs_total}
               icon={Copy}
             />
             <KPICard
@@ -445,9 +428,9 @@ export default function CrawlerPage() {
               icon={Building2}
             />
             <KPICard
-              label="Companies updated"
-              value={run.companies_updated}
-              icon={Building2}
+              label="Jobs verified"
+              value={run.jobs_verified}
+              icon={CheckCircle2}
             />
           </div>
         </section>
