@@ -17,12 +17,18 @@ enforce them:
 
 from __future__ import annotations
 
+import inspect
 import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 logger = logging.getLogger("careerhub.sponsors.resolver")
+
+# The version `output_config` (structured output) has been stable at since it
+# replaced the earlier `output_format` parameter. Referenced only in the error
+# message below — apps/api/requirements.txt is what actually enforces it.
+_MIN_ANTHROPIC_VERSION = "0.77.0"
 
 # Below this, a claimed match is recorded for review instead of being trusted.
 MIN_MATCH_CONFIDENCE = 0.75
@@ -210,6 +216,49 @@ def _coerce(
     )
 
 
+def _check_structured_output_supported(client: Any) -> None:
+    """Fail with a clear, actionable error instead of a bare `TypeError`.
+
+    The exact production failure this guards against: an anthropic SDK below
+    0.77.0 has no `output_config` parameter on `Messages.create`, and raises
+    `TypeError: Messages.create() got an unexpected keyword argument
+    'output_config'` — a local Python error, before any request reaches the
+    network, that gives no indication of what to install instead.
+    `requirements.txt` pins a floor that should make this impossible in a
+    correctly built deployment; this check exists for the one case that pin
+    cannot cover — an environment whose installed package does not match what
+    requirements.txt asked for (a stale build cache, an image frozen before
+    the pin was raised, a manually managed virtualenv).
+
+    A stub or fake client, as the test suite injects, is not checked: those
+    expose `create(self, **kwargs)` (or an equivalent catch-all), which this
+    treats the same as a client that genuinely accepts the parameter.
+    """
+    try:
+        params = inspect.signature(client.messages.create).parameters
+    except (TypeError, ValueError):
+        return  # not an inspectable callable — nothing to verify
+
+    if "output_config" in params:
+        return
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        return  # accepts arbitrary kwargs — a test double, not a real mismatch
+
+    try:
+        import anthropic
+
+        installed = getattr(anthropic, "__version__", "unknown")
+    except ImportError:
+        installed = "not installed"
+
+    raise RuntimeError(
+        f"The installed anthropic SDK (version {installed}) does not support "
+        "the `output_config` parameter this resolver requires for structured "
+        f"output, added in anthropic {_MIN_ANTHROPIC_VERSION}. Install the "
+        "version pinned in apps/api/requirements.txt and redeploy."
+    )
+
+
 def resolve(
     company: dict[str, Any],
     candidates: list[dict[str, Any]],
@@ -243,6 +292,8 @@ def resolve(
         import anthropic  # imported lazily; only needed when a call is made
 
         client = anthropic.Anthropic(api_key=api_key, timeout=timeout, max_retries=1)
+
+    _check_structured_output_supported(client)
 
     message = client.messages.create(
         model=model,
