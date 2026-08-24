@@ -105,7 +105,7 @@ export function DeleteCompaniesDialog({
             <div className="space-y-3">
               <p className="font-medium text-foreground">
                 This deletes the {plural} from the database for{" "}
-                <strong>everyone</strong> — you, every other coach, every
+                <strong>everyone</strong>: you, every other coach, every
                 student, the public company search, and{" "}
                 {count === 1 ? "its detail page" : "their detail pages"}. It
                 cannot be undone.
@@ -116,7 +116,7 @@ export function DeleteCompaniesDialog({
                   {count === 1 ? "this company" : "these companies"} are deleted.
                 </li>
                 <li>
-                  Stars, notes, and removed/hidden state are deleted — for every
+                  Stars, notes, and removed/hidden state are deleted for every
                   coach, not only you.
                 </li>
                 <li>

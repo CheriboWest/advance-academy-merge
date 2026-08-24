@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Instrument_Serif, Inter_Tight } from "next/font/google";
 
 import "./globals.css";
@@ -21,7 +20,7 @@ const bodySans = Inter_Tight({
 
 export const metadata: Metadata = {
   title: {
-    default: "Advance Academy — Which UK companies are hiring right now",
+    default: "Advance Academy: Which UK companies are hiring right now",
     template: "%s · Advance Academy",
   },
   description:
@@ -47,17 +46,8 @@ export default function RootLayout({
             <Navbar />
             <main className="flex-1 pb-16">{children}</main>
             <footer className="mt-auto bg-primary text-primary-foreground">
-              <PageContainer className="flex flex-col items-center gap-2 py-8 text-center text-sm sm:flex-row sm:justify-center sm:gap-6">
-                <p>
-                  © {new Date().getFullYear()} Advance Academy. Your path to
-                  career success.
-                </p>
-                <Link
-                  href="/coach/login"
-                  className="underline decoration-current/40 underline-offset-4 transition-[text-decoration-color] hover:decoration-current"
-                >
-                  Coach sign-in
-                </Link>
+              <PageContainer className="py-8 text-center text-sm">
+                <p>© {new Date().getFullYear()} Advance Academy</p>
               </PageContainer>
             </footer>
           </div>

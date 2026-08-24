@@ -25,7 +25,7 @@ const CONFIG: Record<
   ambiguous: {
     label: "Possible",
     icon: CircleHelp,
-    tooltip: "Possible sponsor-register match — review details",
+    tooltip: "Possible sponsor-register match, review details",
   },
   no_match: {
     label: "No confirmed",

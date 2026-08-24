@@ -44,11 +44,11 @@ export default async function HomePage() {
   return (
     <>
       <PageContainer as="section" className="pt-16 text-center sm:pt-24">
-        <p className="label-caps">UK graduate &amp; early-career hiring</p>
+        <p className="label-caps">Career Hub</p>
 
         <h1 className="mx-auto mt-5 max-w-4xl text-balance text-5xl leading-[0.95] sm:text-6xl md:text-7xl">
-          Which UK companies are hiring right now
-          <span className="text-highlight-ink"> — and how to reach them.</span>
+          Which UK companies are hiring right now,
+          <span className="text-highlight-ink"> and how to reach them.</span>
         </h1>
 
         <p className="mx-auto mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted-foreground">
