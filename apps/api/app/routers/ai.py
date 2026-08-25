@@ -17,11 +17,19 @@ SYSTEM_PROMPT = (
     "helps students and candidates connect with hiring companies.\n\n"
     "Write each email in professional British English. Keep it concise. "
     "Personalise it to the specific company using the details provided, and "
-    "mention their hiring activity naturally rather than mechanically. Avoid "
+    "mention their hiring activity naturally rather than mechanically. If a "
+    "recipient name is given, address them by first name and write to them as "
+    "an individual, not 'the team'; if their role is also given, you may "
+    "reference it naturally (e.g. why this matters for someone in that role). "
+    "If open roles are listed by title, refer to one or two of them "
+    "specifically rather than only citing a count. If a coach's private notes "
+    "are provided, treat them as background context to inform tone and "
+    "relevance — never quote them verbatim or reveal that notes exist. Avoid "
     "spammy or salesy language, exclamation marks, and empty superlatives. The "
     "body must be between 120 and 180 words, warm but businesslike, and suitable "
     "for reaching out to a hiring company. Do not invent facts that were not "
-    "provided.\n\n"
+    "provided — in particular, only mention visa/sponsor licence status if it "
+    "is explicitly given.\n\n"
     "Return only the subject line and the email body."
 )
 
@@ -38,16 +46,53 @@ OUTREACH_SCHEMA = {
 
 
 def _build_user_prompt(req: OutreachRequest) -> str:
+    """Structured context, one fact per line — only what `req` actually
+    provides. Optional sections are omitted rather than filled with a
+    placeholder like "not provided", so the model never has to be told to
+    ignore a blank; there is simply nothing there to reason about.
+    """
     location = req.location or "an unspecified location"
     sector = req.sector or "an unspecified sector"
-    return (
-        "Write an outreach email to this company.\n\n"
-        f"Company name: {req.company_name}\n"
-        f"Location: {location}\n"
-        f"Sector: {sector}\n"
-        f"Open jobs: {req.open_jobs}\n"
-        f"Lead score (0-100): {req.lead_score}\n"
-    )
+
+    lines = [
+        "Write an outreach email to this company.\n",
+        f"Company name: {req.company_name}",
+        f"Location: {location}",
+        f"Sector: {sector}",
+        f"Open jobs: {req.open_jobs}",
+        f"Lead score (0-100): {req.lead_score}",
+    ]
+
+    if req.open_job_titles:
+        lines.append("Open role titles: " + "; ".join(req.open_job_titles))
+
+    if req.contact_name:
+        lines.append(f"\nRecipient name: {req.contact_name}")
+        if req.contact_role:
+            lines.append(f"Recipient role: {req.contact_role}")
+
+    # Sponsorship is deliberately included only for "licensed" — every other
+    # status (ambiguous/no_match/not_checked/error) is either unconfirmed or
+    # a non-match, and the system prompt already says only to mention
+    # sponsorship if it is explicitly given here; omitting it for those
+    # statuses is what makes that instruction actually safe to follow.
+    if req.sponsorship_status == "licensed":
+        lines.append(
+            "\nSponsorship: this company holds a UK sponsor licence"
+            + (
+                f" (registered as {req.sponsorship_organisation_name})"
+                if req.sponsorship_organisation_name
+                else ""
+            )
+            + "."
+        )
+
+    if req.company_notes:
+        lines.append(f"\nCoach's private notes about this company: {req.company_notes}")
+    if req.contact_notes:
+        lines.append(f"Coach's private notes about this contact: {req.contact_notes}")
+
+    return "\n".join(lines) + "\n"
 
 
 @router.post("/outreach", response_model=OutreachResponse)

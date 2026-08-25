@@ -11,9 +11,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * Placeholder shell for the future personalised-outreach workflow. Reuses
- * the same company set as Sponsored Companies (getSponsoredCompanies) —
- * nothing here duplicates that data or the contacts it links to.
+ * Step 1 of the Outreach flow. Reuses the same company set as Sponsored
+ * Companies (getSponsoredCompanies) — nothing here duplicates that data.
+ * Picking a company continues to /coach/outreach/[companyId] for contact
+ * selection, research, AI generation, editing and sending.
  */
 export default async function OutreachPage() {
   let companies: SponsoredCompanyRow[];
@@ -27,7 +28,7 @@ export default async function OutreachPage() {
       <div className="space-y-4">
         <header className="space-y-1">
           <p className="text-sm text-muted-foreground">
-            Choose a company and contact to start building personalised outreach.
+            Choose a company to start building personalised outreach.
           </p>
         </header>
         <EmptyState
@@ -43,8 +44,8 @@ export default async function OutreachPage() {
     <div className="space-y-4">
       <header className="space-y-1">
         <p className="text-sm text-muted-foreground">
-          Choose a company and contact to start building personalised outreach.
-          Research, generation, sending and tracking are coming soon.
+          Choose a company to start building personalised outreach — research,
+          generation, editing and sending all happen on the next page.
         </p>
       </header>
       <OutreachShell companies={companies} />

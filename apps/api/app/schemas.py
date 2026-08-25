@@ -16,14 +16,57 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
+# Bounds the job-title list in the prompt — a hiring signal, not a full
+# listing; keeps the request (and the resulting prompt) from growing
+# unbounded for a company with many open roles.
+MAX_OUTREACH_JOB_TITLES = 10
+
+
 class OutreachRequest(BaseModel):
-    """Company context used to generate an outreach email."""
+    """Structured context used to generate a personalised outreach email.
+
+    Company fields are required context; contact/sponsorship/notes fields are
+    all optional so this still works for a company with no contact chosen yet
+    or no sponsorship check on record — the prompt builder (see
+    app/routers/ai.py `_build_user_prompt`) only mentions what is actually
+    provided, never fabricating a fact this request left blank.
+    """
 
     company_name: str = Field(..., min_length=1, description="Company name.")
     location: Optional[str] = Field(None, description="Company location, if known.")
     sector: Optional[str] = Field(None, description="Company sector, if known.")
     open_jobs: int = Field(0, ge=0, description="Number of open jobs.")
     lead_score: int = Field(0, description="Outreach lead score (0–100).")
+    open_job_titles: list[str] = Field(
+        default_factory=list,
+        max_length=MAX_OUTREACH_JOB_TITLES,
+        description="Titles of currently open roles — concrete hiring "
+        "signals, not just a count.",
+    )
+
+    contact_name: Optional[str] = Field(
+        None, description="The recipient's name, for direct personalisation."
+    )
+    contact_role: Optional[str] = Field(
+        None, description='The recipient\'s role, e.g. "Hiring Manager".'
+    )
+
+    # Only ever "licensed" in practice — see _build_user_prompt, which omits
+    # sponsorship from the prompt entirely for every other status so the
+    # model is never handed an unconfirmed or negative claim to reason about.
+    sponsorship_status: Optional[str] = Field(
+        None, description="This company's coach-facing sponsorship status."
+    )
+    sponsorship_organisation_name: Optional[str] = Field(
+        None, description="The matched sponsor register legal entity name, if licensed."
+    )
+
+    company_notes: Optional[str] = Field(
+        None, description="The coach's private notes about this company, if any."
+    )
+    contact_notes: Optional[str] = Field(
+        None, description="The coach's private notes about this contact, if any."
+    )
 
 
 class OutreachResponse(BaseModel):

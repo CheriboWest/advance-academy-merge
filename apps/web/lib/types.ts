@@ -78,7 +78,8 @@ export interface SponsoredCompanyRow {
   lead_score: number;
 }
 
-/** Company context shown on the Sponsored Company detail page's overview. */
+/** Company context shown on the Sponsored Company detail page's overview,
+ *  and reused as the Outreach research panel's company summary. */
 export interface SponsoredCompanyContext {
   company_id: string;
   slug: string;
@@ -87,6 +88,19 @@ export interface SponsoredCompanyContext {
   sector: string | null;
   open_jobs: number;
   lead_score: number;
+}
+
+/** A row from the `outreach_emails` table (per-coach, RLS-protected). */
+export interface OutreachEmail {
+  id: string;
+  coach_user_id: string;
+  company_id: string;
+  recruiter_id: string | null;
+  subject: string | null;
+  body: string | null;
+  status: string;
+  sent_at: string | null;
+  created_at: string | null;
 }
 
 /**
