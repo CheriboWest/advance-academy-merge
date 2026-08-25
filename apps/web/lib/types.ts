@@ -90,17 +90,61 @@ export interface SponsoredCompanyContext {
   lead_score: number;
 }
 
+/**
+ * The four statuses a coach ever sets or that a send ever writes.
+ * `follow_up_due` is NOT one of them — it is a fifth, purely computed
+ * display state (a "sent" row whose follow_up_at has passed), never stored.
+ * See lib/outreach-activity.ts computeDisplayStatus.
+ */
+export type OutreachStoredStatus = "draft" | "sent" | "replied" | "closed";
+
+/** `OutreachStoredStatus` plus the computed "follow_up_due" — what the
+ *  activity dashboard's filter and status badge actually work with. */
+export type OutreachDisplayStatus = OutreachStoredStatus | "follow_up_due";
+
 /** A row from the `outreach_emails` table (per-coach, RLS-protected). */
 export interface OutreachEmail {
   id: string;
   coach_user_id: string;
   company_id: string;
+  /** Legacy column, pre-dates `contact_id` and is unused by current code —
+   *  its exact semantics were never confirmed against the live schema, so
+   *  new code writes/reads `contact_id` instead rather than assuming. */
   recruiter_id: string | null;
+  contact_id: string | null;
+  recipient_email: string | null;
   subject: string | null;
   body: string | null;
   status: string;
   sent_at: string | null;
+  last_contacted_at: string | null;
+  follow_up_at: string | null;
+  notes: string | null;
   created_at: string | null;
+}
+
+/**
+ * One outreach_emails row enriched with the company/contact names it
+ * references — for the Outreach activity dashboard and a company's outreach
+ * history. Built by lib/outreach-activity.ts by merging outreach_emails
+ * (direct, RLS-scoped) with company names (public_company_summary) and
+ * contact names (GET /contacts, batched) — never a stored denormalisation.
+ */
+export interface OutreachActivityRow {
+  id: string;
+  companyId: string;
+  companyName: string;
+  contactId: string | null;
+  contactName: string | null;
+  contactRole: string | null;
+  recipientEmail: string | null;
+  subject: string | null;
+  storedStatus: OutreachStoredStatus;
+  displayStatus: OutreachDisplayStatus;
+  sentAt: string | null;
+  lastContactedAt: string | null;
+  followUpAt: string | null;
+  notes: string | null;
 }
 
 /**
