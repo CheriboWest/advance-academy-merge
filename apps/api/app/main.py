@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.config import get_settings
-from app.routers import ai, companies, discover, email, sponsors
+from app.routers import ai, companies, contacts, discover, email, sponsors
 
 
 def create_app() -> FastAPI:
@@ -34,6 +34,7 @@ def create_app() -> FastAPI:
     app.include_router(email.router)
     app.include_router(discover.router)
     app.include_router(companies.router)
+    app.include_router(contacts.router)
     app.include_router(sponsors.router)
 
     @app.get("/health", tags=["health"])

@@ -10,6 +10,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
+import type { Contact } from "@/lib/types";
 import type { OutreachInput } from "@/lib/outreach";
 import { generateOutreachViaApi } from "@/lib/outreach-api";
 import { sendEmailViaApi } from "@/lib/email-api";
@@ -18,6 +19,15 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const MANUAL_RECIPIENT = "manual";
 
 interface OutreachComposerProps {
   companyId: string;
@@ -25,6 +35,9 @@ interface OutreachComposerProps {
   initialSubject: string;
   initialBody: string;
   hasExistingDraft: boolean;
+  /** This company's contacts, for the "recipient" picker below. Empty is
+   *  fine — the manual email field (below) works exactly as it always has. */
+  contacts: Contact[];
 }
 
 type Feedback =
@@ -38,16 +51,40 @@ export function OutreachComposer({
   initialSubject,
   initialBody,
   hasExistingDraft,
+  contacts,
 }: OutreachComposerProps) {
   const [subject, setSubject] = React.useState(initialSubject);
   const [body, setBody] = React.useState(initialBody);
   const [recipient, setRecipient] = React.useState("");
+  const [selectedContactId, setSelectedContactId] =
+    React.useState<string>(MANUAL_RECIPIENT);
   const [generating, setGenerating] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [feedback, setFeedback] = React.useState<Feedback>(null);
   const [saving, startSaving] = React.useTransition();
 
   const busy = generating || saving || sending;
+
+  const selectedContact =
+    selectedContactId === MANUAL_RECIPIENT
+      ? null
+      : (contacts.find((contact) => contact.id === selectedContactId) ?? null);
+
+  // A contact was picked, has no email on file, and the coach hasn't typed
+  // one in manually either — nothing to send to yet.
+  const blockedByContactEmail =
+    selectedContact !== null && !selectedContact.email && !recipient.trim();
+
+  function handleSelectContact(contactId: string) {
+    setSelectedContactId(contactId);
+    if (contactId === MANUAL_RECIPIENT) return;
+    const contact = contacts.find((c) => c.id === contactId);
+    // Populates the same manual field below, which stays editable — picking
+    // a contact is a starting point, not a lock; the coach can still type
+    // over it (the existing manual-entry fallback keeps working exactly as
+    // it did before contacts existed).
+    setRecipient(contact?.email ?? "");
+  }
 
   function handleGenerate() {
     setGenerating(true);
@@ -187,6 +224,35 @@ export function OutreachComposer({
         />
       </div>
 
+      {contacts.length > 0 && (
+        <div className="space-y-2">
+          <label htmlFor="recipient-contact" className="text-sm font-medium">
+            Recipient contact
+          </label>
+          <Select
+            value={selectedContactId}
+            onValueChange={handleSelectContact}
+            disabled={busy}
+          >
+            <SelectTrigger id="recipient-contact" className="h-11">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={MANUAL_RECIPIENT}>
+                Enter email manually
+              </SelectItem>
+              {contacts.map((contact) => (
+                <SelectItem key={contact.id} value={contact.id}>
+                  {contact.full_name}
+                  {contact.job_title ? ` — ${contact.job_title}` : ""}
+                  {!contact.email ? " (no email on file)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       <div className="space-y-2">
         <label htmlFor="recipient" className="text-sm font-medium">
           Send to
@@ -200,6 +266,13 @@ export function OutreachComposer({
           disabled={busy}
           className="h-11"
         />
+        {blockedByContactEmail && (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <TriangleAlert className="size-3.5 shrink-0" />
+            {selectedContact?.full_name} has no email on file — enter one
+            above, or choose a different contact.
+          </p>
+        )}
       </div>
 
       {feedback && (
@@ -238,9 +311,9 @@ export function OutreachComposer({
         </Button>
         <Button
           type="button"
-         
+
           onClick={handleSend}
-          disabled={busy}
+          disabled={busy || blockedByContactEmail}
         >
           {sending ? (
             <Loader2 className="size-4 animate-spin" />

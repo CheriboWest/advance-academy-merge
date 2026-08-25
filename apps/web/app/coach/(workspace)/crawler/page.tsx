@@ -416,20 +416,23 @@ export default function CrawlerPage() {
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KPICard label="New jobs" value={run.new_jobs} icon={Sparkles} />
+            {/* `?? 0`, not `value || 0` — 0 is a valid, meaningful count (a
+                zero-result crawl) and must render as "0", never fall through
+                to a blank/undefined card. */}
+            <KPICard label="New jobs" value={run.new_jobs ?? 0} icon={Sparkles} />
             <KPICard
               label="Duplicate jobs"
-              value={run.duplicate_jobs_total}
+              value={run.duplicate_jobs_total ?? 0}
               icon={Copy}
             />
             <KPICard
               label="Companies created"
-              value={run.companies_created}
+              value={run.companies_created ?? 0}
               icon={Building2}
             />
             <KPICard
               label="Jobs verified"
-              value={run.jobs_verified}
+              value={run.jobs_verified ?? 0}
               icon={CheckCircle2}
             />
           </div>

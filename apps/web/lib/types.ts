@@ -149,6 +149,36 @@ export interface CompanySponsorshipStatusCompact {
   checked_at: string | null;
 }
 
+/**
+ * A company contact, from the FastAPI `/contacts` endpoints — never a direct
+ * Supabase read. The `contacts` table is deny-by-default RLS,
+ * service-role-only (same posture as sponsorship data): the backend is the
+ * only thing allowed to query it, which is also what keeps contacts off any
+ * public/student-facing page by construction.
+ */
+export interface Contact {
+  id: string;
+  company_id: string;
+  full_name: string;
+  job_title: string | null;
+  email: string | null;
+  phone: string | null;
+  linkedin_url: string | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** Body for creating/editing a contact — see ContactWrite in schemas.py. */
+export interface ContactInput {
+  full_name: string;
+  job_title: string | null;
+  email: string | null;
+  phone: string | null;
+  linkedin_url: string | null;
+  notes: string | null;
+}
+
 /** Aggregated data for the coach dashboard. */
 export interface CoachDashboardData {
   totalCompanies: number;
