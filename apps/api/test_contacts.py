@@ -254,6 +254,46 @@ check("list scopes by company_id — a different company sees none",
       http_client.get("/contacts?company_id=other-co").json() == [])
 
 # ---------------------------------------------------------------------------
+# List (batch): several companies at once — for the Sponsored Companies list
+# (contact counts) and the Outreach picker, without an N+1.
+# ---------------------------------------------------------------------------
+OTHER_COMPANY_ID = "dddddddd-0000-0000-0000-00000000000d"
+rest.companies.append({"id": OTHER_COMPANY_ID, "slug": "globex"})
+response = http_client.post("/contacts", json={
+    "company_id": OTHER_COMPANY_ID, "full_name": "Alex Kim", "email": "alex@globex.example",
+})
+check("seed contact for the second company succeeds (201)",
+      response.status_code == 201, f"got {response.status_code}")
+
+response = http_client.get(f"/contacts?company_ids={COMPANY_ID},{OTHER_COMPANY_ID}")
+check("batch list returns 200", response.status_code == 200)
+batch = response.json()
+check("batch list returns contacts from both companies",
+      {c["company_id"] for c in batch} == {COMPANY_ID, OTHER_COMPANY_ID},
+      f"got {sorted(c['company_id'] for c in batch)}")
+check("batch list returns exactly the union (3 + 1 = 4)", len(batch) == 4,
+      f"got {len(batch)}")
+
+response = http_client.get(f"/contacts?company_ids={OTHER_COMPANY_ID}")
+check("batch list with a single id behaves like a scoped list",
+      len(response.json()) == 1 and response.json()[0]["company_id"] == OTHER_COMPANY_ID)
+
+response = http_client.get("/contacts")
+check("list with neither company_id nor company_ids is a 422",
+      response.status_code == 422, f"got {response.status_code}")
+
+response = http_client.get("/contacts?company_ids=")
+check("an empty company_ids is treated the same as omitted (422, not a crash)",
+      response.status_code == 422, f"got {response.status_code} {response.text}")
+
+original_cap = contacts.MAX_COMPANY_IDS_PER_LIST
+contacts.MAX_COMPANY_IDS_PER_LIST = 1
+response = http_client.get(f"/contacts?company_ids={COMPANY_ID},{OTHER_COMPANY_ID}")
+contacts.MAX_COMPANY_IDS_PER_LIST = original_cap
+check("company_ids over the cap is rejected (422)",
+      response.status_code == 422, f"got {response.status_code}")
+
+# ---------------------------------------------------------------------------
 # Update: full-form resubmit; same "at least one contact method" rule.
 # ---------------------------------------------------------------------------
 contact_id = listed[0]["id"]

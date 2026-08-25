@@ -50,7 +50,7 @@ export async function getSponsorshipStatus(
  * /sponsors/companies/statuses), keyed by company id. One request
  * regardless of how many companies are shown — the whole reason this exists
  * instead of calling `getSponsorshipStatus` once per company, which would be
- * an N+1 the browser pays for on every /coach/outreach page load.
+ * an N+1 the browser pays for on every /coach/sponsored-companies page load.
  *
  * Never throws. A missing session, a network failure, or a non-2xx response
  * all resolve to an empty map — the list still renders, just without badges,

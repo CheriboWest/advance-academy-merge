@@ -2,20 +2,17 @@ import type { Metadata } from "next";
 import { TriangleAlert } from "lucide-react";
 
 import { getSponsoredCompanies } from "@/lib/coach";
+import { getContactCounts } from "@/lib/contacts";
+import { getSponsorshipStatuses } from "@/lib/sponsorship";
 import type { SponsoredCompanyRow } from "@/lib/types";
-import { OutreachShell } from "@/components/coach/outreach-shell";
+import { SponsoredCompaniesList } from "@/components/coach/sponsored-companies-list";
 import { EmptyState } from "@/components/empty-state";
 
 export const metadata: Metadata = {
-  title: "Outreach",
+  title: "Sponsored Companies",
 };
 
-/**
- * Placeholder shell for the future personalised-outreach workflow. Reuses
- * the same company set as Sponsored Companies (getSponsoredCompanies) —
- * nothing here duplicates that data or the contacts it links to.
- */
-export default async function OutreachPage() {
+export default async function SponsoredCompaniesPage() {
   let companies: SponsoredCompanyRow[];
 
   try {
@@ -27,7 +24,8 @@ export default async function OutreachPage() {
       <div className="space-y-4">
         <header className="space-y-1">
           <p className="text-sm text-muted-foreground">
-            Choose a company and contact to start building personalised outreach.
+            Visa sponsorship status, licence details, open jobs and contacts
+            for every company.
           </p>
         </header>
         <EmptyState
@@ -39,15 +37,27 @@ export default async function OutreachPage() {
     );
   }
 
+  // Two batched requests for every company on the page — not one per
+  // company, which a list this size would otherwise turn into an N+1.
+  const companyIds = companies.map((company) => company.company_id);
+  const [sponsorshipStatuses, contactCounts] = await Promise.all([
+    getSponsorshipStatuses(companyIds),
+    getContactCounts(companyIds),
+  ]);
+
   return (
     <div className="space-y-4">
       <header className="space-y-1">
         <p className="text-sm text-muted-foreground">
-          Choose a company and contact to start building personalised outreach.
-          Research, generation, sending and tracking are coming soon.
+          Visa sponsorship status, licence details, open jobs and contacts
+          for every company.
         </p>
       </header>
-      <OutreachShell companies={companies} />
+      <SponsoredCompaniesList
+        companies={companies}
+        sponsorshipStatuses={sponsorshipStatuses}
+        contactCounts={contactCounts}
+      />
     </div>
   );
 }

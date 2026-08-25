@@ -67,21 +67,8 @@ export interface CoachCompanyRow {
   notes: string;
 }
 
-/** A row from the `outreach_emails` table (per-coach, RLS-protected). */
-export interface OutreachEmail {
-  id: string;
-  coach_user_id: string;
-  company_id: string;
-  recruiter_id: string | null;
-  subject: string | null;
-  body: string | null;
-  status: string;
-  sent_at: string | null;
-  created_at: string | null;
-}
-
-/** A company shown in the outreach list, plus whether a draft already exists. */
-export interface OutreachCompany {
+/** A company shown in the Sponsored Companies list. */
+export interface SponsoredCompanyRow {
   company_id: string;
   slug: string;
   name: string;
@@ -89,11 +76,10 @@ export interface OutreachCompany {
   sector: string | null;
   open_jobs: number;
   lead_score: number;
-  hasDraft: boolean;
 }
 
-/** Company context shown on the composer page and fed to the generator. */
-export interface OutreachCompanyContext {
+/** Company context shown on the Sponsored Company detail page's overview. */
+export interface SponsoredCompanyContext {
   company_id: string;
   slug: string;
   name: string;

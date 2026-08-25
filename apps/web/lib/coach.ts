@@ -5,9 +5,8 @@ import type {
   CoachCompanyRow,
   CoachDashboardData,
   CompanySummary,
-  OutreachCompany,
-  OutreachCompanyContext,
-  OutreachEmail,
+  SponsoredCompanyContext,
+  SponsoredCompanyRow,
 } from "@/lib/types";
 
 const COMPANY_COLUMNS =
@@ -190,50 +189,33 @@ export async function getCoachCompanies(
   });
 }
 
-const OUTREACH_COMPANY_COLUMNS =
+const SPONSORED_COMPANY_COLUMNS =
   "id, slug, name, sector, region, hq_location, open_jobs, lead_score";
 
 /**
- * All companies for the outreach list, flagged with whether the current coach
- * already has a saved draft. The drafts query is limited to the coach's own
- * rows (explicit filter plus RLS).
+ * All companies for the Sponsored Companies list. Also the company set the
+ * Outreach placeholder's "choose a company" step reuses — see
+ * app/coach/(workspace)/outreach/page.tsx — so this stays free of anything
+ * Sponsored-Companies-specific (sponsorship status and contact counts are
+ * fetched separately and merged in by each page, not baked in here).
  */
-export async function getOutreachCompanies(): Promise<OutreachCompany[]> {
+export async function getSponsoredCompanies(): Promise<SponsoredCompanyRow[]> {
   const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
   const hiddenIds = await getHiddenCompanyIds(supabase);
 
   let companiesQuery = supabase
     .from("public_company_summary")
-    .select(OUTREACH_COMPANY_COLUMNS)
+    .select(SPONSORED_COMPANY_COLUMNS)
     .order("name", { ascending: true });
   if (hiddenIds.length) {
     companiesQuery = companiesQuery.not("id", "in", inList(hiddenIds));
   }
 
-  const [companiesResult, draftsResult] = await Promise.all([
-    companiesQuery,
-    user
-      ? supabase
-          .from("outreach_emails")
-          .select("company_id")
-          .eq("coach_user_id", user.id)
-          .eq("status", "draft")
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  const { data, error } = await companiesQuery;
+  if (error) throw new Error(error.message);
 
-  if (companiesResult.error) throw new Error(companiesResult.error.message);
-  if (draftsResult.error) throw new Error(draftsResult.error.message);
-
-  const draftCompanyIds = new Set(
-    (draftsResult.data ?? []).map((row) => row.company_id as string)
-  );
-
-  return (companiesResult.data ?? []).map((company) => ({
+  return (data ?? []).map((company) => ({
     company_id: company.id as string,
     slug: company.slug as string,
     name: company.name as string,
@@ -244,14 +226,13 @@ export async function getOutreachCompanies(): Promise<OutreachCompany[]> {
     sector: (company.sector as string | null) ?? null,
     open_jobs: (company.open_jobs as number | null) ?? 0,
     lead_score: (company.lead_score as number | null) ?? 0,
-    hasDraft: draftCompanyIds.has(company.id as string),
   }));
 }
 
-/** Company context for the composer page, by company id. */
-export async function getCompanyContext(
+/** Company context for the Sponsored Company detail page's overview, by id. */
+export async function getSponsoredCompanyContext(
   companyId: string
-): Promise<OutreachCompanyContext | null> {
+): Promise<SponsoredCompanyContext | null> {
   const supabase = await createSupabaseServerClient();
 
   // A company the coach has removed is treated as not found in their workspace.
@@ -260,7 +241,7 @@ export async function getCompanyContext(
 
   const { data, error } = await supabase
     .from("public_company_summary")
-    .select(OUTREACH_COMPANY_COLUMNS)
+    .select(SPONSORED_COMPANY_COLUMNS)
     .eq("id", companyId)
     .maybeSingle();
 
@@ -279,29 +260,4 @@ export async function getCompanyContext(
     open_jobs: (data.open_jobs as number | null) ?? 0,
     lead_score: (data.lead_score as number | null) ?? 0,
   };
-}
-
-/** The current coach's existing draft for a company, or `null`. */
-export async function getExistingDraft(
-  companyId: string
-): Promise<OutreachEmail | null> {
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data, error } = await supabase
-    .from("outreach_emails")
-    .select("*")
-    .eq("coach_user_id", user.id)
-    .eq("company_id", companyId)
-    .eq("status", "draft")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  return (data as OutreachEmail | null) ?? null;
 }

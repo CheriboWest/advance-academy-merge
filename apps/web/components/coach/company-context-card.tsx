@@ -2,15 +2,15 @@ import * as React from "react";
 import Link from "next/link";
 import { Briefcase, ExternalLink, MapPin } from "lucide-react";
 
-import type { OutreachCompanyContext } from "@/lib/types";
+import type { SponsoredCompanyContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { LeadScoreBadge } from "@/components/lead-score-badge";
 
 interface CompanyContextCardProps {
-  company: OutreachCompanyContext;
+  company: SponsoredCompanyContext;
 }
 
-/** Read-only context panel for a company on the outreach composer page. */
+/** Read-only overview panel for a company on the Sponsored Company page. */
 export function CompanyContextCard({ company }: CompanyContextCardProps) {
   return (
     <section className="rounded-sm border border-border bg-card p-6">

@@ -5,9 +5,10 @@ import type { CompanySponsorshipStatus } from "@/lib/types";
  * Force a fresh sponsorship check for one company via the FastAPI backend
  * (POST /sponsors/companies/{id}/recheck), and return the resulting status.
  *
- * Same pattern as generateOutreachViaApi/sendEmailViaApi: the browser only
- * ever talks to the backend, carrying the signed-in coach's Supabase access
- * token; the backend holds the Anthropic key and does the actual matching.
+ * Same pattern as the other lib/*-api.ts client-side files (e.g.
+ * contacts-api.ts): the browser only ever talks to the backend, carrying the
+ * signed-in coach's Supabase access token; the backend holds the Anthropic
+ * key and does the actual matching.
  */
 export async function recheckSponsorshipViaApi(
   companyId: string,
