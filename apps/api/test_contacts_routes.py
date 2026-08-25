@@ -127,10 +127,29 @@ else:
 
 if CONTACTS_TS.exists():
     source = CONTACTS_TS.read_text()
-    list_call = re.search(r"fetch\(\s*`\$\{baseUrl\.replace\([^)]*\)\}([^$]+)\$\{", source)
-    check("contacts.ts GET path starts with /contacts?company_id=",
-          bool(list_call) and list_call.group(1) == "/contacts?company_id=",
-          f"got {list_call.group(1) if list_call else None!r}")
+    # getContacts/getContactCounts both go through one shared fetchContacts(query)
+    # helper — check that helper hits exactly /contacts?<query>, and that the two
+    # callers build a query starting with the param name the backend expects
+    # (company_id= / company_ids=), rather than pinning one exact call shape that
+    # a harmless internal refactor (e.g. extracting that helper) would break.
+    base_call = re.search(
+        r"fetch\(\s*`\$\{baseUrl\.replace\([^)]*\)\}/contacts\?\$\{query\}`", source
+    )
+    check("contacts.ts's shared fetch helper hits exactly /contacts?<query>",
+          bool(base_call), f"searched {CONTACTS_TS.name} for the fetch(...) call")
+
+    get_contacts_query = re.search(
+        r"function getContacts\([^)]*\)[^{]*\{\s*return fetchContacts\(\s*`([^$]+)\$\{",
+        source,
+    )
+    check("getContacts() queries by company_id=",
+          bool(get_contacts_query) and get_contacts_query.group(1) == "company_id=",
+          f"got {get_contacts_query.group(1) if get_contacts_query else None!r}")
+
+    get_counts_query = re.search(r"await fetchContacts\(\s*`([^$]+)\$\{", source)
+    check("getContactCounts() queries by company_ids=",
+          bool(get_counts_query) and get_counts_query.group(1) == "company_ids=",
+          f"got {get_counts_query.group(1) if get_counts_query else None!r}")
 else:
     check("apps/web/lib/contacts.ts exists (path-agreement check)", False,
           f"not found at {CONTACTS_TS}")

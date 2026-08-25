@@ -2,15 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowUpRight, Briefcase, MapPin, PenLine, Search } from "lucide-react";
+import { ArrowUpRight, Briefcase, MapPin, Search, Users } from "lucide-react";
 
 import type {
   CompanySponsorshipStatusCompact,
-  OutreachCompany,
+  SponsoredCompanyRow,
   SponsorshipStatus,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -23,12 +22,14 @@ import { LeadScoreBadge } from "@/components/lead-score-badge";
 import { SponsorshipBadge } from "@/components/coach/sponsorship-badge";
 import { EmptyState } from "@/components/empty-state";
 
-interface OutreachListProps {
-  companies: OutreachCompany[];
+interface SponsoredCompaniesListProps {
+  companies: SponsoredCompanyRow[];
   /** Keyed by company_id. A company absent here (a failed batch fetch, or
    *  simply never checked) renders no sponsorship badge — the card is still
    *  fully usable without one. */
   sponsorshipStatuses?: Record<string, CompanySponsorshipStatusCompact>;
+  /** Keyed by company_id. A company absent here has 0 contacts. */
+  contactCounts?: Record<string, number>;
 }
 
 const SPONSORSHIP_FILTER_ALL = "all";
@@ -53,7 +54,7 @@ function normalize(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function matchesSearch(company: OutreachCompany, query: string): boolean {
+function matchesSearch(company: SponsoredCompanyRow, query: string): boolean {
   if (!query) return true;
   return (
     normalize(company.name).includes(query) ||
@@ -62,18 +63,22 @@ function matchesSearch(company: OutreachCompany, query: string): boolean {
   );
 }
 
-/** Grid of companies with an entry point into the outreach composer, with a
- * client-side search box and sponsorship-status filter above it.
+/** Grid of sponsored companies — sponsorship status, contact count, open
+ * jobs and location/sector at a glance — with a client-side search box and
+ * sponsorship-status filter above it. Each card opens the full company
+ * profile (overview, visa sponsorship, open jobs, contacts).
  *
  * Client-side, not a new backend endpoint: `companies` is already the full,
- * unpaginated list for this coach (see getOutreachCompanies) and
- * `sponsorshipStatuses` is already the full batch fetched once on page load —
- * filtering an array already in memory needs no additional request.
+ * unpaginated list for this coach (see getSponsoredCompanies) and both
+ * `sponsorshipStatuses` and `contactCounts` are already the full batches
+ * fetched once on page load — filtering an array already in memory needs no
+ * additional request.
  */
-export function OutreachList({
+export function SponsoredCompaniesList({
   companies,
   sponsorshipStatuses = {},
-}: OutreachListProps) {
+  contactCounts = {},
+}: SponsoredCompaniesListProps) {
   const [query, setQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<
     typeof SPONSORSHIP_FILTER_ALL | SponsorshipStatus
@@ -83,8 +88,8 @@ export function OutreachList({
     return (
       <EmptyState
         icon={Briefcase}
-        title="No companies to reach out to yet"
-        description="Once companies are available, you'll be able to draft outreach here."
+        title="No sponsored companies yet"
+        description="Once companies are available, their sponsorship status and contacts will show up here."
       />
     );
   }
@@ -139,63 +144,61 @@ export function OutreachList({
         />
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {filtered.map((company) => (
-            <article
-              key={company.company_id}
-              className="flex h-full flex-col justify-between gap-6 rounded-sm border border-border bg-card p-6 transition-shadow hover:shadow-md"
-            >
-              <div className="flex flex-col gap-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <h3 className="text-lg leading-tight">
-                      {company.name}
-                    </h3>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {company.hasDraft && (
-                        <Badge variant="secondary">
-                          Draft saved
-                        </Badge>
-                      )}
-                      <SponsorshipBadge
-                        status={sponsorshipStatuses[company.company_id]}
-                      />
+          {filtered.map((company) => {
+            const contactCount = contactCounts[company.company_id] ?? 0;
+            return (
+              <article
+                key={company.company_id}
+                className="flex h-full flex-col justify-between gap-6 rounded-sm border border-border bg-card p-6 transition-shadow hover:shadow-md"
+              >
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <h3 className="text-lg leading-tight">{company.name}</h3>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <SponsorshipBadge
+                          status={sponsorshipStatuses[company.company_id]}
+                        />
+                        {company.sector && (
+                          <span className="text-sm text-muted-foreground">
+                            {company.sector}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    <LeadScoreBadge score={company.lead_score} />
                   </div>
-                  <LeadScoreBadge score={company.lead_score} />
+
+                  <dl className="grid gap-2 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <MapPin className="size-4 shrink-0" />
+                      <span>{company.location}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Users className="size-4 shrink-0" />
+                      <span>
+                        {contactCount} {contactCount === 1 ? "contact" : "contacts"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Briefcase className="size-4 shrink-0" />
+                      <span>
+                        {company.open_jobs} open{" "}
+                        {company.open_jobs === 1 ? "job" : "jobs"}
+                      </span>
+                    </div>
+                  </dl>
                 </div>
 
-                <dl className="grid gap-2 text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <MapPin className="size-4 shrink-0" />
-                    <span>{company.location}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Briefcase className="size-4 shrink-0" />
-                    <span>
-                      {company.open_jobs} open{" "}
-                      {company.open_jobs === 1 ? "job" : "jobs"}
-                    </span>
-                  </div>
-                </dl>
-              </div>
-
-              <Button asChild className="w-full">
-                <Link href={`/coach/outreach/${company.company_id}`}>
-                  {company.hasDraft ? (
-                    <>
-                      <PenLine className="size-4" />
-                      Edit outreach
-                    </>
-                  ) : (
-                    <>
-                      Create outreach
-                      <ArrowUpRight className="size-4" />
-                    </>
-                  )}
-                </Link>
-              </Button>
-            </article>
-          ))}
+                <Button asChild variant="outline" className="w-full">
+                  <Link href={`/coach/sponsored-companies/${company.company_id}`}>
+                    View company
+                    <ArrowUpRight className="size-4" />
+                  </Link>
+                </Button>
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
 import {
+  BadgeCheck,
   Building2,
   LayoutDashboard,
   Mail,
@@ -18,6 +19,11 @@ export const coachNavItems: CoachNavItem[] = [
   { href: "/coach/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/coach/companies", label: "Companies", icon: Building2 },
   { href: "/coach/crawler", label: "Crawler", icon: Radar },
+  // Sponsorship status, licence/routes, open jobs and contacts for a company
+  // — the same "licensed" badge icon used throughout the sponsorship UI.
+  { href: "/coach/sponsored-companies", label: "Sponsored Companies", icon: BadgeCheck },
+  // Placeholder shell for the future personalised-outreach workflow — see
+  // app/coach/(workspace)/outreach/page.tsx.
   { href: "/coach/outreach", label: "Outreach", icon: Mail },
   // Shared search surface. Job Role Search here respects this coach's hidden
   // companies (see lib/role-search.ts).

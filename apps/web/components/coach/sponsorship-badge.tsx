@@ -46,7 +46,7 @@ const CONFIG: Record<
 
 /**
  * Compact sponsorship indicator for a company list/card — the same status
- * `SponsorshipCard` shows in full on the company's outreach page, scaled down
+ * `SponsorshipCard` shows in full on the company's Sponsored Company page, scaled down
  * to a single small badge. Deliberately quiet: an icon and a couple of words,
  * not a colorful pill, so it never competes with the company name for
  * attention.

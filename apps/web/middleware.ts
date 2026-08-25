@@ -6,6 +6,7 @@ const PROTECTED_PREFIXES = [
   "/coach/dashboard",
   "/coach/companies",
   "/coach/crawler",
+  "/coach/sponsored-companies",
   "/coach/outreach",
 ];
 

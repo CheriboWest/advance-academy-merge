@@ -28,23 +28,24 @@ import { ContactFormDialog } from "@/components/coach/contact-form-dialog";
 
 interface ContactsSectionProps {
   companyId: string;
-  /** Controlled by the parent so a live-selected recipient in the outreach
-   *  composer (a sibling component) stays in sync with adds/edits/deletes
-   *  here, without a page reload. */
-  contacts: Contact[];
-  onContactsChange: (contacts: Contact[]) => void;
+  /** The company's contacts as of the server render. Own local state from
+   *  here — self-contained, since nothing else on the Sponsored Company page
+   *  needs to react live to an add/edit/delete (unlike the old outreach
+   *  composer's recipient picker, which is why this used to be a
+   *  parent-controlled component). */
+  initialContacts: Contact[];
 }
 
 /**
  * View, add, edit and delete contacts for one company. Never rendered on a
- * public/student-facing page — this composer page is coach-only
+ * public/student-facing page — this page is coach-only
  * (`get_current_user`-gated all the way down through /contacts).
  */
 export function ContactsSection({
   companyId,
-  contacts,
-  onContactsChange,
+  initialContacts,
 }: ContactsSectionProps) {
+  const [contacts, setContacts] = React.useState(initialContacts);
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Contact | null>(null);
   const [pendingDelete, setPendingDelete] = React.useState<Contact | null>(null);
@@ -62,12 +63,12 @@ export function ContactsSection({
   }
 
   function handleSaved(saved: Contact) {
-    const exists = contacts.some((c) => c.id === saved.id);
-    onContactsChange(
-      exists
-        ? contacts.map((c) => (c.id === saved.id ? saved : c))
-        : [saved, ...contacts]
-    );
+    setContacts((prev) => {
+      const exists = prev.some((c) => c.id === saved.id);
+      return exists
+        ? prev.map((c) => (c.id === saved.id ? saved : c))
+        : [saved, ...prev];
+    });
   }
 
   function handleDelete() {
@@ -77,7 +78,7 @@ export function ContactsSection({
     void (async () => {
       try {
         await deleteContactViaApi(pendingDelete.id);
-        onContactsChange(contacts.filter((c) => c.id !== pendingDelete.id));
+        setContacts((prev) => prev.filter((c) => c.id !== pendingDelete.id));
         setPendingDelete(null);
       } catch (err) {
         setDeleteError(

@@ -12,6 +12,9 @@ export interface MetaActionResult {
 const COMPANY_PATHS = [
   "/coach/companies",
   "/coach/dashboard",
+  "/coach/sponsored-companies",
+  // The Outreach placeholder's "choose a company" step reuses the same
+  // company set (see lib/coach.ts's getSponsoredCompanies).
   "/coach/outreach",
 ] as const;
 
@@ -227,13 +230,13 @@ export async function deleteCompaniesPermanentlyAction(
   };
 
   // Deleted companies leave every coach list, the dashboard aggregates, the
-  // outreach list, the public search, the landing page counts, and their own
-  // detail page — so all of those are revalidated, not just this page.
+  // sponsored-companies list, the public search, the landing page counts, and
+  // their own detail page — so all of those are revalidated, not just this page.
   revalidateCoachPaths();
   revalidatePath("/search");
   revalidatePath("/");
   revalidatePath("/companies/[slug]", "page");
-  revalidatePath("/coach/outreach/[companyId]", "page");
+  revalidatePath("/coach/sponsored-companies/[companyId]", "page");
 
   return {
     error: null,

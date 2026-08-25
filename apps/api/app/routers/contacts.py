@@ -13,6 +13,7 @@ every other route in this codebase.
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -30,6 +31,11 @@ CONTACT_COLUMNS = (
     "id,company_id,full_name,job_title,email,phone,linkedin_url,notes,"
     "created_at,updated_at"
 )
+
+# Bounds the `company_ids` batch list — the Sponsored Companies list (contact
+# counts per row) and the Outreach picker (a company's contacts) are the two
+# callers; neither needs more than a coach's whole company set at once.
+MAX_COMPANY_IDS_PER_LIST = 500
 
 
 def _require_supabase(settings: Settings) -> SupabaseRest:
@@ -51,19 +57,53 @@ async def _company_exists(
 
 @router.get("", response_model=list[Contact])
 async def list_contacts(
-    company_id: str = Query(..., description="Company to list contacts for."),
+    company_id: Optional[str] = Query(
+        None, description="A single company to list contacts for."
+    ),
+    company_ids: Optional[str] = Query(
+        None,
+        description="Comma-separated company ids, for a batch list across "
+        "several companies at once.",
+    ),
     _user_id: str = Depends(get_current_user),
 ) -> list[Contact]:
-    """Every contact for one company, most recently added first."""
+    """Contacts for one company, or a batch across several — most recently
+    added first.
+
+    Exactly one of `company_id`/`company_ids` is expected. The batch form
+    exists so a list of companies can show a contact count (Sponsored
+    Companies) or offer a contact picker once a company is chosen (Outreach)
+    without an N+1 of one request per company — both reuse this same
+    endpoint and the same `Contact` shape rather than a bespoke counts-only
+    response.
+    """
+    if not company_id and not company_ids:
+        raise HTTPException(
+            status_code=422, detail="Provide company_id or company_ids."
+        )
+
     settings = get_settings()
     rest = _require_supabase(settings)
+
+    if company_ids:
+        ids = [c.strip() for c in company_ids.split(",") if c.strip()]
+        if not ids:
+            return []
+        if len(ids) > MAX_COMPANY_IDS_PER_LIST:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Provide at most {MAX_COMPANY_IDS_PER_LIST} company_ids.",
+            )
+        company_filter = f"in.({','.join(ids)})"
+    else:
+        company_filter = f"eq.{company_id}"
 
     async with httpx.AsyncClient() as client:
         rows = await rest.select(
             client,
             "contacts",
             {
-                "company_id": f"eq.{company_id}",
+                "company_id": company_filter,
                 "select": CONTACT_COLUMNS,
                 "order": "created_at.desc",
             },
