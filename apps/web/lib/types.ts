@@ -17,6 +17,12 @@ export interface CompanySummary {
   hq_location: string | null;
   lead_score: number | null;
   open_jobs: number | null;
+  /** Short, factual summary generated from stored data — see
+   *  apps/api/app/companies/summarizer.py. `null` until first generated
+   *  (company creation / crawl enrichment / manual refresh); never
+   *  generated client-side. */
+  ai_summary: string | null;
+  ai_summary_generated_at: string | null;
 }
 
 /**
@@ -88,6 +94,8 @@ export interface SponsoredCompanyContext {
   sector: string | null;
   open_jobs: number;
   lead_score: number;
+  ai_summary: string | null;
+  ai_summary_generated_at: string | null;
 }
 
 /**

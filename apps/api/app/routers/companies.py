@@ -23,7 +23,12 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth import get_current_user
 from app.config import get_settings
-from app.schemas import DeleteCompaniesRequest, DeleteCompaniesResponse
+from app.crawler.supabase_rest import SupabaseRest
+from app.schemas import (
+    CompanySummaryResponse,
+    DeleteCompaniesRequest,
+    DeleteCompaniesResponse,
+)
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -124,3 +129,70 @@ async def delete_companies(
         result.deleted_contacts,
     )
     return result
+
+
+@router.post("/{company_id}/summary/refresh", response_model=CompanySummaryResponse)
+async def refresh_company_summary(
+    company_id: str,
+    user_id: str = Depends(get_current_user),
+) -> CompanySummaryResponse:
+    """Regenerate a company's stored summary on demand.
+
+    Unlike the post-crawl sweep (which quietly falls back to the template on
+    any AI failure so a bad summary attempt never looks like a crawl
+    failure), a coach who clicks "Regenerate" should see it fail rather than
+    silently get a worse result — so this calls `generate_and_store_summary`
+    with `fallback_on_error=False`.
+    """
+    from app.companies.summarizer import generate_and_store_summary
+
+    settings = get_settings()
+    if not (settings.supabase_url and settings.supabase_service_role_key):
+        raise HTTPException(
+            status_code=500, detail="Server is not configured for Supabase access."
+        )
+
+    rest = SupabaseRest(settings.supabase_url, settings.supabase_service_role_key)
+
+    async with httpx.AsyncClient(timeout=settings.request_timeout) as client:
+        try:
+            summary = await generate_and_store_summary(
+                client,
+                rest,
+                company_id,
+                api_key=settings.anthropic_api_key,
+                model=settings.anthropic_model,
+                timeout=settings.request_timeout,
+                fallback_on_error=False,
+            )
+        except Exception as exc:  # noqa: BLE001 - surfaced to the coach
+            logger.exception(
+                "Manual summary refresh failed for company %s", company_id
+            )
+            raise HTTPException(
+                status_code=502,
+                detail=f"Could not generate a summary: {exc}",
+            ) from exc
+
+        if summary is None:
+            raise HTTPException(status_code=404, detail="Company not found.")
+
+        rows = await rest.select(
+            client,
+            "companies",
+            {
+                "id": f"eq.{company_id}",
+                "select": "ai_summary_generated_at",
+                "limit": "1",
+            },
+        )
+
+    generated_at = (rows[0].get("ai_summary_generated_at") if rows else None) or ""
+    logger.info(
+        "Coach %s manually refreshed the summary for company %s", user_id, company_id
+    )
+    return CompanySummaryResponse(
+        company_id=company_id,
+        ai_summary=summary,
+        ai_summary_generated_at=generated_at,
+    )

@@ -4,7 +4,7 @@ import type { CompanySummary, Job } from "@/lib/types";
 
 /** Columns exposed by the `public_company_summary` view. */
 const COMPANY_COLUMNS =
-  "id, slug, name, website, careers_url, sector, region, hq_location, lead_score, open_jobs";
+  "id, slug, name, website, careers_url, sector, region, hq_location, lead_score, open_jobs, ai_summary, ai_summary_generated_at";
 
 /**
  * Fetch companies from the `public_company_summary` view, applying the public

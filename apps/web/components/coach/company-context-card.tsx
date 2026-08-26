@@ -5,6 +5,7 @@ import { Briefcase, ExternalLink, MapPin } from "lucide-react";
 import type { SponsoredCompanyContext } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { LeadScoreBadge } from "@/components/lead-score-badge";
+import { CompanySummaryPanel } from "@/components/coach/company-summary-panel";
 
 interface CompanyContextCardProps {
   company: SponsoredCompanyContext;
@@ -41,6 +42,11 @@ export function CompanyContextCard({ company }: CompanyContextCardProps) {
           </div>
           <LeadScoreBadge score={company.lead_score} />
         </div>
+
+        <CompanySummaryPanel
+          companyId={company.company_id}
+          initialSummary={company.ai_summary}
+        />
 
         <Link
           href={`/companies/${company.slug}`}

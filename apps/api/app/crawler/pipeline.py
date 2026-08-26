@@ -33,6 +33,10 @@ OVERALL_TIMEOUT_SECONDS = 90.0
 # Sponsorship resolution runs after the crawl has already been finalized, so
 # this ceiling only bounds the background work — it can never make a crawl fail.
 SPONSORSHIP_TIMEOUT_SECONDS = 240.0
+# Same reasoning as SPONSORSHIP_TIMEOUT_SECONDS: company-summary generation
+# also runs after the crawl is finalized, so this only bounds that background
+# sweep — a slow or failing summary call can never make a crawl fail.
+SUMMARY_TIMEOUT_SECONDS = 240.0
 
 
 def _now_iso() -> str:
@@ -160,11 +164,37 @@ async def _ingest(
         slugs = list(groups.keys())
 
     with stage("select_companies", f"({len(slugs)} slugs)"):
-        existing_companies = await rest.select(
-            client,
-            "companies",
-            {"slug": f"in.({_csv(slugs)})", "select": "id,slug,website,sector"},
-        )
+        # `ai_summary` (migration 0013) is included so the summary sweep
+        # below knows which companies still need one — but this SELECT must
+        # not be how a missing migration breaks ingestion itself. If the
+        # column isn't live yet, retry without it and simply skip the
+        # summary worklist for this crawl (summaries stay a page-render
+        # concern to fix, never a "the crawl broke" one).
+        summary_column_available = True
+        try:
+            existing_companies = await rest.select(
+                client,
+                "companies",
+                {
+                    "slug": f"in.({_csv(slugs)})",
+                    "select": "id,slug,website,sector,ai_summary",
+                },
+            )
+        except httpx.HTTPStatusError as exc:
+            if not _is_missing_column_error(exc):
+                raise
+            summary_column_available = False
+            print(
+                "[ingest] companies.ai_summary is missing — apply "
+                "infra/supabase/migrations/0013_company_ai_summary.sql. "
+                "Skipping the summary worklist for this crawl.",
+                flush=True,
+            )
+            existing_companies = await rest.select(
+                client,
+                "companies",
+                {"slug": f"in.({_csv(slugs)})", "select": "id,slug,website,sector"},
+            )
         existing_by_slug = {row["slug"]: row for row in existing_companies}
 
     # Enrich all companies concurrently (a no-op for those without a website).
@@ -178,6 +208,7 @@ async def _ingest(
     # Build company rows (lead scoring is in-memory/cheap).
     with stage("score_and_build_companies"):
         company_rows: list[dict[str, Any]] = []
+        slugs_needing_summary: list[str] = []
         for slug in slugs:
             group = groups[slug]
             group_jobs: list[NormalizedJob] = group["jobs"]
@@ -215,6 +246,13 @@ async def _ingest(
                 if first_source:
                     stats.record_source_outcome(first_source, companies_created=1)
 
+            # Brand new (no prior row at all) or pre-existing but never
+            # summarised — either way it needs one. A company that already
+            # has an ai_summary is left alone here; a fresh one is only ever
+            # produced by a manual refresh, not by every later crawl touch.
+            if summary_column_available and not (prior or {}).get("ai_summary"):
+                slugs_needing_summary.append(slug)
+
     with stage("upsert_companies", f"({len(company_rows)} rows)"):
         upserted = await rest.upsert(
             client,
@@ -224,6 +262,11 @@ async def _ingest(
             prefer="resolution=merge-duplicates,return=representation",
         )
         company_id_by_slug = {row["slug"]: row["id"] for row in upserted}
+        stats.companies_needing_summary.extend(
+            company_id_by_slug[slug]
+            for slug in slugs_needing_summary
+            if slug in company_id_by_slug
+        )
 
     # Build normalized job rows, deduplicating within this crawl by content_hash.
     with stage("normalize_jobs"):
@@ -520,6 +563,72 @@ async def _resolve_sponsorship(company_ids: list[str]) -> None:
         )
 
 
+async def _generate_company_summaries(company_ids: list[str]) -> None:
+    """Generate ai_summary for companies this crawl touched that don't have
+    one yet.
+
+    Isolated exactly like `_resolve_sponsorship`: runs after the crawl has
+    already been finalized, has its own timeout, and never raises — a slow
+    or failing summary call can never turn a successful crawl into a
+    failure or timeout. Skipped entirely when there is no API key, in which
+    case each company still gets a deterministic template summary (never
+    just left blank).
+    """
+    if not company_ids:
+        return
+
+    settings = get_settings()
+    started = time.perf_counter()
+    try:
+        from app.companies.summarizer import generate_and_store_summary
+        from app.crawler.supabase_rest import SupabaseRest as _Rest
+
+        rest = _Rest(settings.supabase_url, settings.supabase_service_role_key)
+
+        async def _generate_all() -> int:
+            generated = 0
+            async with httpx.AsyncClient() as client:
+                for company_id in company_ids:
+                    summary = await generate_and_store_summary(
+                        client,
+                        rest,
+                        company_id,
+                        api_key=settings.anthropic_api_key,
+                        model=settings.anthropic_model,
+                        timeout=settings.request_timeout,
+                        fallback_on_error=True,
+                    )
+                    if summary is not None:
+                        generated += 1
+            return generated
+
+        generated = await asyncio.wait_for(
+            _generate_all(), timeout=SUMMARY_TIMEOUT_SECONDS
+        )
+        log_stage(
+            "company_summaries_total",
+            time.perf_counter() - started,
+            f"generated={generated}/{len(company_ids)}",
+        )
+    except asyncio.TimeoutError:
+        log_stage(
+            "company_summaries_total",
+            time.perf_counter() - started,
+            "[timed out — crawl unaffected]",
+        )
+    except Exception as exc:  # noqa: BLE001 — never fails the crawl
+        log_stage(
+            "company_summaries_total",
+            time.perf_counter() - started,
+            f"[failed: {type(exc).__name__} — crawl unaffected]",
+        )
+        print(
+            f"[company_summaries] generation failed after the crawl: "
+            f"{type(exc).__name__}: {exc}",
+            flush=True,
+        )
+
+
 async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> None:
     """Background entrypoint. Always finalizes crawl_runs to success/error."""
     settings = get_settings()
@@ -569,5 +678,10 @@ async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> N
     # ingested jobs correctly is a successful crawl whether or not the register
     # could be consulted.
     await _resolve_sponsorship(stats.affected_company_ids)
+
+    # Same reasoning as sponsorship resolution above: runs after the crawl's
+    # terminal state is already written, so it can only add summaries for
+    # companies that need them, never affect what the crawl itself recorded.
+    await _generate_company_summaries(stats.companies_needing_summary)
 
     log_stage("crawl_total", time.perf_counter() - started, f"[{status}]")
