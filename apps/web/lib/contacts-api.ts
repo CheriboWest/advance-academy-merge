@@ -8,6 +8,45 @@ import type { Contact, ContactInput } from "@/lib/types";
  * lib/sponsorship.ts (server reads): this file imports the *browser*
  * Supabase client, which cannot be pulled into a Server Component.
  */
+
+/**
+ * FastAPI's error body isn't one shape: a route that raises
+ * `HTTPException(detail="...")` (e.g. "Company not found.") sends
+ * `{"detail": "..."}` — a plain string. A 422 from Pydantic validation
+ * (e.g. ContactWrite's email format / "needs a contact method" checks in
+ * schemas.py) sends `{"detail": [{"msg": "...", "loc": [...], ...}, ...]}`
+ * — an ARRAY of error objects, one per failed field. `String(detail)` on
+ * that array is where "[object Object]" came from: Array.prototype.toString
+ * stringifies each element by calling its own toString, and a plain object
+ * has none worth having. Handles both shapes explicitly instead.
+ */
+function extractErrorDetail(data: unknown): string | null {
+  if (!data || typeof data !== "object" || !("detail" in data)) return null;
+  const detail = (data as { detail?: unknown }).detail;
+
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        const msg =
+          item && typeof item === "object"
+            ? (item as { msg?: unknown }).msg
+            : null;
+        // Pydantic v2 prefixes a validator's own ValueError message with
+        // "Value error, " — implementation noise, not something a coach
+        // filling in a form should see.
+        return typeof msg === "string"
+          ? msg.replace(/^Value error,\s*/i, "")
+          : null;
+      })
+      .filter((msg): msg is string => Boolean(msg));
+    return messages.length > 0 ? messages.join(" ") : null;
+  }
+
+  return null;
+}
+
 async function authFetch<T>(path: string, init: RequestInit): Promise<T> {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL;
   if (!baseUrl) {
@@ -36,10 +75,11 @@ async function authFetch<T>(path: string, init: RequestInit): Promise<T> {
   if (!response.ok) {
     let detail = `Request failed (${response.status}).`;
     try {
-      const data = (await response.json()) as { detail?: unknown };
-      if (data?.detail) detail = String(data.detail);
+      const data: unknown = await response.json();
+      const extracted = extractErrorDetail(data);
+      if (extracted) detail = extracted;
     } catch {
-      // keep default
+      // Non-JSON error body — keep the default message.
     }
     throw new Error(detail);
   }
