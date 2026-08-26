@@ -26,6 +26,15 @@
 -- already specified; no RLS or grants exist on this view for either
 -- migration to touch (companies/jobs, the tables it reads, carry the
 -- access control, not the view itself).
+--
+-- Column order: `create or replace view` only allows appending new output
+-- columns at the very end of the list — attempting to run this migration's
+-- first draft live surfaced `ERROR 42P16: cannot change name of view
+-- column "open_jobs" to "ai_summary"`, because it (and 0013, since fixed
+-- alongside this) put the two new columns before `open_jobs` instead of
+-- after it, shifting `open_jobs` out of the ordinal position the existing
+-- (0001-shaped) live view still had it in. The order below matches 0001's
+-- exactly through `open_jobs`, with the new columns appended after.
 
 alter table if exists public.companies
   add column if not exists ai_summary text,
@@ -42,9 +51,9 @@ select
   c.region,
   c.hq_location,
   c.lead_score,
+  count(j.*) filter (where j.is_active) as open_jobs,
   c.ai_summary,
-  c.ai_summary_generated_at,
-  count(j.*) filter (where j.is_active) as open_jobs
+  c.ai_summary_generated_at
 from public.companies c
 join public.jobs j
   on j.company_id = c.id

@@ -35,6 +35,14 @@ comment on column public.companies.ai_summary_generated_at is
 -- read company data through this view, so the summary has to be exposed
 -- here to reach either one. Additive: appends two columns to the existing
 -- select list, changes nothing already returned.
+--
+-- Column order matters here, not just presence: `create or replace view`
+-- only allows appending new output columns at the end of the list — it
+-- errors ("cannot change name of view column ... to ...") if an existing
+-- column ends up at a different ordinal position, even though PostgREST/
+-- the Supabase client only ever selects by name, never by position. The
+-- original view (migration 0001) ends in `open_jobs`, so the two new
+-- columns MUST come after it, not before.
 create or replace view public.public_company_summary as
 select
   c.id,
@@ -46,9 +54,9 @@ select
   c.region,
   c.hq_location,
   c.lead_score,
+  count(j.*) filter (where j.is_active) as open_jobs,
   c.ai_summary,
-  c.ai_summary_generated_at,
-  count(j.*) filter (where j.is_active) as open_jobs
+  c.ai_summary_generated_at
 from public.companies c
 join public.jobs j
   on j.company_id = c.id

@@ -87,27 +87,53 @@ def _column_alias(column_expr: str) -> str:
     return expr
 
 
-def effective_view_columns() -> tuple[set[str], Path]:
-    migration_files = sorted(MIGRATIONS_DIR.glob("*.sql"))
-    last_match: str | None = None
-    last_file: Path | None = None
-    for path in migration_files:
+def all_view_definitions() -> list[tuple[Path, list[str]]]:
+    """Every `create or replace view public.public_company_summary`, in
+    migration (== apply) order, as its ordered column list — order matters
+    here, not just membership (see the ordering check below)."""
+    definitions: list[tuple[Path, list[str]]] = []
+    for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
         for match in _VIEW_RE.finditer(path.read_text()):
-            last_match = match.group(1)
-            last_file = path
-    assert last_match is not None and last_file is not None, (
-        f"No `create or replace view public.{VIEW_NAME}` found in any migration "
-        f"under {MIGRATIONS_DIR} — the view itself may have been dropped."
+            columns = [
+                _column_alias(part)
+                for part in _split_top_level_commas(match.group(1))
+                if part.strip()
+            ]
+            definitions.append((path, columns))
+    return definitions
+
+
+VIEW_DEFINITIONS = all_view_definitions()
+assert VIEW_DEFINITIONS, (
+    f"No `create or replace view public.{VIEW_NAME}` found in any migration "
+    f"under {MIGRATIONS_DIR} — the view itself may have been dropped."
+)
+DEFINING_MIGRATION, _last_columns = VIEW_DEFINITIONS[-1]
+VIEW_COLUMNS = set(_last_columns)
+
+
+# ---------------------------------------------------------------------------
+# 1b. Postgres's real constraint on `create or replace view`: a new
+#     definition may only APPEND columns at the end of the list — it cannot
+#     insert, rename, or reorder any column an earlier definition already
+#     had, or the live database rejects it outright (the exact live error
+#     that prompted this migration's column order to be fixed:
+#     `ERROR 42P16: cannot change name of view column "open_jobs" to
+#     "ai_summary"`, from inserting two new columns before it instead of
+#     after). Checked here as an ordered-prefix relationship between every
+#     consecutive pair of view definitions, so a future migration that
+#     repeats this mistake fails before anyone tries to run it live.
+# ---------------------------------------------------------------------------
+
+for (prev_path, prev_columns), (curr_path, curr_columns) in zip(
+    VIEW_DEFINITIONS, VIEW_DEFINITIONS[1:]
+):
+    check(
+        f"{curr_path.name} only appends to {prev_path.name}'s view columns "
+        f"(never inserts, renames, or reorders — Postgres rejects that live)",
+        curr_columns[: len(prev_columns)] == prev_columns,
+        f"{prev_path.name}: {prev_columns}  ->  {curr_path.name}: {curr_columns}",
     )
-    columns = {
-        _column_alias(part)
-        for part in _split_top_level_commas(last_match)
-        if part.strip()
-    }
-    return columns, last_file
-
-
-VIEW_COLUMNS, DEFINING_MIGRATION = effective_view_columns()
 
 check(
     f"a create-or-replace-view for {VIEW_NAME} exists in the migrations",
