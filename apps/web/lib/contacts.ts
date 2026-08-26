@@ -46,20 +46,6 @@ export async function getContacts(companyId: string): Promise<Contact[]> {
 }
 
 /**
- * Every contact across several companies in one request — for the Outreach
- * activity dashboard, which needs to show a contact's name/role next to
- * each outreach row without an N+1 (one request per distinct company).
- */
-export async function getContactsForCompanies(
-  companyIds: string[]
-): Promise<Contact[]> {
-  if (companyIds.length === 0) return [];
-  return fetchContacts(
-    `company_ids=${encodeURIComponent(companyIds.join(","))}`
-  );
-}
-
-/**
  * Contact count per company, for the Sponsored Companies list's "N contacts"
  * signal — one batched request rather than one per row. Companies with zero
  * contacts are simply absent from the result (not present with a 0), so
@@ -70,7 +56,9 @@ export async function getContactCounts(
 ): Promise<Record<string, number>> {
   if (companyIds.length === 0) return {};
 
-  const contacts = await getContactsForCompanies(companyIds);
+  const contacts = await fetchContacts(
+    `company_ids=${encodeURIComponent(companyIds.join(","))}`
+  );
 
   const counts: Record<string, number> = {};
   for (const contact of contacts) {

@@ -264,30 +264,6 @@ export async function getSponsoredCompanyContext(
 }
 
 /**
- * Company names by id, for the Outreach activity dashboard — one row per
- * outreach attempt needs the company name next to it, without pulling the
- * full company summary shape.
- */
-export async function getCompanyNames(
-  companyIds: string[]
-): Promise<Record<string, string>> {
-  if (companyIds.length === 0) return {};
-  const supabase = await createSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from("public_company_summary")
-    .select("id, name")
-    .in("id", companyIds);
-  if (error) throw new Error(error.message);
-
-  const names: Record<string, string> = {};
-  for (const row of data ?? []) {
-    names[row.id as string] = row.name as string;
-  }
-  return names;
-}
-
-/**
  * The current coach's own private notes about a company (from
  * `coach_company_meta`, RLS-scoped), for the Outreach research panel —
  * reuses the exact same notes shown/edited via NotesDialog on

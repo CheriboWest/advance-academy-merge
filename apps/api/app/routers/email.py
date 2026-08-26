@@ -29,12 +29,6 @@ def _rest_base(supabase_url: str) -> str:
     return f"{supabase_url.rstrip('/')}/rest/v1/outreach_emails"
 
 
-def _is_missing_column_error(response: httpx.Response) -> bool:
-    """True when PostgREST rejected a write because a column does not exist."""
-    body = response.text or ""
-    return "PGRST204" in body or "does not exist" in body
-
-
 @router.post("/send", response_model=SendEmailResponse)
 async def send_email(
     req: SendEmailRequest,
@@ -117,41 +111,18 @@ async def send_email(
                 status_code=502, detail="Failed to send the email."
             ) from exc
 
-        # 4. Mark the draft as sent, and record it as outreach activity: this
-        # is the one place a send becomes something the Outreach activity
-        # dashboard can show and a coach can track follow-ups against.
-        # `last_contacted_at`/`recipient_email` were added in migration 0012;
-        # if that hasn't reached this database yet, fall back to the
-        # original two-field write rather than losing the send confirmation
-        # over bookkeeping columns that don't exist yet (same tiered-write
-        # reasoning as the crawl-stats persistence fix).
+        # 4. Mark the draft as sent.
         sent_at = datetime.now(timezone.utc).isoformat()
-        full_payload = {
-            "status": "sent",
-            "sent_at": sent_at,
-            "last_contacted_at": sent_at,
-            "recipient_email": req.to,
-        }
         try:
             update = await client.patch(
                 rest_base,
                 params={"id": f"eq.{req.draft_id}"},
                 headers={**service_headers, "Prefer": "return=minimal"},
-                json=full_payload,
+                json={
+                    "status": "sent",
+                    "sent_at": sent_at,
+                },
             )
-            if update.status_code >= 400 and _is_missing_column_error(update):
-                logger.warning(
-                    "outreach_emails is missing tracking columns — apply "
-                    "infra/supabase/migrations/0012_outreach_tracking.sql. "
-                    "Falling back to a status-only write. draft_id=%s",
-                    req.draft_id,
-                )
-                update = await client.patch(
-                    rest_base,
-                    params={"id": f"eq.{req.draft_id}"},
-                    headers={**service_headers, "Prefer": "return=minimal"},
-                    json={"status": "sent", "sent_at": sent_at},
-                )
             update.raise_for_status()
         except httpx.HTTPError as exc:
             # The email was sent; surface the bookkeeping failure clearly.
