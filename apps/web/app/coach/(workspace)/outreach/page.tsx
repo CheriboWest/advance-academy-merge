@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import { Plus, TriangleAlert } from "lucide-react";
 
-import { getSponsoredCompanies } from "@/lib/coach";
-import type { SponsoredCompanyRow } from "@/lib/types";
-import { OutreachShell } from "@/components/coach/outreach-shell";
+import { getOutreachActivities } from "@/lib/outreach-activity";
+import type { OutreachActivityRow } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { OutreachActivityList } from "@/components/coach/outreach-activity-list";
 import { EmptyState } from "@/components/empty-state";
 
 export const metadata: Metadata = {
@@ -11,28 +13,37 @@ export const metadata: Metadata = {
 };
 
 /**
- * Placeholder shell for the future personalised-outreach workflow. Reuses
- * the same company set as Sponsored Companies (getSponsoredCompanies) —
- * nothing here duplicates that data or the contacts it links to.
+ * Outreach activity dashboard: every outreach the coach has sent, with
+ * status/last-contacted/follow-up and the reply/follow-up/close/notes
+ * actions. Starting a new outreach (choose company → contact → research →
+ * generate → edit → send) lives at /coach/outreach/new, one level down —
+ * this page is about what happens *after* a send, per the "after an email
+ * is sent, coaches can see what happened" goal.
  */
 export default async function OutreachPage() {
-  let companies: SponsoredCompanyRow[];
+  let activities: OutreachActivityRow[];
 
   try {
-    companies = await getSponsoredCompanies();
+    activities = await getOutreachActivities();
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "An unexpected error occurred.";
     return (
       <div className="space-y-4">
-        <header className="space-y-1">
+        <header className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Choose a company and contact to start building personalised outreach.
+            Track replies and follow-ups for outreach you have sent.
           </p>
+          <Button asChild size="sm">
+            <Link href="/coach/outreach/new">
+              <Plus className="size-4" />
+              New outreach
+            </Link>
+          </Button>
         </header>
         <EmptyState
           icon={TriangleAlert}
-          title="We couldn't load companies"
+          title="We couldn't load your outreach activity"
           description={message}
         />
       </div>
@@ -41,13 +52,18 @@ export default async function OutreachPage() {
 
   return (
     <div className="space-y-4">
-      <header className="space-y-1">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Choose a company and contact to start building personalised outreach.
-          Research, generation, sending and tracking are coming soon.
+          Track replies and follow-ups for outreach you have sent.
         </p>
+        <Button asChild size="sm">
+          <Link href="/coach/outreach/new">
+            <Plus className="size-4" />
+            New outreach
+          </Link>
+        </Button>
       </header>
-      <OutreachShell companies={companies} />
+      <OutreachActivityList activities={activities} />
     </div>
   );
 }

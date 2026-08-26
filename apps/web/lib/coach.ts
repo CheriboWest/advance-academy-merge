@@ -5,6 +5,7 @@ import type {
   CoachCompanyRow,
   CoachDashboardData,
   CompanySummary,
+  OutreachEmail,
   SponsoredCompanyContext,
   SponsoredCompanyRow,
 } from "@/lib/types";
@@ -260,4 +261,73 @@ export async function getSponsoredCompanyContext(
     open_jobs: (data.open_jobs as number | null) ?? 0,
     lead_score: (data.lead_score as number | null) ?? 0,
   };
+}
+
+/**
+ * Company names by id, for the Outreach activity dashboard — one row per
+ * outreach attempt needs the company name next to it, without pulling the
+ * full company summary shape.
+ */
+export async function getCompanyNames(
+  companyIds: string[]
+): Promise<Record<string, string>> {
+  if (companyIds.length === 0) return {};
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("public_company_summary")
+    .select("id, name")
+    .in("id", companyIds);
+  if (error) throw new Error(error.message);
+
+  const names: Record<string, string> = {};
+  for (const row of data ?? []) {
+    names[row.id as string] = row.name as string;
+  }
+  return names;
+}
+
+/**
+ * The current coach's own private notes about a company (from
+ * `coach_company_meta`, RLS-scoped), for the Outreach research panel —
+ * reuses the exact same notes shown/edited via NotesDialog on
+ * /coach/companies, not a separate copy. `null` if the coach never wrote any.
+ */
+export async function getCompanyNotes(companyId: string): Promise<string | null> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("coach_company_meta")
+    .select("notes")
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  const notes = (data?.notes as string | null | undefined)?.trim();
+  return notes || null;
+}
+
+/** The current coach's existing draft for a company, or `null`. */
+export async function getExistingDraft(
+  companyId: string
+): Promise<OutreachEmail | null> {
+  const supabase = await createSupabaseServerClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from("outreach_emails")
+    .select("*")
+    .eq("coach_user_id", user.id)
+    .eq("company_id", companyId)
+    .eq("status", "draft")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return (data as OutreachEmail | null) ?? null;
 }

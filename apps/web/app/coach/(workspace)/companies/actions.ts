@@ -231,12 +231,14 @@ export async function deleteCompaniesPermanentlyAction(
 
   // Deleted companies leave every coach list, the dashboard aggregates, the
   // sponsored-companies list, the public search, the landing page counts, and
-  // their own detail page — so all of those are revalidated, not just this page.
+  // their own detail/outreach pages — so all of those are revalidated, not
+  // just this page.
   revalidateCoachPaths();
   revalidatePath("/search");
   revalidatePath("/");
   revalidatePath("/companies/[slug]", "page");
   revalidatePath("/coach/sponsored-companies/[companyId]", "page");
+  revalidatePath("/coach/outreach/[companyId]", "page");
 
   return {
     error: null,

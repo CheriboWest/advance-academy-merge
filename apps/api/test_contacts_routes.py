@@ -146,10 +146,22 @@ if CONTACTS_TS.exists():
           bool(get_contacts_query) and get_contacts_query.group(1) == "company_id=",
           f"got {get_contacts_query.group(1) if get_contacts_query else None!r}")
 
-    get_counts_query = re.search(r"await fetchContacts\(\s*`([^$]+)\$\{", source)
-    check("getContactCounts() queries by company_ids=",
-          bool(get_counts_query) and get_counts_query.group(1) == "company_ids=",
-          f"got {get_counts_query.group(1) if get_counts_query else None!r}")
+    # getContactCounts() itself no longer calls fetchContacts directly — it
+    # was refactored to go through getContactsForCompanies() (added for the
+    # Outreach activity dashboard, which needs the same batch of full contact
+    # objects, not just counts). Check the query construction where it now
+    # actually lives, rather than re-pinning the old direct call shape.
+    get_for_companies_query = re.search(
+        r"function getContactsForCompanies\([^)]*\)[^{]*\{[^}]*?return fetchContacts\(\s*`([^$]+)\$\{",
+        source,
+    )
+    check("getContactsForCompanies() queries by company_ids=",
+          bool(get_for_companies_query) and get_for_companies_query.group(1) == "company_ids=",
+          f"got {get_for_companies_query.group(1) if get_for_companies_query else None!r}")
+
+    check("getContactCounts() is built on getContactsForCompanies(), not a "
+          "second direct call — one place constructs the company_ids= query",
+          bool(re.search(r"getContactCounts[\s\S]*?await getContactsForCompanies\(", source)))
 else:
     check("apps/web/lib/contacts.ts exists (path-agreement check)", False,
           f"not found at {CONTACTS_TS}")
