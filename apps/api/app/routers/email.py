@@ -142,8 +142,11 @@ async def send_email(
             if update.status_code >= 400 and _is_missing_column_error(update):
                 logger.warning(
                     "outreach_emails is missing tracking columns — apply "
-                    "infra/supabase/migrations/0012_outreach_tracking.sql. "
-                    "Falling back to a status-only write. draft_id=%s",
+                    "infra/supabase/migrations/0012_outreach_tracking.sql "
+                    "(or, if a migration tool already believes that one "
+                    "applied, its idempotent repair: "
+                    "0015_repair_outreach_tracking.sql). Falling back to a "
+                    "status-only write. draft_id=%s",
                     req.draft_id,
                 )
                 update = await client.patch(

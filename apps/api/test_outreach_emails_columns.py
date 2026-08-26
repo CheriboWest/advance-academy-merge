@@ -7,14 +7,17 @@ instead of public_company_summary. outreach_emails is a plain table (not a
 view) that predates the migrations directory — see migration 0012's header
 comment — so there is no full historical schema to parse out of the
 migrations alone, only what they *add*. This test checks that every column
-a frontend query references against outreach_emails is accounted for: either
-part of the documented pre-migrations baseline (apps/web/lib/types.ts's
-OutreachEmail interface says which those are) or declared by an
-`add column if not exists` in some migration. It cannot confirm a migration
-was actually applied to any particular live database — no test in this repo
-can — but it does mean a query referencing a column no migration ever
-declared, or a column silently dropped from what a migration adds, fails
-here instead of shipping as a live "does not exist" error.
+referenced against outreach_emails — every frontend query (reads and
+writes, across every file that touches the table, not just the one the
+last reported error happened to be in) plus the backend's own send-time
+write in app/routers/email.py — is accounted for: either part of the
+documented pre-migrations baseline (apps/web/lib/types.ts's OutreachEmail
+interface says which those are) or declared by an `add column if not
+exists` in some migration. It cannot confirm a migration was actually
+applied to any particular live database — no test in this repo can — but
+it does mean a query referencing a column no migration ever declared, or a
+column silently dropped from what a migration adds, fails here instead of
+shipping as a live "does not exist" error.
 """
 
 from __future__ import annotations
@@ -35,6 +38,7 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS_DIR = REPO_ROOT / "infra/supabase/migrations"
 WEB_ROOT = REPO_ROOT / "apps/web"
+API_ROOT = REPO_ROOT / "apps/api"
 
 TABLE = "outreach_emails"
 
@@ -145,6 +149,35 @@ for path in CHECKED_FILES:
     )
 
 check("at least one file's column references were actually checked", any_checked)
+
+
+# ---------------------------------------------------------------------------
+# 3. The backend's own write to outreach_emails (app/routers/email.py's
+#    send handler) — a plain PATCH payload, not a Supabase-JS call, so
+#    checked separately from the .from(...) pattern above. It already has
+#    its own tiered-write fallback if these columns aren't live (see its
+#    comment referencing migration 0012), but every column it CAN send
+#    should still be a real one — a typo here wouldn't be caught by that
+#    fallback, since PostgREST reports the same "missing column" error for
+#    a genuine typo as for an unapplied migration, and the fallback only
+#    retries with a hardcoded smaller payload, not a corrected one.
+# ---------------------------------------------------------------------------
+
+EMAIL_ROUTER = API_ROOT / "app/routers/email.py"
+email_source = EMAIL_ROUTER.read_text()
+payload_match = re.search(r"full_payload\s*=\s*\{([^}]*)\}", email_source, re.DOTALL)
+check(
+    f"{EMAIL_ROUTER.relative_to(REPO_ROOT)}: full_payload (the tiered-write's "
+    f"first attempt) was found to check",
+    payload_match is not None,
+)
+if payload_match:
+    payload_columns = set(re.findall(r'"(\w+)"\s*:', payload_match.group(1)))
+    check(
+        f"{EMAIL_ROUTER.relative_to(REPO_ROOT)}: every column in full_payload is known",
+        payload_columns <= KNOWN_COLUMNS,
+        f"references {sorted(payload_columns - KNOWN_COLUMNS)} — not in {sorted(KNOWN_COLUMNS)}",
+    )
 
 
 print()
