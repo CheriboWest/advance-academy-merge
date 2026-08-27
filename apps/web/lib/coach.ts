@@ -191,7 +191,7 @@ export async function getCoachCompanies(
 }
 
 const SPONSORED_COMPANY_COLUMNS =
-  "id, slug, name, sector, region, hq_location, open_jobs, lead_score";
+  "id, slug, name, sector, region, hq_location, open_jobs, lead_score, ai_summary, ai_summary_generated_at";
 
 /**
  * All companies for the Sponsored Companies list. Also the company set the
@@ -260,7 +260,34 @@ export async function getSponsoredCompanyContext(
     sector: (data.sector as string | null) ?? null,
     open_jobs: (data.open_jobs as number | null) ?? 0,
     lead_score: (data.lead_score as number | null) ?? 0,
+    ai_summary: (data.ai_summary as string | null) ?? null,
+    ai_summary_generated_at:
+      (data.ai_summary_generated_at as string | null) ?? null,
   };
+}
+
+/**
+ * Company names by id, for the Outreach activity dashboard — one row per
+ * outreach attempt needs the company name next to it, without pulling the
+ * full company summary shape.
+ */
+export async function getCompanyNames(
+  companyIds: string[]
+): Promise<Record<string, string>> {
+  if (companyIds.length === 0) return {};
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("public_company_summary")
+    .select("id, name")
+    .in("id", companyIds);
+  if (error) throw new Error(error.message);
+
+  const names: Record<string, string> = {};
+  for (const row of data ?? []) {
+    names[row.id as string] = row.name as string;
+  }
+  return names;
 }
 
 /**

@@ -95,6 +95,11 @@ class CrawlStats:
     # sponsorship hook knows what to look at without re-querying; not a
     # statistic, so it is excluded from `as_columns()`.
     affected_company_ids: list[str] = field(default_factory=list)
+    # Companies touched this crawl that don't have an ai_summary yet (either
+    # brand new, or pre-existing but never summarised) — the post-crawl
+    # summary sweep's worklist. Deliberately separate from
+    # affected_company_ids rather than reusing it.
+    companies_needing_summary: list[str] = field(default_factory=list)
     # Per-source breakdown, for the `[crawl-source] <name>: ...` log lines
     # only — never persisted (crawl_runs has one row per run, not per
     # source). Keyed by source name ("adzuna", "reed"); see

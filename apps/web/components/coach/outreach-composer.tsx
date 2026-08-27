@@ -148,7 +148,12 @@ export function OutreachComposer({
   function handleSave() {
     setFeedback(null);
     startSaving(async () => {
-      const result = await saveDraftAction(companyId, subject, body);
+      const result = await saveDraftAction(
+        companyId,
+        subject,
+        body,
+        selectedContact?.id
+      );
       if (result.ok) {
         setFeedback({ type: "success", message: "Draft saved." });
       } else {
@@ -175,8 +180,15 @@ export function OutreachComposer({
     setSending(true);
     void (async () => {
       try {
-        // Persist the current subject/body (and get a draft id) before sending.
-        const saved = await saveDraftAction(companyId, subject, body);
+        // Persist the current subject/body (and get a draft id) before
+        // sending — including which contact this is addressed to, if any,
+        // so the resulting outreach activity record already carries it.
+        const saved = await saveDraftAction(
+          companyId,
+          subject,
+          body,
+          selectedContact?.id
+        );
         if (!saved.ok || !saved.id) {
           setFeedback({
             type: "error",

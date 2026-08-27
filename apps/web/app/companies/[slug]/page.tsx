@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { LeadScoreBadge } from "@/components/lead-score-badge";
 import { JobItem } from "@/components/job-item";
 import { EmptyState } from "@/components/empty-state";
+import { CompanySummary } from "@/components/company-summary";
 
 // Company and job data are fetched per request from Supabase.
 export const dynamic = "force-dynamic";
@@ -87,6 +88,7 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
                   {jobs.length} open {jobs.length === 1 ? "job" : "jobs"}
                 </span>
               </div>
+              <CompanySummary summary={company.ai_summary} className="mt-4" />
             </div>
             <LeadScoreBadge score={company.lead_score ?? 0} className="shrink-0" />
           </div>

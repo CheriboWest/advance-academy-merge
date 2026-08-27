@@ -177,6 +177,14 @@ class DeleteCompaniesResponse(BaseModel):
     deleted_contacts: int = 0
 
 
+class CompanySummaryResponse(BaseModel):
+    """Outcome of a manual company-summary refresh."""
+
+    company_id: str
+    ai_summary: str
+    ai_summary_generated_at: str
+
+
 class SponsorImportResponse(BaseModel):
     """Outcome of one sponsor-register ingestion run."""
 
