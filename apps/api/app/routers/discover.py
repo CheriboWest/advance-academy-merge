@@ -11,7 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from app.auth import get_current_user
 from app.config import Settings, get_settings
 from app.crawler.normalize import normalize_query
-from app.crawler.pipeline import run_crawl
+from app.crawler.pipeline import OVERALL_TIMEOUT_SECONDS, run_crawl
 from app.crawler.supabase_rest import SupabaseRest
 from app.crawler.timing import stage
 from app.schemas import (
@@ -24,6 +24,12 @@ router = APIRouter(prefix="/discover", tags=["discover"])
 
 VALID_SOURCES = ("adzuna", "reed")
 CACHE_TTL_HOURS = 24.0
+# A run still "running" past this is not running — the crawl itself is capped at
+# OVERALL_TIMEOUT_SECONDS and always finalizes, so twice that is well clear of a
+# slow-but-live crawl. Anything older lost its background task (the server
+# restarted, `uvicorn --reload` reloaded, the finalize write failed) and no
+# in-process handler can ever come back to it.
+STALE_RUN_SECONDS = OVERALL_TIMEOUT_SECONDS * 2
 
 
 def _require_supabase(settings: Settings) -> SupabaseRest:
@@ -64,11 +70,34 @@ def _row_to_status(row: dict[str, Any]) -> CrawlRunStatus:
     crawls" history table binds to some of them) and are filled in as the
     closest honest approximation from the same real columns, rather than
     left to read back as a permanent, misleading 0.
+
+    The failure text comes from `error_message`, the live column's real name —
+    reading `error` (which does not exist) always yielded None, so a coach
+    never saw why a crawl failed.
+
+    A run left at "running" past `STALE_RUN_SECONDS` is reported as an error:
+    its background task is gone and no one is coming back to finalize it.
     """
 
     def _int(key: str) -> int:
         value = row.get(key)
         return int(value) if isinstance(value, (int, float)) else 0
+
+    status = str(row.get("status") or "unknown")
+    error = row.get("error_message")
+
+    # ponytail: derived at read time, the row in the database stays "running".
+    # That is deliberate — it needs no write path, no cron, and it covers every
+    # cause including a killed process. Upgrade to a background reaper only if
+    # something starts reading crawl_runs.status directly (a report, a metric).
+    age_hours = _hours_since(row.get("started_at"))
+    if (
+        status == "running"
+        and age_hours is not None
+        and age_hours * 3600.0 > STALE_RUN_SECONDS
+    ):
+        status = "error"
+        error = error or "The crawl was interrupted and never finished."
 
     new_jobs = _int("new_jobs")
     duplicate_jobs = _int("duplicate_jobs")
@@ -78,7 +107,7 @@ def _row_to_status(row: dict[str, Any]) -> CrawlRunStatus:
 
     return CrawlRunStatus(
         id=str(row.get("id")),
-        status=str(row.get("status") or "unknown"),
+        status=status,
         query=row.get("query"),
         location=row.get("location"),
         # Best-effort approximations — the live schema has no separate raw/
@@ -93,7 +122,7 @@ def _row_to_status(row: dict[str, Any]) -> CrawlRunStatus:
         new_jobs=new_jobs,
         duplicate_jobs_total=duplicate_jobs,
         jobs_verified=jobs_verified,
-        error=row.get("error"),
+        error=error,
         created_at=row.get("started_at"),   # use started_at
         finished_at=row.get("completed_at"), # use completed_at
     )
@@ -216,18 +245,7 @@ async def discovery_status(
     if not rows:
         raise HTTPException(status_code=404, detail="Crawl run not found.")
 
-    # TEMPORARY diagnostics — remove after investigation.
-    row = rows[0]
-    print(
-        f"[discover-status] run_id={run_id} "
-        f"status={row.get('status')!r} "
-        f"started_at={row.get('started_at')!r} "
-        f"completed_at={row.get('completed_at')!r} "
-        f"finished_at={row.get('finished_at')!r}",
-        flush=True,
-    )
-
-    return _row_to_status(row)
+    return _row_to_status(rows[0])
 
 
 @router.get("/history", response_model=list[CrawlRunStatus])

@@ -41,6 +41,28 @@ UNPERSISTED_LEGACY_KEYS = (
     "updated_jobs",
 )
 
+# The `crawl_runs` columns the live database actually has, read straight off a
+# `select=*` against it. An allowlist, not an opt-out list: `missing_columns`
+# below only rejects what a scenario thinks to name, which is precisely why a
+# green suite still shipped a `_finalize` that wrote a nonexistent `error`
+# column and left every crawl stuck at "running".
+LIVE_CRAWL_RUNS_COLUMNS = frozenset({
+    "id",
+    "source",
+    "status",
+    "query",
+    "location",
+    "started_at",
+    "completed_at",
+    "created_at",
+    "error_message",
+    "jobs_found",
+    "new_jobs",
+    "duplicate_jobs",
+    "companies_discovered",
+    "companies_updated",
+})
+
 _failures: list[str] = []
 
 
@@ -77,6 +99,7 @@ class FakeRest:
         companies: Optional[list[dict]] = None,
         jobs: Optional[list[dict]] = None,
         missing_columns: Optional[set] = None,
+        known_columns: Optional[frozenset] = None,
     ) -> None:
         self.companies = companies or []
         self.jobs = jobs or []
@@ -87,6 +110,12 @@ class FakeRest:
         # Postgres/PostgREST all-or-nothing UPDATE semantics — not just that
         # field.
         self.missing_columns = missing_columns or set()
+        # Every column this fake table DOES have. When set, any other column
+        # fails the statement — the same all-or-nothing rejection PostgREST
+        # gives, but derived from the real schema instead of from whatever a
+        # scenario remembered to exclude. Pass LIVE_CRAWL_RUNS_COLUMNS to hold
+        # `_finalize` to the live database.
+        self.known_columns = known_columns
 
     async def select(self, client, table, params=None):
         params = params or {}
@@ -141,7 +170,12 @@ class FakeRest:
         self.updates.append((table, dict(match), dict(values)))
 
         if table == "crawl_runs":
-            unknown = [k for k in values if k in self.missing_columns]
+            unknown = [
+                k
+                for k in values
+                if k in self.missing_columns
+                or (self.known_columns is not None and k not in self.known_columns)
+            ]
             if unknown:
                 request = httpx.Request("PATCH", "https://example.test/crawl_runs")
                 response = httpx.Response(
@@ -177,6 +211,15 @@ class FakeSettings:
     adzuna_app_id = "id"
     adzuna_app_key = "key"
     reed_api_key = "key"
+    # No API key, so the post-crawl sponsorship and summary hooks stay offline.
+    # They run for real now that `affected_company_ids` is actually populated —
+    # these scenarios are about `_finalize`, not about what happens after it.
+    anthropic_api_key = ""
+    anthropic_model = "claude-sonnet-5"
+    request_timeout = 5.0
+    sponsor_resolver_model = "claude-opus-5"
+    sponsor_resolve_concurrency = 3
+    sponsor_resolve_max_per_crawl = 50
 
 
 def run_crawl_with(

@@ -21,6 +21,15 @@ persists to `crawl_runs`:
    / `jobs_found` — the columns confirmed to exist on a real completed run's
    row — and narrowing further only if even those are incomplete.
 
+3. (This round) Worse than zeros: `_finalize` put `error` — a column the live
+   table does not have, its real name being `error_message` — into the *base*
+   payload, so every tier carried it, PostgREST rejected every tier, and
+   `_write_crawl_run` re-raised out of an unprotected `await _finalize(...)`.
+   The row never left "running" and the coach's crawler page span forever.
+   Scenario 10 below is the cover: a fake whose columns are an allowlist taken
+   from the live schema, rather than an opt-out list of whatever a scenario
+   remembered to name — which is why scenarios 1-9 stayed green through it.
+
 Runs offline: a fake `SupabaseRest` stands in for the database and the job
 sources are stubbed, so no network and no Supabase project are involved.
 """
@@ -32,6 +41,7 @@ import httpx
 from app.crawler.models import CrawlStats
 from app.routers.discover import _row_to_status
 from crawl_test_support import (
+    LIVE_CRAWL_RUNS_COLUMNS,
     NOW,  # noqa: F401 - re-exported for readability of scenario data below
     PERSISTED_KEYS,
     UNPERSISTED_LEGACY_KEYS,
@@ -146,7 +156,7 @@ check("a failed crawl is marked error", failed.get("status") == "error",
       f"got {failed.get('status')!r}")
 check("a failed crawl still persists the counts it reached",
       failed.get("new_jobs") == 4, f"got {failed.get('new_jobs')}")
-check("a failed crawl records the error", bool(failed.get("error")))
+check("a failed crawl records the error", bool(failed.get("error_message")))
 
 # ---------------------------------------------------------------------------
 # 6. On a table missing only `jobs_found` (the least-confirmed column), the
@@ -191,6 +201,60 @@ check("none of the statistics columns were ever accepted",
 check("as_persisted_columns() matches the confirmed-live column set",
       set(CrawlStats().as_persisted_columns()) == set(PERSISTED_KEYS),
       f"got {sorted(CrawlStats().as_persisted_columns())}")
+
+# ---------------------------------------------------------------------------
+# 10. Against the REAL live schema (an allowlist, so any column the database
+#     does not have fails the whole statement), a run reaches a terminal state
+#     on its first attempt — success and error alike. This is the scenario the
+#     opt-out `missing_columns` fakes could not express: `_finalize` wrote an
+#     `error` column that does not exist, in *every* tier, so the tiered write
+#     ran out of tiers, re-raised, and left the row at "running" forever.
+# ---------------------------------------------------------------------------
+def _crawl_or_error(rest, jobs, **kwargs) -> str:
+    """Run a crawl, reporting a crashed `run_crawl` as a named failure.
+
+    The bug this scenario covers ends in an unhandled exception out of
+    `_finalize`, which would otherwise kill this script with a bare traceback
+    instead of telling you which property broke.
+    """
+    try:
+        run_crawl_with(rest, jobs, run_id=RUN_ID, **kwargs)
+    except Exception as exc:  # noqa: BLE001 — the failure mode under test
+        return f"{type(exc).__name__}: {exc}"
+    return ""
+
+
+rest_live = FakeRest(known_columns=LIVE_CRAWL_RUNS_COLUMNS)
+crashed = _crawl_or_error(rest_live, JOBS)
+check("run_crawl never raises on the live schema", not crashed, crashed)
+live_row = rest_live.crawl_runs.get(RUN_ID, {})
+check("on the live schema the run reaches a terminal status",
+      live_row.get("status") == "success", f"got {live_row.get('status')!r}")
+check("the live schema accepts the full payload on the first attempt",
+      len(crawl_run_updates(rest_live)) == 1,
+      f"got {len(crawl_run_updates(rest_live))}")
+check("every statistic lands on the live schema",
+      all(k in live_row for k in PERSISTED_KEYS),
+      f"got {sorted(live_row)}")
+
+
+async def _exploding_fetch_all(client, settings, query, city, sources, stats):
+    raise RuntimeError("upstream blew up")
+
+
+rest_live_error = FakeRest(known_columns=LIVE_CRAWL_RUNS_COLUMNS)
+crashed = _crawl_or_error(rest_live_error, [], fetch_all=_exploding_fetch_all)
+check("a crawl that fails mid-flight still never raises", not crashed, crashed)
+error_row = rest_live_error.crawl_runs.get(RUN_ID, {})
+check("a failing crawl reaches a terminal status too, never stays running",
+      error_row.get("status") == "error", f"got {error_row.get('status')!r}")
+check("the failure reason is written to error_message, the live column name",
+      bool(error_row.get("error_message")), f"got {sorted(error_row)}")
+check("nothing is ever written to a column named `error`",
+      not any("error" in values for values in crawl_run_updates(rest_live_error)))
+check("the coach reads that reason back out of the row",
+      _row_to_status({**error_row, "started_at": NOW.isoformat()}).error
+      == error_row.get("error_message"))
 
 print()
 if failures():

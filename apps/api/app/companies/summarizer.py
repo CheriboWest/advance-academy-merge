@@ -17,6 +17,7 @@ template with no model call and nothing invented.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -274,8 +275,16 @@ async def generate_and_store_summary(
 
     if has_enough_data(context) and api_key:
         try:
-            summary = generate_ai_summary(
-                context, api_key=api_key, model=model, timeout=timeout
+            # The model call is synchronous, so it runs in a worker thread —
+            # awaiting it on the event loop froze the entire API for up to
+            # `timeout` seconds per company (same reasoning as
+            # app/sponsors/worker.py's `_resolve_with_retry`).
+            summary = await asyncio.to_thread(
+                generate_ai_summary,
+                context,
+                api_key=api_key,
+                model=model,
+                timeout=timeout,
             )
         except Exception:
             if not fallback_on_error:

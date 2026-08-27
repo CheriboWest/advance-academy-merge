@@ -192,15 +192,6 @@ class SupabaseRest:
             json=values,
             timeout=timeout or self._timeout,
         )
-        if response.status_code >= 400:
-            # TEMPORARY diagnostics — remove after investigation.
-            print(" === SUPABASE UPDATE ERROR ===", flush=True)
-            print("TABLE:", table, flush=True)
-            print("STATUS:", response.status_code, flush=True)
-            print("MATCH:", match, flush=True)
-            print("VALUE KEYS:", list(values.keys()), flush=True)
-            print("RESPONSE:", response.text, flush=True)
-            print("============================ ", flush=True)
         response.raise_for_status()
         if prefer.startswith("return=representation"):
             return response.json()
