@@ -15,6 +15,7 @@ import {
 
 import type { Contact } from "@/lib/types";
 import { deleteContactViaApi } from "@/lib/contacts-api";
+import { revalidateContactPaths } from "@/app/coach/(workspace)/sponsored-companies/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +33,11 @@ interface ContactsSectionProps {
    *  here — self-contained, since nothing else on the Sponsored Company page
    *  needs to react live to an add/edit/delete (unlike the old outreach
    *  composer's recipient picker, which is why this used to be a
-   *  parent-controlled component). */
+   *  parent-controlled component). A mutation still triggers
+   *  `revalidateContactPaths` so the Sponsored Companies list's contact
+   *  count — and a future reload of this page — don't serve stale data from
+   *  the Router Cache; that's cache invalidation, not this component's own
+   *  render, which is why it doesn't touch this local state. */
   initialContacts: Contact[];
 }
 
@@ -69,6 +74,7 @@ export function ContactsSection({
         ? prev.map((c) => (c.id === saved.id ? saved : c))
         : [saved, ...prev];
     });
+    void revalidateContactPaths(companyId);
   }
 
   function handleDelete() {
@@ -80,6 +86,7 @@ export function ContactsSection({
         await deleteContactViaApi(pendingDelete.id);
         setContacts((prev) => prev.filter((c) => c.id !== pendingDelete.id));
         setPendingDelete(null);
+        void revalidateContactPaths(companyId);
       } catch (err) {
         setDeleteError(
           err instanceof Error ? err.message : "Failed to delete the contact."
