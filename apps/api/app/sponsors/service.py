@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -165,21 +166,36 @@ async def companies_needing_resolution(
 async def checks_for(
     client: httpx.AsyncClient, rest: SupabaseRest, company_ids: list[str]
 ) -> dict[str, dict[str, Any]]:
-    """Existing check rows for these companies, keyed by company id."""
-    found: dict[str, dict[str, Any]] = {}
-    for index in range(0, len(company_ids), 100):
-        chunk = company_ids[index : index + 100]
-        rows = await rest.select(
-            client,
-            CHECK_TABLE,
-            {
-                "select": (
-                    "company_id,last_decision,register_import_id,attempts,"
-                    "checked_at,candidate_count"
-                ),
-                "company_id": f"in.({','.join(chunk)})",
-            },
+    """Existing check rows for these companies, keyed by company id.
+
+    Chunked at 100 to keep the `in.(...)` URL a sane length, and the chunks are
+    gathered rather than awaited one after another — a serial loop here put
+    ceil(n/100) round trips end to end on the critical path of every Sponsored
+    Companies page load.
+    """
+    chunks = [
+        company_ids[index : index + 100]
+        for index in range(0, len(company_ids), 100)
+    ]
+    results = await asyncio.gather(
+        *(
+            rest.select(
+                client,
+                CHECK_TABLE,
+                {
+                    "select": (
+                        "company_id,last_decision,register_import_id,attempts,"
+                        "checked_at,candidate_count"
+                    ),
+                    "company_id": f"in.({','.join(chunk)})",
+                },
+            )
+            for chunk in chunks
         )
+    )
+
+    found: dict[str, dict[str, Any]] = {}
+    for rows in results:
         for row in rows:
             found[str(row["company_id"])] = row
     return found
@@ -425,37 +441,50 @@ async def _current_matches_bulk(
     if not company_ids:
         return {}
 
-    links: dict[str, dict[str, Any]] = {}
-    for index in range(0, len(company_ids), 100):
-        chunk = company_ids[index : index + 100]
-        rows = await rest.select(
-            client,
-            LINK_TABLE,
-            {
-                "select": "company_id,sponsor_licence_id,resolved_at",
-                "company_id": f"in.({','.join(chunk)})",
-                "decision": "eq.match",
-            },
+    link_results = await asyncio.gather(
+        *(
+            rest.select(
+                client,
+                LINK_TABLE,
+                {
+                    "select": "company_id,sponsor_licence_id,resolved_at",
+                    "company_id": f"in.({','.join(company_ids[index : index + 100])})",
+                    "decision": "eq.match",
+                },
+            )
+            for index in range(0, len(company_ids), 100)
         )
+    )
+
+    links: dict[str, dict[str, Any]] = {}
+    for rows in link_results:
         for row in rows:
             links[str(row["company_id"])] = row
 
     if not links:
         return {}
 
+    # The licence lookup genuinely depends on the links above (it needs their
+    # licence ids), so these are two waves, not one — but each wave is itself
+    # concurrent rather than a serial chunk loop.
     licence_ids = sorted({row["sponsor_licence_id"] for row in links.values()})
-    current_licence_ids: set[str] = set()
-    for index in range(0, len(licence_ids), 100):
-        chunk = licence_ids[index : index + 100]
-        rows = await rest.select(
-            client,
-            LICENCES_TABLE,
-            {
-                "select": "id,is_current",
-                "id": f"in.({','.join(chunk)})",
-                "is_current": "eq.true",
-            },
+    licence_results = await asyncio.gather(
+        *(
+            rest.select(
+                client,
+                LICENCES_TABLE,
+                {
+                    "select": "id,is_current",
+                    "id": f"in.({','.join(licence_ids[index : index + 100])})",
+                    "is_current": "eq.true",
+                },
+            )
+            for index in range(0, len(licence_ids), 100)
         )
+    )
+
+    current_licence_ids: set[str] = set()
+    for rows in licence_results:
         current_licence_ids.update(str(row["id"]) for row in rows)
 
     return {
@@ -478,19 +507,26 @@ async def bulk_company_sponsorship_status(
     not found (the caller decides what that means — this function does not
     raise for an unknown id, so one bad id in a batch does not fail the rest).
 
-    Three queries total, however many companies are asked for: one for the
-    latest successful register, one (chunked at 100) for confirmed matches,
-    one (chunked at 100) for which of those matches are still current. Bounds
-    the per-company work at O(1) database round trips instead of O(n) — the
-    reason this function exists rather than the caller looping
+    Three *phases*, however many companies are asked for — the latest
+    successful register, the confirmed matches, and the existing check rows —
+    for `1 + 2*ceil(n/100) + ceil(licences/100)` queries in total, not the
+    "three queries" an earlier version of this docstring claimed. What matters
+    is that the per-company work is O(1) round trips rather than O(n), which is
+    the reason this function exists instead of the caller looping
     `company_sponsorship_status` once per id.
+
+    The three phases are independent of each other, so they are gathered rather
+    than awaited in sequence: run serially they were three full round trips to
+    PostgREST stacked end to end on every Sponsored Companies page load.
     """
     if not company_ids:
         return {}
 
-    latest_import = await latest_register_import_id(client, rest)
-    matches = await _current_matches_bulk(client, rest, company_ids)
-    checks = await checks_for(client, rest, company_ids)
+    latest_import, matches, checks = await asyncio.gather(
+        latest_register_import_id(client, rest),
+        _current_matches_bulk(client, rest, company_ids),
+        checks_for(client, rest, company_ids),
+    )
 
     result: dict[str, dict[str, Any]] = {}
     for company_id in company_ids:

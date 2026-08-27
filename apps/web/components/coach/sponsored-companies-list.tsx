@@ -26,10 +26,41 @@ interface SponsoredCompaniesListProps {
   companies: SponsoredCompanyRow[];
   /** Keyed by company_id. A company absent here (a failed batch fetch, or
    *  simply never checked) renders no sponsorship badge — the card is still
-   *  fully usable without one. */
-  sponsorshipStatuses?: Record<string, CompanySponsorshipStatusCompact>;
-  /** Keyed by company_id. A company absent here has 0 contacts. */
-  contactCounts?: Record<string, number>;
+   *  fully usable without one.
+   *
+   *  A promise, not a resolved map: the server hands this over unawaited so
+   *  the cards paint without waiting on it. See page.tsx. */
+  sponsorshipStatuses?: Promise<Record<string, CompanySponsorshipStatusCompact>>;
+  /** Keyed by company_id. A company absent here has 0 contacts. Streamed in
+   *  the same way as `sponsorshipStatuses`. */
+  contactCounts?: Promise<Record<string, number>>;
+}
+
+/**
+ * A promise prop's value once it lands, or `undefined` while it is still in
+ * flight — which is deliberately distinguishable from a resolved empty map
+ * ("we asked, there is nothing"), because the two render differently.
+ *
+ * `useEffect` rather than `React.use()`: `use()` would suspend this whole
+ * component until the data arrived, which is exactly the wait we are trying to
+ * get rid of, and a suspended re-render would throw away the search box's
+ * state on every fill-in.
+ */
+function useResolved<T>(promise: Promise<T> | undefined): T | undefined {
+  const [value, setValue] = React.useState<T>();
+
+  React.useEffect(() => {
+    if (!promise) return;
+    let alive = true;
+    promise.then((next) => {
+      if (alive) setValue(next);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [promise]);
+
+  return value;
 }
 
 const SPONSORSHIP_FILTER_ALL = "all";
@@ -76,9 +107,11 @@ function matchesSearch(company: SponsoredCompanyRow, query: string): boolean {
  */
 export function SponsoredCompaniesList({
   companies,
-  sponsorshipStatuses = {},
-  contactCounts = {},
+  sponsorshipStatuses: sponsorshipStatusesPromise,
+  contactCounts: contactCountsPromise,
 }: SponsoredCompaniesListProps) {
+  const sponsorshipStatuses = useResolved(sponsorshipStatusesPromise);
+  const contactCounts = useResolved(contactCountsPromise);
   const [query, setQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<
     typeof SPONSORSHIP_FILTER_ALL | SponsorshipStatus
@@ -97,7 +130,10 @@ export function SponsoredCompaniesList({
   const normalizedQuery = normalize(query);
   const filtered = companies.filter((company) => {
     if (!matchesSearch(company, normalizedQuery)) return false;
-    if (statusFilter === SPONSORSHIP_FILTER_ALL) return true;
+    // Still streaming: let every company through rather than matching them
+    // against a map we do not have yet, which would flash "No companies match
+    // these filters" and read as a broken page.
+    if (statusFilter === SPONSORSHIP_FILTER_ALL || !sponsorshipStatuses) return true;
     const status = sponsorshipStatuses[company.company_id]?.status ?? "not_checked";
     return status === statusFilter;
   });
@@ -145,7 +181,7 @@ export function SponsoredCompaniesList({
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {filtered.map((company) => {
-            const contactCount = contactCounts[company.company_id] ?? 0;
+            const contactCount = contactCounts?.[company.company_id] ?? 0;
             return (
               <article
                 key={company.company_id}
@@ -156,9 +192,16 @@ export function SponsoredCompaniesList({
                     <div className="space-y-1">
                       <h3 className="text-lg leading-tight">{company.name}</h3>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <SponsorshipBadge
-                          status={sponsorshipStatuses[company.company_id]}
-                        />
+                        {sponsorshipStatuses ? (
+                          <SponsorshipBadge
+                            status={sponsorshipStatuses[company.company_id]}
+                          />
+                        ) : (
+                          <span
+                            aria-hidden
+                            className="h-5 w-24 animate-pulse rounded-full bg-muted"
+                          />
+                        )}
                         {company.sector && (
                           <span className="text-sm text-muted-foreground">
                             {company.sector}
@@ -177,7 +220,9 @@ export function SponsoredCompaniesList({
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Users className="size-4 shrink-0" />
                       <span>
-                        {contactCount} {contactCount === 1 ? "contact" : "contacts"}
+                        {contactCounts
+                          ? `${contactCount} ${contactCount === 1 ? "contact" : "contacts"}`
+                          : "— contacts"}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">

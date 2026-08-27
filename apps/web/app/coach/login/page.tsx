@@ -21,8 +21,8 @@ interface CoachLoginPageProps {
 export default async function CoachLoginPage({
   searchParams,
 }: CoachLoginPageProps) {
-  const user = await getCoachUser();
-  if (user) {
+  const claims = await getCoachUser();
+  if (claims) {
     redirect("/coach/dashboard");
   }
 
