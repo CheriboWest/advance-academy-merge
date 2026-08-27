@@ -1,4 +1,5 @@
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { cache } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import type {
@@ -38,14 +39,30 @@ function inList(ids: string[]): string {
   return `(${ids.join(",")})`;
 }
 
-/** The authenticated coach, or `null`. Server-side session check. */
-export async function getCoachUser(): Promise<User | null> {
+/**
+ * The authenticated coach's verified token claims (`sub`, `email`, ...), or
+ * `null`. Server-side session check.
+ *
+ * `getClaims()` rather than `getUser()`: getUser() is a network round trip to
+ * the Supabase Auth server on EVERY call, and middleware.ts has already made
+ * that call — and already redirected anyone unauthenticated — milliseconds
+ * earlier, so a second one bought nothing but latency on every coach page
+ * load. This project signs access tokens with asymmetric ES256 keys (see
+ * apps/api/app/auth.py, which verifies the same tokens against the same
+ * published JWKS), and for asymmetric keys getClaims() verifies the signature
+ * locally via WebCrypto with no request at all. This is still a real
+ * cryptographic check, so the defence-in-depth the layout wants is intact —
+ * only the round trip is gone. auth-js caches the JWKS in a module-level
+ * global for 10 minutes, so the fresh client object createSupabaseServerClient
+ * returns per call does not refetch it.
+ *
+ * `cache()` so several callers within one request share a single verification.
+ */
+export const getCoachUser = cache(async () => {
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
+  const { data } = await supabase.auth.getClaims();
+  return data?.claims ?? null;
+});
 
 /** Aggregate all data shown on the coach dashboard. */
 export async function getDashboardData(): Promise<CoachDashboardData> {
@@ -190,8 +207,15 @@ export async function getCoachCompanies(
   });
 }
 
+/** What a Sponsored Companies *card* renders. Deliberately without
+ *  `ai_summary`: SponsoredCompanyRow has no field for it, so selecting it here
+ *  pulled a text blob per company over the wire for the list to throw away. */
+const SPONSORED_COMPANY_LIST_COLUMNS =
+  "id, slug, name, sector, region, hq_location, open_jobs, lead_score";
+
+/** The card columns plus the AI summary, which only the detail page shows. */
 const SPONSORED_COMPANY_COLUMNS =
-  "id, slug, name, sector, region, hq_location, open_jobs, lead_score, ai_summary, ai_summary_generated_at";
+  `${SPONSORED_COMPANY_LIST_COLUMNS}, ai_summary, ai_summary_generated_at`;
 
 /**
  * All companies for the Sponsored Companies list. Also the company set the
@@ -203,31 +227,41 @@ const SPONSORED_COMPANY_COLUMNS =
 export async function getSponsoredCompanies(): Promise<SponsoredCompanyRow[]> {
   const supabase = await createSupabaseServerClient();
 
-  const hiddenIds = await getHiddenCompanyIds(supabase);
-
-  let companiesQuery = supabase
-    .from("public_company_summary")
-    .select(SPONSORED_COMPANY_COLUMNS)
-    .order("name", { ascending: true });
-  if (hiddenIds.length) {
-    companiesQuery = companiesQuery.not("id", "in", inList(hiddenIds));
-  }
-
-  const { data, error } = await companiesQuery;
+  // Concurrent, not sequential. The hidden set used to be awaited first purely
+  // so the companies query could be narrowed with `not.in`, which put two
+  // round trips to Supabase in series at the very front of a page that shows
+  // nothing until both have landed. Excluding the hidden ids in JS instead
+  // lets the two overlap.
+  //
+  // ponytail: this fetches the coach's hidden companies only to drop them,
+  // so the row count crossing the wire is the *unfiltered* company set. Fine
+  // at this size; if the company set ever approaches PostgREST's 1000-row cap,
+  // go back to narrowing in-query (and paginate) rather than growing this.
+  const [hiddenIds, { data, error }] = await Promise.all([
+    getHiddenCompanyIds(supabase),
+    supabase
+      .from("public_company_summary")
+      .select(SPONSORED_COMPANY_LIST_COLUMNS)
+      .order("name", { ascending: true }),
+  ]);
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((company) => ({
-    company_id: company.id as string,
-    slug: company.slug as string,
-    name: company.name as string,
-    location:
-      (company.hq_location as string | null) ??
-      (company.region as string | null) ??
-      "—",
-    sector: (company.sector as string | null) ?? null,
-    open_jobs: (company.open_jobs as number | null) ?? 0,
-    lead_score: (company.lead_score as number | null) ?? 0,
-  }));
+  const hidden = new Set(hiddenIds);
+
+  return (data ?? [])
+    .filter((company) => !hidden.has(company.id as string))
+    .map((company) => ({
+      company_id: company.id as string,
+      slug: company.slug as string,
+      name: company.name as string,
+      location:
+        (company.hq_location as string | null) ??
+        (company.region as string | null) ??
+        "—",
+      sector: (company.sector as string | null) ?? null,
+      open_jobs: (company.open_jobs as number | null) ?? 0,
+      lead_score: (company.lead_score as number | null) ?? 0,
+    }));
 }
 
 /** Company context for the Sponsored Company detail page's overview, by id. */
@@ -314,17 +348,14 @@ export async function getCompanyNotes(companyId: string): Promise<string | null>
 export async function getExistingDraft(
   companyId: string
 ): Promise<OutreachEmail | null> {
+  const claims = await getCoachUser();
+  if (!claims) return null;
+
   const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-
   const { data, error } = await supabase
     .from("outreach_emails")
     .select("*")
-    .eq("coach_user_id", user.id)
+    .eq("coach_user_id", claims.sub)
     .eq("company_id", companyId)
     .eq("status", "draft")
     .order("created_at", { ascending: false })

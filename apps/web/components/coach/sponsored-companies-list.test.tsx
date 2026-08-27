@@ -30,27 +30,51 @@ const ABSOLUTE_RECRUIT: SponsoredCompanyRow = {
   lead_score: 50,
 };
 
+function card(): HTMLElement {
+  const article = screen.getByText("Absolute Recruit").closest("article");
+  expect(article).not.toBeNull();
+  return article as HTMLElement;
+}
+
 describe("SponsoredCompaniesList contact count", () => {
-  it("renders the real contact count (2) for a company that has 2 contacts", () => {
+  // The counts now arrive as a promise the server hands over unawaited, so
+  // these await the streamed-in text rather than reading it synchronously.
+  it("renders the real contact count (2) for a company that has 2 contacts", async () => {
     render(
       <SponsoredCompaniesList
         companies={[ABSOLUTE_RECRUIT]}
-        contactCounts={{ [ABSOLUTE_RECRUIT_ID]: 2 }}
+        contactCounts={Promise.resolve({ [ABSOLUTE_RECRUIT_ID]: 2 })}
       />
     );
 
-    const card = screen.getByText("Absolute Recruit").closest("article");
-    expect(card).not.toBeNull();
-    expect(card!.textContent).toContain("2 contacts");
-    expect(card!.textContent).not.toContain("0 contacts");
+    await screen.findByText("2 contacts");
+    expect(card().textContent).not.toContain("0 contacts");
   });
 
-  it("falls back to 0 only when the company is genuinely absent from the count map", () => {
+  it("falls back to 0 only when the company is genuinely absent from the count map", async () => {
     render(
-      <SponsoredCompaniesList companies={[ABSOLUTE_RECRUIT]} contactCounts={{}} />
+      <SponsoredCompaniesList
+        companies={[ABSOLUTE_RECRUIT]}
+        contactCounts={Promise.resolve({})}
+      />
     );
 
-    const card = screen.getByText("Absolute Recruit").closest("article");
-    expect(card!.textContent).toContain("0 contacts");
+    await screen.findByText("0 contacts");
+  });
+
+  // The streaming split (page.tsx hands the counts over as an unawaited
+  // promise) introduced a third state that did not exist before: in flight.
+  // It must not read as "0 contacts", which is a real answer for a company
+  // with none — hence the placeholder rather than a default of 0.
+  it("shows a placeholder, not '0 contacts', while the counts are still in flight", () => {
+    render(
+      <SponsoredCompaniesList
+        companies={[ABSOLUTE_RECRUIT]}
+        contactCounts={new Promise(() => {})}
+      />
+    );
+
+    expect(card().textContent).toContain("— contacts");
+    expect(card().textContent).not.toContain("0 contacts");
   });
 });

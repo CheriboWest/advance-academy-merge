@@ -12,9 +12,11 @@ export default async function CoachWorkspaceLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Server-side session check (defence in depth alongside middleware).
-  const user = await getCoachUser();
-  if (!user) {
+  // Server-side session check (defence in depth alongside middleware). Still a
+  // real signature verification — see getCoachUser — just not a second network
+  // round trip on top of the one middleware already made.
+  const claims = await getCoachUser();
+  if (!claims) {
     redirect("/coach/login");
   }
 
@@ -22,7 +24,7 @@ export default async function CoachWorkspaceLayout({
     <div className="mx-auto flex w-full max-w-7xl px-4 sm:px-6 lg:px-8">
       <CoachSidebar />
       <div className="min-w-0 flex-1 space-y-8 py-8 md:pl-8">
-        <CoachHeader email={user.email ?? "Coach"} />
+        <CoachHeader email={claims.email ?? "Coach"} />
         {children}
       </div>
     </div>

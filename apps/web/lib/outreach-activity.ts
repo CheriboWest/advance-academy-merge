@@ -1,5 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase-server";
-import { getCompanyNames } from "@/lib/coach";
+import { getCoachUser, getCompanyNames } from "@/lib/coach";
 import { getContactsForCompanies } from "@/lib/contacts";
 import type {
   OutreachActivityRow,
@@ -75,16 +75,14 @@ function toActivityRow(
  * duplicated here, both are looked up fresh each call.
  */
 export async function getOutreachActivities(): Promise<OutreachActivityRow[]> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return [];
+  const claims = await getCoachUser();
+  if (!claims) return [];
 
+  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("outreach_emails")
     .select("*")
-    .eq("coach_user_id", user.id)
+    .eq("coach_user_id", claims.sub)
     .neq("status", "draft")
     .order("last_contacted_at", { ascending: false, nullsFirst: false });
   if (error) throw new Error(error.message);
@@ -99,16 +97,14 @@ export async function getOutreachActivities(): Promise<OutreachActivityRow[]> {
 export async function getOutreachActivitiesForCompany(
   companyId: string
 ): Promise<OutreachActivityRow[]> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return [];
+  const claims = await getCoachUser();
+  if (!claims) return [];
 
+  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("outreach_emails")
     .select("*")
-    .eq("coach_user_id", user.id)
+    .eq("coach_user_id", claims.sub)
     .eq("company_id", companyId)
     .neq("status", "draft")
     .order("last_contacted_at", { ascending: false, nullsFirst: false });
