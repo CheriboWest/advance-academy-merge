@@ -262,6 +262,11 @@ async def _ingest(
             prefer="resolution=merge-duplicates,return=representation",
         )
         company_id_by_slug = {row["slug"]: row["id"] for row in upserted}
+        # Every company this crawl created or updated — the post-crawl
+        # sponsorship hook's worklist. The worker filters it down itself
+        # (companies_needing_resolution + sponsor_resolve_max_per_crawl), so
+        # handing it everything touched is both correct and bounded.
+        stats.affected_company_ids.extend(company_id_by_slug.values())
         stats.companies_needing_summary.extend(
             company_id_by_slug[slug]
             for slug in slugs_needing_summary
@@ -419,8 +424,8 @@ async def _write_crawl_run(
             )
             continue
         return payload
-    # Every tier failed, including the bare {status, completed_at, error}
-    # tier — nothing left to narrow to. Re-raise rather than silently no-op.
+    # Every tier failed, including the bare {status, completed_at} tier —
+    # nothing left to narrow to. Re-raise rather than silently no-op.
     assert last_exc is not None
     raise last_exc
 
@@ -451,16 +456,24 @@ async def _finalize(
     logged loudly and nothing is ever silently swallowed.
     """
     completed_at = _now_iso()
+    # The live column is `error_message`, NOT `error`. Writing `error` here is
+    # exactly what stranded every run at "running": it sat in `base`, so all
+    # three tiers carried it, PostgREST rejected all three (PGRST204), and
+    # `_write_crawl_run` re-raised with nothing left to narrow to.
     base: dict[str, Any] = {
         "status": status,
         "completed_at": completed_at,
-        "error": error_note,
+        "error_message": error_note,
     }
     persisted = stats.as_persisted_columns()
+    # The last tier may only contain columns without which the run cannot reach
+    # a terminal state at all. Anything else belongs in a higher tier: a column
+    # in the bottom tier is a column that can strand a run forever.
     tiers = [
         {**base, **persisted},
         {**base, **{k: v for k, v in persisted.items() if k != "jobs_found"}},
         dict(base),
+        {"status": status, "completed_at": completed_at},
     ]
 
     async with httpx.AsyncClient() as client:
