@@ -151,13 +151,29 @@ if CONTACTS_TS.exists():
     # Outreach activity dashboard, which needs the same batch of full contact
     # objects, not just counts). Check the query construction where it now
     # actually lives, rather than re-pinning the old direct call shape.
-    get_for_companies_query = re.search(
-        r"function getContactsForCompanies\([^)]*\)[^{]*\{[^}]*?return fetchContacts\(\s*`([^$]+)\$\{",
+    #
+    # getContactsForCompanies() itself chunks by MAX_COMPANY_IDS_PER_LIST (see
+    # test_sponsored_companies_contact_count_cache.py for why: a single
+    # request over that cap 422s in full, silently zeroing every company's
+    # count) — so this no longer matches one direct top-level `return
+    # fetchContacts(...)`; it's a `.map()` over chunks instead. Match the
+    # function's body up to the next top-level export (getContactCounts,
+    # always the next function in this file) rather than one exact call shape.
+    get_for_companies_fn = re.search(
+        r"function getContactsForCompanies\([\s\S]*?"
+        r"(?=\nexport async function getContactCounts)",
         source,
     )
+    check("getContactsForCompanies() exists", bool(get_for_companies_fn))
     check("getContactsForCompanies() queries by company_ids=",
-          bool(get_for_companies_query) and get_for_companies_query.group(1) == "company_ids=",
-          f"got {get_for_companies_query.group(1) if get_for_companies_query else None!r}")
+          bool(get_for_companies_fn)
+          and bool(re.search(r"fetchContacts\(\s*`company_ids=\$\{", get_for_companies_fn.group(0))),
+          f"searched the function body for a fetchContacts(`company_ids=${{...`) call")
+    check("getContactsForCompanies() chunks rather than sending every id in "
+          "one request (the actual fix for the batch-cap 422)",
+          bool(get_for_companies_fn)
+          and "CHUNK_SIZE" in get_for_companies_fn.group(0)
+          and ".map(" in get_for_companies_fn.group(0))
 
     check("getContactCounts() is built on getContactsForCompanies(), not a "
           "second direct call — one place constructs the company_ids= query",

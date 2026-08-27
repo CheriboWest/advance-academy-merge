@@ -45,18 +45,41 @@ export async function getContacts(companyId: string): Promise<Contact[]> {
   return fetchContacts(`company_id=${encodeURIComponent(companyId)}`);
 }
 
+// Matches MAX_COMPANY_IDS_PER_LIST in app/routers/contacts.py — a single
+// `company_ids` request over that cap is rejected outright (422), same
+// constraint `sponsorship.ts`'s getSponsorshipStatuses chunks around. Without
+// this, a coach whose (unpaginated — see getSponsoredCompanies) company list
+// grows past 500 gets one oversized request that 422s in full: fetchContacts
+// treats any non-2xx as "no contacts", so *every* company's card on the
+// Sponsored Companies list silently shows 0 contacts, including ones with
+// real contacts — while each company's own detail page keeps working, since
+// it queries a single `company_id=`, never `company_ids=`, and so never hits
+// this cap.
+const CHUNK_SIZE = 500;
+
 /**
- * Every contact across several companies in one request — for the Outreach
- * activity dashboard, which needs to show a contact's name/role next to
- * each outreach row without an N+1 (one request per distinct company).
+ * Every contact across several companies — for the Outreach activity
+ * dashboard, which needs to show a contact's name/role next to each outreach
+ * row without an N+1 (one request per distinct company), and for
+ * `getContactCounts` below. Chunked so a large company set is several
+ * requests rather than one the backend rejects outright.
  */
 export async function getContactsForCompanies(
   companyIds: string[]
 ): Promise<Contact[]> {
   if (companyIds.length === 0) return [];
-  return fetchContacts(
-    `company_ids=${encodeURIComponent(companyIds.join(","))}`
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < companyIds.length; i += CHUNK_SIZE) {
+    chunks.push(companyIds.slice(i, i + CHUNK_SIZE));
+  }
+
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      fetchContacts(`company_ids=${encodeURIComponent(chunk.join(","))}`)
+    )
   );
+  return results.flat();
 }
 
 /**
