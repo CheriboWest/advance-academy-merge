@@ -350,7 +350,7 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          title="Delete permanently — affects all users"
+                          title="Delete permanently (affects all users)"
                           aria-label={`Permanently delete ${row.name} for all users`}
                           disabled={pendingId === row.company_id}
                           onClick={() => setToDelete([row])}

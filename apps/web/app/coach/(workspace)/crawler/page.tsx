@@ -223,7 +223,7 @@ export default function CrawlerPage() {
         <h2 className="text-xl">Job crawler</h2>
         <p className="text-sm text-muted-foreground">
           Discover companies and roles from Adzuna and Reed. Results feed the
-          shared database — review companies on the{" "}
+          shared database. Review companies on the{" "}
           <Link
             href="/coach/companies"
             className="text-primary underline-offset-4 hover:underline"

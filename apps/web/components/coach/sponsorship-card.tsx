@@ -233,7 +233,7 @@ function NotChecked({ status }: { status: CompanySponsorshipStatus }) {
       {status.stale && status.checked_at && (
         <p className="text-xs text-muted-foreground">
           Last checked {formatDate(status.checked_at)}, against a previous
-          register update — recheck for the current one.
+          register update. Recheck for the current one.
         </p>
       )}
     </div>
