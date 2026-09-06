@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import time
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Iterable
+from typing import Any, Awaitable, Iterable, Optional
 
 import httpx
 
@@ -19,6 +19,7 @@ from app.crawler.normalize import (
     normalize_city,
     normalize_query,
     normalize_title,
+    split_terms,
 )
 from app.crawler.scoring import compute_lead_score
 from app.crawler.sources import adzuna, reed
@@ -28,6 +29,10 @@ from app.crawler.timing import log_stage, stage
 # MVP limits.
 MAX_RAW_JOBS = 50
 PER_SOURCE_LIMIT = 25
+# How long a crawled (query, location) pair stays fresh. Lives here rather than
+# in the router because the crawl loop reads it too, and the router already
+# imports from this module — the other direction would be a circular import.
+CACHE_TTL_HOURS = 24.0
 # Hard ceiling so a background task can never stay "running" forever.
 OVERALL_TIMEOUT_SECONDS = 90.0
 # Sponsorship resolution runs after the crawl has already been finalized, so
@@ -41,6 +46,47 @@ SUMMARY_TIMEOUT_SECONDS = 240.0
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def hours_since(iso: Optional[str]) -> Optional[float]:
+    """Hours between an ISO timestamp and now, or None if it cannot be read."""
+    if not iso:
+        return None
+    try:
+        parsed = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - parsed).total_seconds() / 3600.0
+
+
+async def cached_refresh_time(
+    client: httpx.AsyncClient,
+    rest: SupabaseRest,
+    normalized_query: str,
+    normalized_city: str,
+) -> Optional[str]:
+    """`last_refreshed_at` while this pair is still inside the 24h cache.
+
+    None means "go crawl it" — either never crawled, or crawled long enough ago
+    to be worth refreshing.
+    """
+    rows = await rest.select(
+        client,
+        "discovery_queries",
+        {
+            "query": f"eq.{normalized_query}",
+            "location": f"eq.{normalized_city}",
+            "select": "last_refreshed_at",
+            "limit": "1",
+        },
+    )
+    if not rows:
+        return None
+    last_refreshed = rows[0].get("last_refreshed_at")
+    hours = hours_since(last_refreshed)
+    return last_refreshed if hours is not None and hours < CACHE_TTL_HOURS else None
 
 
 def _safe_error(exc: Exception) -> str:
@@ -149,6 +195,12 @@ async def _ingest(
     jobs: list[NormalizedJob],
     stats: CrawlStats,
 ) -> None:
+    """Ingest one pair's jobs, accumulating into `stats`.
+
+    Every counter here accumulates rather than assigns: a run walks a list of
+    (query, city) pairs sharing one CrawlStats, so assigning would report only
+    whichever pair happened to finish last.
+    """
     if not jobs:
         return
 
@@ -309,7 +361,7 @@ async def _ingest(
                     }
                 )
                 unique_row_sources.append(job.source)
-        stats.normalized_jobs = len(unique_rows)
+        stats.normalized_jobs += len(unique_rows)
 
     # Which of the unique rows already exist (updated vs inserted)?
     with stage("select_existing_jobs", f"({len(unique_rows)} hashes)"):
@@ -322,10 +374,11 @@ async def _ingest(
                 {"content_hash": f"in.({_csv(chunk)})", "select": "content_hash"},
             )
             existing_hashes.update(row["content_hash"] for row in rows)
-        stats.updated_jobs = sum(
+        updated = sum(
             1 for row in unique_rows if row["content_hash"] in existing_hashes
         )
-        stats.inserted_jobs = len(unique_rows) - stats.updated_jobs
+        stats.updated_jobs += updated
+        stats.inserted_jobs += len(unique_rows) - updated
         for row, row_source in zip(unique_rows, unique_row_sources):
             if row["content_hash"] in existing_hashes:
                 stats.record_source_outcome(row_source, duplicate=1, verified=1)
@@ -357,7 +410,7 @@ async def _execute(
     async with httpx.AsyncClient() as client:
         with stage("fetch_total"):
             jobs = await _fetch_all(client, settings, query, city, sources, stats)
-        stats.raw_jobs = len(jobs)
+        stats.raw_jobs += len(jobs)
 
         with stage("ingest_total", f"({len(jobs)} raw jobs)"):
             await _ingest(client, rest, jobs, stats)
@@ -642,44 +695,81 @@ async def _generate_company_summaries(company_ids: list[str]) -> None:
         )
 
 
-async def run_crawl(run_id: str, query: str, city: str, sources: list[str]) -> None:
-    """Background entrypoint. Always finalizes crawl_runs to success/error."""
+async def run_crawl(
+    run_id: str,
+    query: str,
+    city: str,
+    sources: list[str],
+    force: bool = False,
+) -> None:
+    """Background entrypoint. Always finalizes crawl_runs to success/error.
+
+    `query` and `city` may each carry several values separated by newlines or
+    commas (see `split_terms`), so one coach action can cover a whole list of
+    roles instead of one. The cross product runs sequentially — that is also
+    the rate limiting, since the providers cap requests per minute — and every
+    pair shares one `CrawlStats`, so the "Crawl complete" cards report the
+    totals for the run rather than for whichever pair happened to finish last.
+    """
     settings = get_settings()
     rest = SupabaseRest(settings.supabase_url, settings.supabase_service_role_key)
     stats = CrawlStats()
 
-    normalized_query = normalize_query(query)
-    normalized_city = normalize_query(city)
-
+    pairs = [(q, c) for q in split_terms(query) for c in split_terms(city)]
+    crawled = 0
+    skipped = 0
     status = "success"
     error_note: str | None = None
     started = time.perf_counter()
 
-    try:
-        await asyncio.wait_for(
-            _execute(
-                rest,
-                settings,
-                query,
-                city,
-                sources,
-                stats,
-                normalized_query,
-                normalized_city,
-            ),
-            timeout=OVERALL_TIMEOUT_SECONDS,
+    async with httpx.AsyncClient() as client:
+        for pair_query, pair_city in pairs:
+            normalized_query = normalize_query(pair_query)
+            normalized_city = normalize_query(pair_city)
+
+            # A single pair was already cache-checked by the router, so this
+            # only does work for multi-pair runs. It is what lets a run that
+            # died halfway through resume on the next click instead of
+            # re-spending the provider's daily quota on pairs already crawled.
+            if (
+                not force
+                and len(pairs) > 1
+                and await cached_refresh_time(
+                    client, rest, normalized_query, normalized_city
+                )
+            ):
+                skipped += 1
+                continue
+
+            try:
+                await asyncio.wait_for(
+                    _execute(
+                        rest,
+                        settings,
+                        pair_query,
+                        pair_city,
+                        sources,
+                        stats,
+                        normalized_query,
+                        normalized_city,
+                    ),
+                    timeout=OVERALL_TIMEOUT_SECONDS,
+                )
+                crawled += 1
+            except asyncio.TimeoutError:
+                stats.source_errors[f"{pair_query} / {pair_city}"] = "Crawl timed out."
+            except Exception as exc:  # noqa: BLE001 - record failure, never raise
+                stats.source_errors[f"{pair_query} / {pair_city}"] = _safe_error(exc)
+
+    if stats.source_errors:
+        error_note = "; ".join(
+            f"{source}: {message}" for source, message in stats.source_errors.items()
         )
-        if stats.source_errors:
-            error_note = "; ".join(
-                f"{source}: {message}"
-                for source, message in stats.source_errors.items()
-            )
-    except asyncio.TimeoutError:
+    # Only a run where nothing at all got through is a failed run: one bad role
+    # out of twenty must not throw away the nineteen that worked. With a single
+    # pair this is exactly the old behaviour — it failed, so the run failed.
+    if not crawled and not skipped:
         status = "error"
-        error_note = "Crawl timed out."
-    except Exception as exc:  # noqa: BLE001 - record failure, never raise
-        status = "error"
-        error_note = _safe_error(exc)
 
     await _finalize(rest, run_id, status, stats, error_note)
 

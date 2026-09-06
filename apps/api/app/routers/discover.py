@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Optional
+import asyncio
+from typing import Any
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from app.auth import get_current_user
 from app.config import Settings, get_settings
-from app.crawler.normalize import normalize_query
-from app.crawler.pipeline import OVERALL_TIMEOUT_SECONDS, run_crawl
+from app.crawler.normalize import normalize_query, split_terms
+from app.crawler.pipeline import (
+    OVERALL_TIMEOUT_SECONDS,
+    cached_refresh_time,
+    hours_since,
+    run_crawl,
+)
 from app.crawler.supabase_rest import SupabaseRest
 from app.crawler.timing import stage
 from app.schemas import (
@@ -23,12 +28,15 @@ from app.schemas import (
 router = APIRouter(prefix="/discover", tags=["discover"])
 
 VALID_SOURCES = ("adzuna", "reed")
-CACHE_TTL_HOURS = 24.0
-# A run still "running" past this is not running — the crawl itself is capped at
-# OVERALL_TIMEOUT_SECONDS and always finalizes, so twice that is well clear of a
-# slow-but-live crawl. Anything older lost its background task (the server
-# restarted, `uvicorn --reload` reloaded, the finalize write failed) and no
-# in-process handler can ever come back to it.
+# One coach action can crawl a list of roles across a list of cities. The cap is
+# the provider budget rather than anything about this process: a pair costs one
+# request per source, and Adzuna's free tier allows 250 a day.
+MAX_PAIRS_PER_RUN = 25
+# A run still "running" past this is not running — each pair is capped at
+# OVERALL_TIMEOUT_SECONDS and the run always finalizes, so twice that per pair
+# is well clear of a slow-but-live crawl. Anything older lost its background
+# task (the server restarted, `uvicorn --reload` reloaded, the finalize write
+# failed) and no in-process handler can ever come back to it.
 STALE_RUN_SECONDS = OVERALL_TIMEOUT_SECONDS * 2
 
 
@@ -38,19 +46,6 @@ def _require_supabase(settings: Settings) -> SupabaseRest:
             status_code=500, detail="Server is not configured for Supabase access."
         )
     return SupabaseRest(settings.supabase_url, settings.supabase_service_role_key)
-
-
-def _hours_since(iso: Optional[str]) -> Optional[float]:
-    if not iso:
-        return None
-    try:
-        parsed = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    delta = datetime.now(timezone.utc) - parsed
-    return delta.total_seconds() / 3600.0
 
 
 def _row_to_status(row: dict[str, Any]) -> CrawlRunStatus:
@@ -90,11 +85,20 @@ def _row_to_status(row: dict[str, Any]) -> CrawlRunStatus:
     # That is deliberate — it needs no write path, no cron, and it covers every
     # cause including a killed process. Upgrade to a background reaper only if
     # something starts reading crawl_runs.status directly (a report, a metric).
-    age_hours = _hours_since(row.get("started_at"))
+    #
+    # The budget scales with what the run was actually asked to do: `query` and
+    # `location` hold the pair lists verbatim, so the row itself says how many
+    # crawls are in flight — no extra column on a table with known schema drift.
+    pair_count = max(
+        1,
+        len(split_terms(str(row.get("query") or "")))
+        * len(split_terms(str(row.get("location") or ""))),
+    )
+    age_hours = hours_since(row.get("started_at"))
     if (
         status == "running"
         and age_hours is not None
-        and age_hours * 3600.0 > STALE_RUN_SECONDS
+        and age_hours * 3600.0 > STALE_RUN_SECONDS * pair_count
     ):
         status = "error"
         error = error or "The crawl was interrupted and never finished."
@@ -158,44 +162,73 @@ async def start_discovery(
     settings = get_settings()
     rest = _require_supabase(settings)
 
-    normalized_query = normalize_query(req.query)
-    normalized_city = normalize_query(req.city)
+    # Both fields accept a list (newlines and/or commas), so one action can
+    # cover many roles. Everything downstream still passes plain strings —
+    # `run_crawl` re-splits them — which is why no schema or signature changes.
+    queries = split_terms(req.query)
+    cities = split_terms(req.city)
 
-    if not normalized_query or not normalized_city:
+    if not queries or not cities:
         raise HTTPException(status_code=422, detail="Query and city are required.")
+
+    pairs = [(q, c) for q in queries for c in cities]
+    if len(pairs) > MAX_PAIRS_PER_RUN:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"{len(queries)} role(s) x {len(cities)} city/cities = "
+                f"{len(pairs)} crawls, over the limit of {MAX_PAIRS_PER_RUN}. "
+                "Shorten the list or split it across two runs."
+            ),
+        )
 
     sources = [s for s in req.sources if s in VALID_SOURCES] or list(VALID_SOURCES)
 
+    # Stored as one line so a pasted 20-row list does not wreck the "Recent
+    # crawls" cell. For a single role this is the input unchanged.
+    stored_query = ", ".join(queries)
+    stored_city = ", ".join(cities)
+
     async with httpx.AsyncClient() as client:
-        # 1. Cache check (unless forced)
+        # 1. Cache check (unless forced). Every pair still fresh means there is
+        #    nothing to crawl — the same answer the single-pair case has always
+        #    given, so it reuses the same response and its "Refresh now" button.
+        #    A partially fresh list is a real run: `run_crawl` skips the fresh
+        #    pairs itself, which is also what makes an interrupted run resumable.
         if not req.force:
             with stage("cache_check"):
-                existing = await rest.select(
-                    client,
-                    "discovery_queries",
-                    {
-                        "query": f"eq.{normalized_query}",
-                        "location": f"eq.{normalized_city}",
-                        "select": "*",
-                        "limit": "1",
-                    },
+                markers = await asyncio.gather(
+                    *[
+                        cached_refresh_time(
+                            client, rest, normalize_query(q), normalize_query(c)
+                        )
+                        for q, c in pairs
+                    ]
                 )
 
-            if existing:
-                last_refreshed = existing[0].get("last_refreshed_at")
-                hours = _hours_since(last_refreshed)
-
-                if hours is not None and hours < CACHE_TTL_HOURS:
+            if all(markers):
+                # Report the age of the stalest pair — the honest one, since it
+                # is the first that would be recrawled.
+                oldest = max(markers, key=lambda m: hours_since(m) or 0.0)
+                hours = hours_since(oldest)
+                # Only meaningful per pair: a multi-pair run records one
+                # crawl_runs row for the whole list, so there is no per-pair
+                # figure to read back. None renders as "no count", not "zero".
+                jobs_available = None
+                if len(pairs) == 1:
                     jobs_available = await _cached_jobs_available(
-                        client, rest, normalized_query, normalized_city
+                        client,
+                        rest,
+                        normalize_query(pairs[0][0]),
+                        normalize_query(pairs[0][1]),
                     )
 
-                    return DiscoverStartResponse(
-                        cached=True,
-                        last_refreshed_at=last_refreshed,
-                        hours_ago=round(hours, 1),
-                        jobs_available=jobs_available,
-                    )
+                return DiscoverStartResponse(
+                    cached=True,
+                    last_refreshed_at=oldest,
+                    hours_ago=round(hours, 1) if hours is not None else None,
+                    jobs_available=jobs_available,
+                )
 
         # 2. Start a run
         with stage("create_crawl_run"):
@@ -206,15 +239,17 @@ async def start_discovery(
                     {
                         "source": "manual_discovery",
                         "status": "running",
-                        "query": req.query,
-                        "location": req.city,
+                        "query": stored_query,
+                        "location": stored_city,
                     }
                 ],
             )
 
     run_id = str(created[0]["id"])
 
-    background_tasks.add_task(run_crawl, run_id, req.query, req.city, sources)
+    background_tasks.add_task(
+        run_crawl, run_id, stored_query, stored_city, sources, req.force
+    )
 
     return DiscoverStartResponse(
         cached=False,

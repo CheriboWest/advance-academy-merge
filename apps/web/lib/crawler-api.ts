@@ -40,6 +40,23 @@ export interface StartCrawlInput {
   force: boolean;
 }
 
+/**
+ * Split a multi-value crawler input (newlines and/or commas) into unique terms.
+ *
+ * Mirrors `split_terms` in apps/api/app/crawler/normalize.py — the API re-splits
+ * the same strings server-side, so this copy exists only to size the request
+ * (how many crawls am I about to start?) before sending it. Both fields stay
+ * plain strings on the wire; nothing about the request shape is per-term.
+ */
+export const splitTerms = (value: string): string[] => [
+  ...new Set(
+    value
+      .split(/[\n,]/)
+      .map((term) => term.trim())
+      .filter(Boolean)
+  ),
+];
+
 async function authFetch<T>(path: string, init: RequestInit): Promise<T> {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL;
   if (!baseUrl) {

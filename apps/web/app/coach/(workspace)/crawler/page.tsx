@@ -19,12 +19,14 @@ import { cn } from "@/lib/utils";
 import {
   getCrawlHistory,
   getCrawlStatus,
+  splitTerms,
   startCrawl,
   type CrawlRunStatus,
   type StartCrawlResponse,
 } from "@/lib/crawler-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { KPICard } from "@/components/coach/kpi-card";
 
@@ -32,6 +34,11 @@ const SOURCE_OPTIONS = [
   { key: "adzuna", label: "Adzuna" },
   { key: "reed", label: "Reed" },
 ] as const;
+
+// Mirrors MAX_PAIRS_PER_RUN in apps/api/app/routers/discover.py. Checked here
+// too so an over-long list is caught before a round trip, not after; the API
+// still enforces it, this is only for the message.
+const MAX_PAIRS_PER_RUN = 25;
 
 type Phase =
   | "idle"
@@ -75,6 +82,12 @@ export default function CrawlerPage() {
     .filter(([, enabled]) => enabled)
     .map(([key]) => key);
 
+  // Both fields take a list. The cross product is what actually gets crawled,
+  // so it is what the coach needs to see before spending it.
+  const roles = splitTerms(query);
+  const cities = splitTerms(city);
+  const pairCount = roles.length * cities.length;
+
   const loadHistory = React.useCallback(async () => {
     try {
       setHistory(await getCrawlHistory());
@@ -101,23 +114,21 @@ export default function CrawlerPage() {
   }, [loadHistory, stopPolling]);
 
   const poll = React.useCallback(
-    (runId: string) => {
+    (runId: string, pairs: number) => {
       // Supersede any previous loop, then claim this generation.
       stopPolling();
       const generation = pollGenerationRef.current;
       const startedAt = Date.now();
       // Hard ceiling so a run that never reaches a terminal status (e.g. the
-      // backend fails to finalize the row) can't poll forever.
-      const MAX_POLL_MS = 120_000;
+      // backend fails to finalize the row) can't poll forever. Scaled by the
+      // number of (role, city) pairs: they crawl sequentially, so a flat two
+      // minutes would give up on a healthy multi-role run while it is still
+      // working through the list.
+      const MAX_POLL_MS = 120_000 * Math.max(1, pairs);
       const DONE = new Set(["completed", "success"]);
       const FAILED = new Set(["failed", "error"]);
 
       const isCurrent = () => generation === pollGenerationRef.current;
-
-      // TEMPORARY diagnostics — remove after investigation.
-      console.log(
-        `[crawler-poll] loop-start run_id=${runId} generation=${generation}`
-      );
 
       const tick = async () => {
         if (!isCurrent()) return;
@@ -137,11 +148,6 @@ export default function CrawlerPage() {
 
         // A newer loop (or unmount) took over while we awaited — stop silently.
         if (!isCurrent()) return;
-
-        // TEMPORARY diagnostics — remove after investigation.
-        console.log(`[crawler-poll] run_id=${runId}`);
-        console.log(`[crawler-poll] status=${status.status}`);
-        console.log("[crawler-poll] response=", status);
 
         setRun(status);
 
@@ -182,8 +188,16 @@ export default function CrawlerPage() {
     // Cancel any previous poll loop before starting a new crawl action.
     stopPolling();
     setError(null);
-    if (!query.trim() || !city.trim()) {
-      setError("Enter a role/keyword and a city.");
+    if (!roles.length || !cities.length) {
+      setError("Enter at least one role/keyword and one city.");
+      return;
+    }
+    if (pairCount > MAX_PAIRS_PER_RUN) {
+      setError(
+        `${roles.length} role(s) x ${cities.length} city/cities = ${pairCount} ` +
+          `crawls, over the limit of ${MAX_PAIRS_PER_RUN}. Shorten the list or ` +
+          `split it across two runs.`
+      );
       return;
     }
     if (selectedSources.length === 0) {
@@ -194,6 +208,8 @@ export default function CrawlerPage() {
     setStarting(true);
     try {
       const res = await startCrawl({
+        // Sent as typed. The API re-splits both fields, so the multi-value
+        // shape never has to exist on the wire.
         query: query.trim(),
         city: city.trim(),
         sources: selectedSources,
@@ -205,7 +221,7 @@ export default function CrawlerPage() {
       } else if (res.run_id) {
         setRun(null);
         setPhase("running");
-        poll(res.run_id);
+        poll(res.run_id, pairCount);
       }
     } catch (err) {
       setPhase("error");
@@ -239,16 +255,20 @@ export default function CrawlerPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label htmlFor="query" className="text-sm font-medium">
-              Role / keyword
+              Roles / keywords
             </label>
-            <Input
+            <Textarea
               id="query"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="e.g. Software Engineer"
+              placeholder={"Software Engineer\nData Analyst, DevOps Engineer"}
               disabled={busy}
-              className="h-11"
+              rows={4}
+              className="min-h-24"
             />
+            <p className="text-xs text-muted-foreground">
+              One per line, or separated by commas.
+            </p>
           </div>
           <div className="space-y-2">
             <label htmlFor="city" className="text-sm font-medium">
@@ -258,10 +278,25 @@ export default function CrawlerPage() {
               id="city"
               value={city}
               onChange={(event) => setCity(event.target.value)}
-              placeholder="e.g. London"
+              placeholder="e.g. London, Manchester"
               disabled={busy}
               className="h-11"
             />
+            {pairCount > 0 && (
+              <p
+                className={cn(
+                  "text-xs",
+                  pairCount > MAX_PAIRS_PER_RUN
+                    ? "text-destructive"
+                    : "text-muted-foreground"
+                )}
+              >
+                {roles.length} {roles.length === 1 ? "role" : "roles"} x{" "}
+                {cities.length} {cities.length === 1 ? "city" : "cities"} ={" "}
+                {pairCount} {pairCount === 1 ? "crawl" : "crawls"}
+                {pairCount > MAX_PAIRS_PER_RUN && ` (max ${MAX_PAIRS_PER_RUN})`}
+              </p>
+            )}
           </div>
         </div>
 
@@ -334,7 +369,10 @@ export default function CrawlerPage() {
                 {cached.hours_ago != null
                   ? `${cached.hours_ago} hours ago`
                   : "recently"}
-                . {cached.jobs_available ?? 0} jobs available in the database.
+                .
+                {cached.jobs_available != null
+                  ? ` ${cached.jobs_available} jobs available in the database.`
+                  : " Everything on this list was crawled recently."}
               </p>
             </div>
           </div>
@@ -366,8 +404,10 @@ export default function CrawlerPage() {
             <div className="flex items-start gap-3">
               <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
               <p className="text-sm">
-                Using {cached.jobs_available ?? 0} cached jobs. Review the
-                companies on the Companies page.
+                {cached.jobs_available != null
+                  ? `Using ${cached.jobs_available} cached jobs.`
+                  : "Using cached results."}{" "}
+                Review the companies on the Companies page.
               </p>
             </div>
             <Button asChild size="sm" className="shrink-0">
