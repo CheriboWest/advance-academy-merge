@@ -27,6 +27,7 @@ _LEGAL_SUFFIXES = {
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
+_TERM_SEPARATOR_RE = re.compile(r"[\n,]")
 
 
 def strip_html(text: str) -> str:
@@ -73,6 +74,24 @@ def normalize_city(city: str) -> str:
 
 def normalize_query(text: str) -> str:
     return _WS_RE.sub(" ", text).strip().lower()
+
+
+def split_terms(value: str) -> list[str]:
+    """Split a multi-value input (newlines and/or commas) into unique terms.
+
+    The crawler form takes several roles at once. Pasting a column out of a
+    spreadsheet yields newlines and typing inline yields commas, so both
+    separate — a coach never has to remember which convention this field wants.
+
+    Order is preserved so logs and the "Recent crawls" table read back in the
+    order the coach typed. A dict is the order-preserving way to dedupe.
+    """
+    seen: dict[str, None] = {}
+    for part in _TERM_SEPARATOR_RE.split(value or ""):
+        term = part.strip()
+        if term:
+            seen.setdefault(term, None)
+    return list(seen)
 
 
 def content_hash(company_slug_value: str, title: str, city: str) -> str:

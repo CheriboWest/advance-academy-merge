@@ -228,6 +228,9 @@ def run_crawl_with(
     run_id: str,
     sources: Optional[list[str]] = None,
     fetch_all=None,
+    query: str = "software engineer",
+    city: str = "London",
+    force: bool = False,
 ):
     """Drive the real `run_crawl` with the network and database stubbed out.
 
@@ -235,6 +238,9 @@ def run_crawl_with(
     `sources` — good enough for single-source scenarios. Pass `fetch_all` (an
     async callable matching `_fetch_all`'s signature) to exercise real
     multi-source merging instead.
+
+    `query`/`city` default to a single pair. Pass multi-value strings (newlines
+    or commas) to exercise the cross-product loop — see test_crawl_multi_query.
     """
     import asyncio
 
@@ -251,7 +257,7 @@ def run_crawl_with(
     try:
         asyncio.run(
             pipeline.run_crawl(
-                run_id, "software engineer", "London", sources or ["adzuna"]
+                run_id, query, city, sources or ["adzuna"], force
             )
         )
     finally:
