@@ -1,8 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Briefcase, Building2, Flame, MapPin, TrendingUp } from "lucide-react";
+import {
+  BadgeCheck,
+  Briefcase,
+  Building2,
+  Flame,
+  MapPin,
+  TrendingUp,
+} from "lucide-react";
 
 import { getDashboardData } from "@/lib/coach";
+import { getSponsorshipStats } from "@/lib/sponsorship";
 import { KPICard } from "@/components/coach/kpi-card";
 import { CompanyCard } from "@/components/company-card";
 import { SectionHeading } from "@/components/section-heading";
@@ -14,16 +22,33 @@ export const metadata: Metadata = {
 };
 
 export default async function CoachDashboardPage() {
-  const data = await getDashboardData();
+  // Concurrent: the sponsorship count is a separate round trip to the FastAPI
+  // backend (the sponsorship tables are service-role-only, so it cannot come
+  // from the same Supabase reads), and awaiting it after the dashboard data
+  // would put two independent waits in series on the first paint.
+  const [data, sponsorshipStats] = await Promise.all([
+    getDashboardData(),
+    getSponsorshipStats(),
+  ]);
 
   return (
     <div className="space-y-12">
       {/* Statistics band */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <KPICard
           label="Total companies"
           value={data.totalCompanies.toLocaleString("en-GB")}
           icon={Building2}
+        />
+        <KPICard
+          label="Licensed sponsors"
+          value={
+            sponsorshipStats
+              ? sponsorshipStats.licensed_companies.toLocaleString("en-GB")
+              : "—"
+          }
+          icon={BadgeCheck}
+          hint="Confirmed on the GOV.UK register"
         />
         <KPICard
           label="High score (80+)"

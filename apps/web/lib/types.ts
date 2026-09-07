@@ -202,6 +202,15 @@ export interface CompanySponsorshipStatusCompact {
 }
 
 /**
+ * Sponsorship totals across every company, from GET /sponsors/stats — the
+ * dashboard KPI's number. Not scoped to the coach's visible companies, unlike
+ * `CoachDashboardData.totalCompanies`.
+ */
+export interface SponsorshipStats {
+  licensed_companies: number;
+}
+
+/**
  * A company contact, from the FastAPI `/contacts` endpoints — never a direct
  * Supabase read. The `contacts` table is deny-by-default RLS,
  * service-role-only (same posture as sponsorship data): the backend is the

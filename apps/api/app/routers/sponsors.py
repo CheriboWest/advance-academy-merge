@@ -19,6 +19,7 @@ from app.schemas import (
     CompanySponsorshipStatusCompact,
     SponsorImportResponse,
     SponsorResolutionResponse,
+    SponsorshipStatsResponse,
     SponsorshipStatusBatchRequest,
 )
 from app.sponsors import govuk
@@ -175,6 +176,38 @@ async def bulk_resolve(
         )
 
     return {"status": "completed", **stats.as_dict(), "errors": stats.errors[:10]}
+
+
+@router.get("/stats", response_model=SponsorshipStatsResponse)
+async def sponsorship_stats(
+    _user_id: str = Depends(get_current_user),
+) -> SponsorshipStatsResponse:
+    """How many companies hold a confirmed, currently-live sponsor licence.
+
+    For the coach dashboard's headline KPI, which cannot read this from
+    Supabase directly: the sponsorship tables are deny-by-default RLS,
+    service-role-only, same as every other route on this router.
+
+    Counted from `company_sponsorship_current` — the same view a single
+    company's `licensed` status is derived from — so the KPI and the list
+    badges can never disagree about what "sponsored" means. This is the
+    global count, not scoped to the coach's visible companies: scoping it
+    would mean shipping every company id to this endpoint on each dashboard
+    load, which is not worth it for one number.
+    """
+    settings = get_settings()
+    rest = _require_supabase(settings)
+
+    async with httpx.AsyncClient() as client:
+        # ponytail: row count, not count(distinct company_id) — PostgREST has
+        # no distinct count, and the view is one row per company today
+        # (221 rows / 221 companies). If a company ever matches two live
+        # licences this over-counts; move to an RPC then.
+        licensed = await rest.count(
+            client, "company_sponsorship_current", {"select": "company_id"}
+        )
+
+    return SponsorshipStatsResponse(licensed_companies=licensed or 0)
 
 
 @router.post("/companies/statuses", response_model=dict[str, CompanySponsorshipStatusCompact])

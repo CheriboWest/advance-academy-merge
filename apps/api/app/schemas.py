@@ -311,6 +311,16 @@ class SponsorshipStatusBatchRequest(BaseModel):
     )
 
 
+class SponsorshipStatsResponse(BaseModel):
+    """Body for GET /sponsors/stats — one headline number, not per-company.
+
+    `licensed_companies` counts companies with a confirmed, currently-live
+    sponsor licence: the same set that makes a company's status `licensed`.
+    """
+
+    licensed_companies: int
+
+
 def _blank_to_none(value: Optional[str]) -> Optional[str]:
     if value is None:
         return None

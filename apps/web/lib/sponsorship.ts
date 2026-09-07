@@ -2,6 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase-server";
 import type {
   CompanySponsorshipStatus,
   CompanySponsorshipStatusCompact,
+  SponsorshipStats,
 } from "@/lib/types";
 
 /**
@@ -40,6 +41,39 @@ export async function getSponsorshipStatus(
     );
     if (!response.ok) return null;
     return (await response.json()) as CompanySponsorshipStatus;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How many companies hold a confirmed sponsor licence (GET /sponsors/stats),
+ * for the coach dashboard's "Licensed sponsors" KPI. One count, not a row per
+ * company — the dashboard has no use for the individual companies, and asking
+ * for their statuses instead would be 11 batched requests for one number.
+ *
+ * Never throws, same contract as the two functions around it: a missing
+ * session, an undeployed or unreachable backend, or a non-2xx response all
+ * resolve to `null`, which the KPI renders as "—" rather than failing the
+ * whole dashboard over one tile.
+ */
+export async function getSponsorshipStats(): Promise<SponsorshipStats | null> {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!baseUrl) return null;
+
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) return null;
+
+  try {
+    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/sponsors/stats`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as SponsorshipStats;
   } catch {
     return null;
   }

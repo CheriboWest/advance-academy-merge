@@ -78,3 +78,50 @@ describe("SponsoredCompaniesList contact count", () => {
     expect(card().textContent).not.toContain("0 contacts");
   });
 });
+
+// The counts line answers "how many companies, how many of them sponsored?"
+// without a request of its own — it reads the same streamed status batch the
+// badges do, so it must agree with them and must not invent a 0 while the
+// batch is still in flight.
+describe("SponsoredCompaniesList counts line", () => {
+  const BETA: SponsoredCompanyRow = {
+    ...ABSOLUTE_RECRUIT,
+    company_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    slug: "beta-ltd",
+    name: "Beta Ltd",
+  };
+  const GAMMA: SponsoredCompanyRow = {
+    ...ABSOLUTE_RECRUIT,
+    company_id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
+    slug: "gamma-plc",
+    name: "Gamma Plc",
+  };
+
+  it("counts the companies, and only the licensed ones as sponsors", async () => {
+    render(
+      <SponsoredCompaniesList
+        companies={[ABSOLUTE_RECRUIT, BETA, GAMMA]}
+        sponsorshipStatuses={Promise.resolve({
+          [ABSOLUTE_RECRUIT_ID]: { status: "licensed", stale: false, checked_at: null },
+          [BETA.company_id]: { status: "ambiguous", stale: false, checked_at: null },
+          // GAMMA absent from the batch entirely — not licensed either.
+        })}
+      />
+    );
+
+    await screen.findByText(/1 licensed sponsor$/);
+    expect(screen.getByText(/3 companies/)).toBeTruthy();
+  });
+
+  it("shows a placeholder, not '0 licensed sponsors', while the statuses stream", () => {
+    render(
+      <SponsoredCompaniesList
+        companies={[ABSOLUTE_RECRUIT, BETA]}
+        sponsorshipStatuses={new Promise(() => {})}
+      />
+    );
+
+    expect(screen.getByText(/— licensed sponsors/)).toBeTruthy();
+    expect(screen.queryByText(/0 licensed sponsors/)).toBeNull();
+  });
+});

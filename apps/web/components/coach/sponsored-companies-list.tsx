@@ -138,6 +138,18 @@ export function SponsoredCompaniesList({
     return status === statusFilter;
   });
 
+  // Counted from the batch already on the page, not a separate request: the
+  // same map the badges read. `null` while it is still streaming, which
+  // renders as "—" rather than a wrong 0.
+  const licensedCount = sponsorshipStatuses
+    ? companies.filter(
+        (company) =>
+          sponsorshipStatuses[company.company_id]?.status === "licensed"
+      ).length
+    : null;
+
+  const total = companies.length.toLocaleString("en-GB");
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -171,6 +183,18 @@ export function SponsoredCompaniesList({
           </SelectContent>
         </Select>
       </div>
+
+      <p className="text-sm text-muted-foreground">
+        {filtered.length === companies.length
+          ? `${total} companies`
+          : `Showing ${filtered.length.toLocaleString("en-GB")} of ${total} companies`}
+        {" · "}
+        {licensedCount === null
+          ? "— licensed sponsors"
+          : `${licensedCount.toLocaleString("en-GB")} licensed ${
+              licensedCount === 1 ? "sponsor" : "sponsors"
+            }`}
+      </p>
 
       {filtered.length === 0 ? (
         <EmptyState
