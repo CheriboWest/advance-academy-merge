@@ -26,9 +26,19 @@ from app.crawler.sources import adzuna, reed
 from app.crawler.supabase_rest import SupabaseRest
 from app.crawler.timing import log_stage, stage
 
-# MVP limits.
-MAX_RAW_JOBS = 50
-PER_SOURCE_LIMIT = 25
+# How many jobs one (role, city) pair may pull. These were the MVP limits (50
+# / 25) and they were the binding constraint on company discovery, not the job
+# boards: a "Nurse / London" search returns thousands, and asking for 25 of them
+# left every company past the 25th undiscovered. Raising the ask costs NOTHING
+# extra — it is the same one request per source per pair, with a larger
+# `results_per_page` / `resultsToTake` — and 50 sits under both providers'
+# per-request ceilings (Adzuna caps a page at 50; Reed allows 100).
+#
+# ponytail: 50 is the single-request ceiling. Going past it needs pagination in
+# both source modules — do that only if company discovery per crawl is still
+# the bottleneck after a sweep of new cities.
+MAX_RAW_JOBS = 100
+PER_SOURCE_LIMIT = 50
 # How long a crawled (query, location) pair stays fresh. Lives here rather than
 # in the router because the crawl loop reads it too, and the router already
 # imports from this module — the other direction would be a circular import.
