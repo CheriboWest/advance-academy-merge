@@ -13,5 +13,6 @@
 export * from './admin-person.js'
 export * from './coaching.js'
 export * from './cv-optimizer.js'
+export * from './job-tracking.js'
 export * from './jobs.js'
 export * from './leads.js'
