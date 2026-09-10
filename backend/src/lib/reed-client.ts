@@ -16,6 +16,7 @@ export interface ReedResult {
   jobId?: number;
   jobTitle?: string;
   employerName?: string;
+  locationName?: string;
   jobUrl?: string;
   minimumSalary?: number | null;
   maximumSalary?: number | null;

@@ -285,6 +285,9 @@ export function normalizeAdzuna(result: AdzunaResult): ExaJobListing {
     url: result.redirect_url ?? '',
     snippet: buildSnippet(result.salary_min, result.salary_max, result.company?.display_name, result.description),
     publishedDate: result.created || undefined,
+    company: result.company?.display_name?.trim() || undefined,
+    location: result.location?.display_name?.trim() || undefined,
+    salaryText: formatSalary(result.salary_min, result.salary_max) || undefined,
   };
 }
 
@@ -294,6 +297,9 @@ export function normalizeReed(result: ReedResult): ExaJobListing {
     url: result.jobUrl ?? '',
     snippet: buildSnippet(result.minimumSalary, result.maximumSalary, result.employerName, result.jobDescription),
     publishedDate: reedDateToIso(result.date),
+    company: result.employerName?.trim() || undefined,
+    location: result.locationName?.trim() || undefined,
+    salaryText: formatSalary(result.minimumSalary, result.maximumSalary) || undefined,
   };
 }
 

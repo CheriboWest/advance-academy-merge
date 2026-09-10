@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronDown, Coins, History, LogOut, Menu, Shield, Target, X } from 'lucide-react'
+import { Bookmark, ChevronDown, Coins, History, LogOut, Menu, Shield, Target, X } from 'lucide-react'
 import type { NavItem, ViewName } from '@/shared/types/navigation'
 import { TOOL_GROUPS, findToolItem } from '@/shared/config/navigation'
 import { useAuth } from '@/features/auth/context/AuthContext'
@@ -180,6 +180,15 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
               <History className="h-4 w-4" />
               History
             </button>
+            {/* A real route, not a `?view=`, so Career Hub can deep-link into it. */}
+            <Link
+              href="/jobs"
+              aria-current={currentView === 'jobs' ? 'page' : undefined}
+              className={`${NAV_BASE} ${currentView === 'jobs' ? NAV_ACTIVE : NAV_IDLE}`}
+            >
+              <Bookmark className="h-4 w-4" />
+              Jobs
+            </Link>
           </div>
 
           {/* Account cluster, pushed right and separated from the navigation. */}
@@ -247,6 +256,17 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
                 <History className="h-4 w-4" />
                 History
               </button>
+              <Link
+                href="/jobs"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-current={currentView === 'jobs' ? 'page' : undefined}
+                className={`${NAV_BASE} w-full justify-start ${
+                  currentView === 'jobs' ? NAV_ACTIVE : NAV_IDLE
+                }`}
+              >
+                <Bookmark className="h-4 w-4" />
+                Jobs
+              </Link>
               {account?.isAdmin ? (
                 <Link
                   href="/admin/users"

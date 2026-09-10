@@ -9,6 +9,7 @@ export type ViewName =
   | 'cv-library'
   | 'coaching'
   | 'history'
+  | 'jobs'
 
 export interface NavItem {
   label: string

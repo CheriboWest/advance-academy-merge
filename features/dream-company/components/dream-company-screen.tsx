@@ -24,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { ProgressBar } from '@/shared/hooks/progress-bar'
 import { useDreamCompany, STEP_LABELS } from '@/features/dream-company/hooks/use-dream-company'
+import { SaveJobButton } from '@/features/job-tracking/components/save-job-button'
 
 // Turn a job's ISO publishedDate into a short "Posted 3d ago" label. Live-vacancy
 // sources (Adzuna/Reed) always supply this; the Exa fallback usually does. Returns
@@ -764,22 +765,40 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
           </h3>
           <div className="grid gap-3">
             {jobs.map((job, i) => (
-              <a
-                key={i}
-                href={job.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-start justify-between gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+              // A div, not an <a>: the card holds both the outbound link and the
+              // Save button, and a button inside an anchor is invalid HTML.
+              <div
+                key={job.url || i}
+                className="flex items-start justify-between gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"
               >
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-blue-900 truncate">{job.title}</p>
+                <a
+                  href={job.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="min-w-0 flex-1 group"
+                >
+                  <p className="text-sm font-medium text-blue-900 truncate group-hover:underline inline-flex items-center gap-1.5 max-w-full">
+                    <span className="truncate">{job.title}</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  </p>
                   {job.snippet && <p className="text-xs text-gray-600 mt-1 line-clamp-2">{job.snippet}</p>}
                   {formatPostedDate(job.publishedDate) && (
                     <p className="text-xs text-gray-400 mt-1">{formatPostedDate(job.publishedDate)}</p>
                   )}
-                </div>
-                <ExternalLink className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-              </a>
+                </a>
+                <SaveJobButton
+                  className="shrink-0"
+                  job={{
+                    title: job.title,
+                    jobUrl: job.url || null,
+                    companyName: job.company ?? null,
+                    location: job.location ?? null,
+                    salaryText: job.salaryText ?? null,
+                    description: job.snippet || null,
+                    source: 'dream_company',
+                  }}
+                />
+              </div>
             ))}
           </div>
         </div>
