@@ -22,6 +22,7 @@ export interface AdzunaResult {
   salary_min?: number;
   salary_max?: number;
   company?: { display_name?: string };
+  location?: { display_name?: string };
 }
 
 export interface AdzunaResponse {

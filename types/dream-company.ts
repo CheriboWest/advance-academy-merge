@@ -32,6 +32,14 @@ export interface ExaJobListing {
   url: string
   snippet: string
   publishedDate?: string
+  /**
+   * Structured copies of what `snippet` flattens, so a listing can be saved to
+   * the job tracker with real columns. Adzuna and Reed supply them; the Exa
+   * fallback usually cannot. All optional so older stored results still parse.
+   */
+  company?: string
+  location?: string
+  salaryText?: string
 }
 
 export interface RoadmapResponse {
