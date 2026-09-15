@@ -2,6 +2,34 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## This repo is a merge sandbox (not production)
+
+This is `advance-academy`, a rehearsal for merging AdvanceAcademyTools (this
+tree) with career-hub. **Both production repos are untouched and still deploy.**
+Nothing here has been cut over.
+
+- `tools-upstream` and `careerhub` remotes are **fetch-only** — their push URLs
+  are deliberately set to `DISABLED-production-repo` so a stray `git push` fails
+  loudly instead of writing to production. Don't "fix" them.
+- Pull upstream fixes weekly, or the merge drifts:
+  `git fetch tools-upstream && git merge tools-upstream/main`
+  `git subtree pull --prefix=careerhub careerhub main`
+- `backend-python/` is career-hub's FastAPI service. It stays Python — it is not
+  being ported to the Fastify backend.
+- `supabase/careerhub/schema.sql` is a **reference mirror, not a migration**.
+  Never run it. career-hub's real migrations get renumbered into
+  `supabase/migrations/` as `024_ch_*` onward.
+- `careerhub/apps/web` is still unmerged, and is in `tsconfig.json`'s `exclude`
+  because the root `include` is `**/*.ts(x)` and would otherwise typecheck it
+  against this repo's `@/*` paths (1566 spurious errors).
+
+**`git log --follow` alone will not show career-hub's history** — it stops at the
+subtree merge and looks like the history was lost. It wasn't; add `-m`:
+
+```bash
+git log -m --follow -- backend-python/app/main.py   # reaches career-hub's commits
+```
+
 ## Commands
 
 Run from the repo root (npm workspaces; `backend` is a workspace):
