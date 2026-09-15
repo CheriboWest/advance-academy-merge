@@ -19,9 +19,21 @@ Nothing here has been cut over.
 - `supabase/careerhub/schema.sql` is a **reference mirror, not a migration**.
   Never run it. career-hub's real migrations get renumbered into
   `supabase/migrations/` as `024_ch_*` onward.
-- `careerhub/apps/web` is still unmerged, and is in `tsconfig.json`'s `exclude`
-  because the root `include` is `**/*.ts(x)` and would otherwise typecheck it
-  against this repo's `@/*` paths (1566 spurious errors).
+- career-hub's web app has been folded in: its routes are `app/{search,companies,coach}`
+  and its non-route code is `features/career-hub/`. The `careerhub/` directory
+  is gone.
+- `/search` and `/companies/*` are **public** (top of the funnel) and live in
+  `middleware.ts`'s `PUBLIC_PATHS` along with `/coach/login`. `middleware.ts`'s
+  matcher gates every other page route, so a new public page must be added there
+  or it silently redirects to `/login`.
+- `/coach/*` additionally requires `users.is_admin` — checked in
+  `app/coach/(workspace)/layout.tsx` and, for the Python API, in
+  `backend-python/app/auth.py`. There is no separate `is_coach` column: coach
+  and admin are the same set (see `backend/src/lib/admin.ts`).
+- Frontend tests are vitest (`npm test`); `backend/` uses the node built-in
+  runner (`npm run test --workspace backend`); `backend-python/` self-checks run
+  as plain scripts (`for f in test_*.py; do .venv/bin/python $f; done`).
+  `vitest.config.ts` is scoped away from `backend/` on purpose.
 
 **`git log --follow` alone will not show career-hub's history** — it stops at the
 subtree merge and looks like the history was lost. It wasn't; add `-m`:
