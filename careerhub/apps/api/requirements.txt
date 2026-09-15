@@ -1,0 +1,23 @@
+# CareerHub UK API dependencies.
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+# The sponsor-register resolver (app/sponsors/resolver.py) calls
+# messages.create(..., output_config=...) for structured JSON output.
+# `output_config` replaced the earlier `output_format` parameter in 0.77.0 and
+# has been stable since; anthropic>=0.69 (the previous floor here) allowed pip
+# to resolve versions as old as 0.69.0, which predate it entirely and raise
+# `TypeError: Messages.create() got an unexpected keyword argument
+# 'output_config'` — a local error, before any request reaches the network.
+# 0.125.0 is the version this resolver was built and tested against; pinned as
+# the floor so a stale build cache or an unpinned resolution elsewhere can't
+# silently reintroduce the same failure. Kept below 1.0: that major version
+# changes the HTTP client (httpx2) and removes deprecated parameters, and
+# migrating to it is a separate, deliberate upgrade, not a compatibility fix.
+anthropic>=0.125,<1.0
+python-jose[cryptography]>=3.3,<4.0
+python-dotenv>=1.0,<2.0
+pydantic>=2.7,<3.0
+httpx>=0.27,<1.0
+# scripts/import_ai_team_contacts.py (one-off xlsx importer) reads .xlsx
+# workbooks, including per-cell hyperlinks, via openpyxl.
+openpyxl>=3.1,<4.0
