@@ -1,0 +1,101 @@
+{
+  "_comment": "Generated from backend-python/app/crawler/normalize.py::company_slug. Asserted by backend/src/lib/company-slug.test.ts AND backend-python/test_company_slug_parity.py - if the two implementations drift, one of them fails.",
+  "cases": [
+    {
+      "name": "Google",
+      "slug": "google"
+    },
+    {
+      "name": "Google Ltd",
+      "slug": "google"
+    },
+    {
+      "name": "Google Limited",
+      "slug": "google"
+    },
+    {
+      "name": "8th Light Ltd",
+      "slug": "8th-light"
+    },
+    {
+      "name": "8th-Light",
+      "slug": "8th-light"
+    },
+    {
+      "name": "8th Light",
+      "slug": "8th-light"
+    },
+    {
+      "name": "Acme Holdings Group Ltd",
+      "slug": "acme"
+    },
+    {
+      "name": "Marks & Spencer",
+      "slug": "marks-spencer"
+    },
+    {
+      "name": "Procter/Gamble",
+      "slug": "procter-gamble"
+    },
+    {
+      "name": "Foo.Bar, Inc.",
+      "slug": "foo-bar"
+    },
+    {
+      "name": "  Spaced   Out  Co ",
+      "slug": "spaced-out"
+    },
+    {
+      "name": "BT Group plc",
+      "slug": "bt"
+    },
+    {
+      "name": "Deloitte LLP",
+      "slug": "deloitte"
+    },
+    {
+      "name": "Siemens GmbH",
+      "slug": "siemens"
+    },
+    {
+      "name": "<b>Bold</b> Corp",
+      "slug": "bold"
+    },
+    {
+      "name": "Ltd",
+      "slug": "ltd"
+    },
+    {
+      "name": "Ltd Ltd",
+      "slug": "ltd-ltd"
+    },
+    {
+      "name": "!!!",
+      "slug": "company"
+    },
+    {
+      "name": "",
+      "slug": "company"
+    },
+    {
+      "name": "Ernst & Young Global Limited",
+      "slug": "ernst-young-global"
+    },
+    {
+      "name": "3M Company",
+      "slug": "3m"
+    },
+    {
+      "name": "Tata Consultancy Services UK",
+      "slug": "tata-consultancy-services"
+    },
+    {
+      "name": "Café Nero",
+      "slug": "caf-nero"
+    },
+    {
+      "name": "AT&T Inc",
+      "slug": "at-t"
+    }
+  ]
+}

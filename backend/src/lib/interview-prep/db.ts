@@ -4,6 +4,7 @@
  * so a DB outage never breaks the user-facing interview.
  */
 import { getSupabase } from '../supabase.js';
+import { companySlug } from '../company-slug.js';
 import type {
   InterviewContext,
   PersonaId,
@@ -137,25 +138,47 @@ async function getOrCreateCompany(
   const supabase = safeSupabase();
   if (!supabase) return null;
 
+  // Match on `slug`, career-hub's unique key for this table (migration
+  // 024_ch0001), NOT on the name. This used to be `.ilike('name', ...)`, which
+  // was harmless while the table only held the handful of companies this file
+  // created — and became a liability the moment the crawler filled it with
+  // thousands: `ilike` has no wildcards here so it is merely case-insensitive,
+  // but `.limit(1).single()` on a table with several near-identical names
+  // ("Foo Ltd", "Foo Limited") returns an arbitrary one. The slug collapses
+  // those to the same key by design.
+  const slug = companySlug(companyName);
+
   const { data: existing } = await supabase
     .from('companies')
     .select('id')
-    .ilike('name', companyName)
-    .limit(1)
-    .single();
+    .eq('slug', slug)
+    .maybeSingle();
   if (existing) return existing.id;
 
   const { data: created, error } = await supabase
     .from('companies')
     .insert({
       name: companyName,
-      website_url: companyUrl || null,
-      research_status: 'pending',
+      slug,
+      website: companyUrl || null,
     })
     .select('id')
     .single();
 
   if (error) {
+    // 23505 = unique violation on companies_slug_key: the crawler, or another
+    // student starting prep for the same company, inserted between our select
+    // and our insert. The row we wanted now exists, so read it rather than
+    // failing the session. Only this table's new unique index makes the race
+    // reachable at all.
+    if (error.code === '23505') {
+      const { data: raced } = await supabase
+        .from('companies')
+        .select('id')
+        .eq('slug', slug)
+        .maybeSingle();
+      if (raced) return raced.id;
+    }
     console.error('[db] Failed to create company:', error);
     return null;
   }

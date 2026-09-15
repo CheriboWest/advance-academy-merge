@@ -28,6 +28,8 @@ WEB_ROOT = REPO_ROOT / "careerhub" / "apps" / "web"
 #: This service.
 API_ROOT = REPO_ROOT / "backend-python"
 
-#: career-hub's migrations, kept apart from AdvanceAcademyTools' 001-023 until
-#: they are renumbered as 024_ch_* onward.
-MIGRATIONS_DIR = REPO_ROOT / "supabase" / "careerhub" / "migrations"
+#: All migrations, both sides. career-hub's 0001-0015 were renumbered into
+#: AdvanceAcademyTools' sequence as 024_ch0001_* .. 038_ch0015_*, keeping the
+#: original number in the name so the "requires migration 0009" notes inside
+#: those files still resolve (grep ch0009).
+MIGRATIONS_DIR = REPO_ROOT / "supabase" / "migrations"
