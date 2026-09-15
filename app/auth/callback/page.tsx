@@ -7,9 +7,13 @@ import { useAuth } from '@/features/auth/context/AuthContext'
 
 // Magic-link landing (CA-001, P2/2a). Supabase redirects here with the session
 // tokens in the URL hash; the browser client (detectSessionInUrl) picks them up
-// and AuthContext sets the `aa-session` cookie. We just wait for the session to
-// appear, then send the user into the app. If it never arrives (expired/reused
-// link), we show a recovery message.
+// and writes the session cookies. We just wait for the session to appear, then
+// send the user into the app. If it never arrives (expired/reused link), we show
+// a recovery message.
+//
+// This page must stay in middleware's PUBLIC_PATHS: the hash never reaches the
+// server, so at request time there is no session yet and middleware would bounce
+// it to /login before the client could read the token.
 export default function AuthCallbackPage() {
   const { session, loading } = useAuth()
   const router = useRouter()

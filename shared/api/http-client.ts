@@ -12,9 +12,9 @@ export class HttpClientError extends Error {
 
     // ponytail: handled in the constructor, not per-feature — every fetch path in the
     // app builds this error, so one guard covers all five tools and anything added later.
-    // The `aa-session` cookie is only a routing hint and sits at '1' whenever
-    // /api/account/me failed, so the backend's 403 is the real signal that a session went
-    // stale (approved user rejected mid-session, or a cold load that never resolved).
+    // The backend's 403 is the signal that a session went stale (approved user
+    // rejected mid-session, or a cold load that never resolved). Middleware only
+    // checks that a session exists; approval lives in Fastify.
     // Codes are literals mirrored from backend/src/lib/user-access.ts — two strings don't
     // justify a @advance-academy/contracts export.
     if (status === 403 && (payload.code === 'ACCOUNT_PENDING' || payload.code === 'ACCOUNT_REJECTED')) {
@@ -30,9 +30,6 @@ function redirectToPending(code: 'ACCOUNT_PENDING' | 'ACCOUNT_REJECTED') {
   if (typeof window === 'undefined') return
   if (window.location.pathname.startsWith('/pending')) return
 
-  const status = code === 'ACCOUNT_REJECTED' ? 'rejected' : 'pending'
-  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
-  document.cookie = `aa-session=${status}; path=/; max-age=3600; SameSite=Lax${secure}`
   window.location.assign('/pending')
 }
 

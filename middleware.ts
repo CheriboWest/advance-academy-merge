@@ -1,45 +1,71 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
 // /auth/callback finalises the magic-link session client-side (the token arrives
 // in the URL hash, which never reaches the server) — it MUST be public, or the
 // middleware would bounce it to /login before the session cookie is set.
 const PUBLIC_PATHS = ['/login', '/register', '/auth/callback']
 
-// ponytail: routing convenience only. The `aa-session` cookie is client-set and
-// forgeable — the real gate is the backend 403 (ACCOUNT_PENDING / ACCOUNT_REJECTED).
-// Never put server-rendered data behind this check.
-export function middleware(request: NextRequest) {
+/**
+ * Authentication only: is there a real Supabase session?
+ *
+ * This used to read an `aa-session` cookie that the browser set with
+ * `document.cookie`, which meant anyone could type
+ * `document.cookie = 'aa-session=approved'` and walk past it. It was documented
+ * as a UX hint rather than a gate, with the backend 403 doing the real work.
+ * With `@supabase/ssr` the session is a real, signed, httpOnly cookie, so this
+ * is now an actual gate and the hint cookie is gone.
+ *
+ * The *approval* gate (users.status -> 403 ACCOUNT_PENDING / ACCOUNT_REJECTED)
+ * deliberately stays in Fastify (backend/src/main.ts), the one choke point every
+ * route already passes through. Reading it here would cost a database round trip
+ * on every page request to duplicate a check that already exists — and a second
+ * copy of "who is allowed in" is how the two drift apart. A pending user is
+ * routed to /pending by the 403 handler in shared/api/http-client.ts, and
+ * /pending sends them onward once approval lands.
+ */
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next()
   }
 
-  const status = request.cookies.get('aa-session')?.value
-  if (!status) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  // Without Supabase configured there is no session to read. Fall through rather
+  // than redirect every route to /login, which would make a misconfigured deploy
+  // look like a broken login instead of a missing env var. Nothing is exposed:
+  // the data still sits behind Fastify's bearer check.
+  if (!url || !key) return NextResponse.next()
+
+  let response = NextResponse.next({ request })
+
+  const supabase = createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll()
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+        response = NextResponse.next({ request })
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+      },
+    },
+  })
+
+  // Also refreshes a rotating token, which is why the cookies above are written
+  // back onto `response`.
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/login'
+    return NextResponse.redirect(redirectUrl)
   }
 
-  // '1' means the status hasn't loaded yet — let it through rather than flashing
-  // the pending screen at an approved user on every cold load.
-  const onPending = pathname.startsWith('/pending')
-  const settled = status === 'pending' || status === 'rejected'
-
-  if (settled && !onPending) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/pending'
-    return NextResponse.redirect(url)
-  }
-  if (status === 'approved' && onPending) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/'
-    return NextResponse.redirect(url)
-  }
-
-  return NextResponse.next()
+  return response
 }
 
 export const config = {
