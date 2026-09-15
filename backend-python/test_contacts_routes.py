@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import os
 import re
-from pathlib import Path
+from repo_paths import WEB_ROOT
 
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "service-role-test-key")
@@ -75,9 +75,8 @@ def check(name: str, cond: bool, detail: str = "") -> None:
     print(f"[{status}] {name}{('  ' + detail) if detail and not cond else ''}")
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-CONTACTS_API_TS = REPO_ROOT / "apps/web/lib/contacts-api.ts"
-CONTACTS_TS = REPO_ROOT / "apps/web/lib/contacts.ts"
+CONTACTS_API_TS = WEB_ROOT / "lib/contacts-api.ts"
+CONTACTS_TS = WEB_ROOT / "lib/contacts.ts"
 
 http_client = TestClient(app)
 

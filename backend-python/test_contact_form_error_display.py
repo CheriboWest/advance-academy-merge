@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import os
 import re
-from pathlib import Path
+from repo_paths import WEB_ROOT
 
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "service-role-test-key")
@@ -145,8 +145,7 @@ app.dependency_overrides.pop(get_current_user, None)
 #    directly.
 # ---------------------------------------------------------------------------
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-CONTACTS_API_TS = REPO_ROOT / "apps/web/lib/contacts-api.ts"
+CONTACTS_API_TS = WEB_ROOT / "lib/contacts-api.ts"
 
 check(f"{CONTACTS_API_TS.name} exists", CONTACTS_API_TS.exists())
 if CONTACTS_API_TS.exists():

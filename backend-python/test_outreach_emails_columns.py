@@ -23,7 +23,7 @@ shipping as a live "does not exist" error.
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from repo_paths import REPO_ROOT, WEB_ROOT, API_ROOT, MIGRATIONS_DIR
 
 _failures: list[str] = []
 
@@ -34,11 +34,6 @@ def check(name: str, cond: bool, detail: str = "") -> None:
         _failures.append(f"{name} {detail}")
     print(f"[{status}] {name}{('  ' + detail) if detail and not cond else ''}")
 
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-MIGRATIONS_DIR = REPO_ROOT / "infra/supabase/migrations"
-WEB_ROOT = REPO_ROOT / "apps/web"
-API_ROOT = REPO_ROOT / "apps/api"
 
 TABLE = "outreach_emails"
 

@@ -24,7 +24,7 @@ here first.
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from repo_paths import WEB_ROOT
 
 _failures: list[str] = []
 
@@ -36,10 +36,9 @@ def check(name: str, cond: bool, detail: str = "") -> None:
     print(f"[{status}] {name}{('  ' + detail) if detail and not cond else ''}")
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 PAGE_PATH = (
-    REPO_ROOT
-    / "apps/web/app/coach/(workspace)/sponsored-companies/[companyId]/page.tsx"
+    WEB_ROOT
+    / "app/coach/(workspace)/sponsored-companies/[companyId]/page.tsx"
 )
 
 source = PAGE_PATH.read_text()

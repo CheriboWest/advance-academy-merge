@@ -21,7 +21,7 @@ becoming a live "does not exist" error.
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from repo_paths import WEB_ROOT, MIGRATIONS_DIR
 
 _failures: list[str] = []
 
@@ -33,9 +33,7 @@ def check(name: str, cond: bool, detail: str = "") -> None:
     print(f"[{status}] {name}{('  ' + detail) if detail and not cond else ''}")
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-MIGRATIONS_DIR = REPO_ROOT / "infra/supabase/migrations"
-WEB_LIB = REPO_ROOT / "apps/web/lib"
+WEB_LIB = WEB_ROOT / "lib"
 
 VIEW_NAME = "public_company_summary"
 
