@@ -23,7 +23,7 @@ shipping as a live "does not exist" error.
 from __future__ import annotations
 
 import re
-from repo_paths import REPO_ROOT, WEB_ROOT, API_ROOT, MIGRATIONS_DIR
+from repo_paths import REPO_ROOT, CAREERHUB_DIR, API_ROOT, MIGRATIONS_DIR, APP_DIR
 
 _failures: list[str] = []
 
@@ -92,9 +92,9 @@ print(f"    known columns (baseline + migrations): {sorted(KNOWN_COLUMNS)}")
 # ---------------------------------------------------------------------------
 
 CHECKED_FILES = [
-    WEB_ROOT / "lib/outreach-activity.ts",
-    WEB_ROOT / "lib/coach.ts",
-    WEB_ROOT / "app/coach/(workspace)/outreach/actions.ts",
+    CAREERHUB_DIR / "lib/outreach-activity.ts",
+    CAREERHUB_DIR / "lib/coach.ts",
+    APP_DIR / "coach/(workspace)/outreach/actions.ts",
 ]
 
 

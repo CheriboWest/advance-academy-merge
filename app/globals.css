@@ -47,6 +47,16 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* career-hub's accent vocabulary, aliased onto this app's existing gold so
+     there is one brand colour with one value, not two that drift. Its pages use
+     `bg-highlight` / `text-highlight-foreground` in ~11 places plus the
+     `highlight` button and badge variant. `--highlight-ink` has no counterpart
+     here: it is the darker gold career-hub uses for gold TEXT on a light
+     background, where the fill colour would not meet contrast. */
+  --highlight: var(--secondary);
+  --highlight-foreground: var(--secondary-foreground);
+  --highlight-ink: oklch(0.620 0.130 66);
 }
 
 .dark {
@@ -60,6 +70,10 @@
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
+  /* --highlight/-foreground alias --secondary and so follow it here. Only the
+     ink needs its own dark value: on a dark ground the darker gold disappears,
+     so career-hub lightens it back to the fill colour. */
+  --highlight-ink: oklch(0.815 0.145 84);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
@@ -98,6 +112,9 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+  --color-highlight: var(--highlight);
+  --color-highlight-foreground: var(--highlight-foreground);
+  --color-highlight-ink: var(--highlight-ink);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
@@ -218,5 +235,35 @@
 
   @page {
     margin: 16mm;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * career-hub utilities, brought over with its pages (Stage 4 of the merge).
+ * Used across ~30 files; `.icon-tile`'s gold now resolves to this app's.
+ * ------------------------------------------------------------------------- */
+@layer utilities {
+  /* Small-caps label used for section eyebrows and metric captions. */
+  .label-caps {
+    @apply text-[11px] font-medium uppercase tracking-[0.12em] text-primary;
+  }
+
+  /* The one card idiom: white panel, hairline border, soft corner. */
+  .card-surface {
+    @apply rounded-lg border border-border bg-card;
+  }
+
+  /* Interactive version — for cards that are themselves links. Tailwind v4
+     cannot @apply a sibling custom utility, so the surface declarations are
+     repeated rather than composed. */
+  .card-interactive {
+    @apply rounded-lg border border-border bg-card;
+    @apply transition-[border-color,box-shadow,transform];
+    @apply hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_6px_20px_-12px_var(--primary)];
+  }
+
+  /* Gold rounded square holding a navy icon — career-hub's card glyph. */
+  .icon-tile {
+    @apply flex size-10 shrink-0 items-center justify-center rounded-md bg-highlight text-highlight-foreground;
   }
 }

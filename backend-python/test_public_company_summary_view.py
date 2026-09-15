@@ -21,7 +21,7 @@ becoming a live "does not exist" error.
 from __future__ import annotations
 
 import re
-from repo_paths import WEB_ROOT, MIGRATIONS_DIR
+from repo_paths import CAREERHUB_DIR, MIGRATIONS_DIR
 
 _failures: list[str] = []
 
@@ -33,7 +33,7 @@ def check(name: str, cond: bool, detail: str = "") -> None:
     print(f"[{status}] {name}{('  ' + detail) if detail and not cond else ''}")
 
 
-WEB_LIB = WEB_ROOT / "lib"
+WEB_LIB = CAREERHUB_DIR / "lib"
 
 VIEW_NAME = "public_company_summary"
 

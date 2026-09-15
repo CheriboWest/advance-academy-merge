@@ -20,10 +20,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-#: career-hub's Next.js app. Stage 4 folds it into the repo-root app; when it
-#: does, this becomes REPO_ROOT and the `lib/` paths below move under
-#: `features/career-hub/`.
-WEB_ROOT = REPO_ROOT / "careerhub" / "apps" / "web"
+#: Next.js routes. career-hub's pages now live here too (app/search,
+#: app/companies, app/coach) after Stage 4 folded its app into this one.
+APP_DIR = REPO_ROOT / "app"
+
+#: career-hub's non-route web code — the `lib/` clients this service is the
+#: other half of, and its components. Stage 4 moved these out of the old
+#: apps/web and under this app's feature convention.
+CAREERHUB_DIR = REPO_ROOT / "features" / "career-hub"
 
 #: This service.
 API_ROOT = REPO_ROOT / "backend-python"

@@ -24,7 +24,7 @@ here first.
 from __future__ import annotations
 
 import re
-from repo_paths import WEB_ROOT
+from repo_paths import APP_DIR, CAREERHUB_DIR
 
 _failures: list[str] = []
 
@@ -37,8 +37,8 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 
 
 PAGE_PATH = (
-    WEB_ROOT
-    / "app/coach/(workspace)/sponsored-companies/[companyId]/page.tsx"
+    APP_DIR
+    / "coach/(workspace)/sponsored-companies/[companyId]/page.tsx"
 )
 
 source = PAGE_PATH.read_text()

@@ -5,7 +5,11 @@ import { createServerClient } from '@supabase/ssr'
 // /auth/callback finalises the magic-link session client-side (the token arrives
 // in the URL hash, which never reaches the server) — it MUST be public, or the
 // middleware would bounce it to /login before the session cookie is set.
-const PUBLIC_PATHS = ['/login', '/register', '/auth/callback']
+// career-hub's student-facing pages are public by design — company and job
+// discovery is the top of the funnel, reachable before anyone has an account.
+// The matcher below gates EVERY page route, so omitting these would redirect the
+// entire public surface to /login.
+const PUBLIC_PATHS = ['/login', '/register', '/auth/callback', '/search', '/companies']
 
 /**
  * Authentication only: is there a real Supabase session?

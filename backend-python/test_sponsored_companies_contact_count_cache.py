@@ -37,7 +37,7 @@ matching the revalidation pattern already used everywhere else in this app.
 from __future__ import annotations
 
 import re
-from repo_paths import WEB_ROOT
+from repo_paths import APP_DIR, CAREERHUB_DIR
 
 _failures: list[str] = []
 
@@ -50,10 +50,10 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 
 
 ACTIONS_TS = (
-    WEB_ROOT
-    / "app/coach/(workspace)/sponsored-companies/actions.ts"
+    APP_DIR
+    / "coach/(workspace)/sponsored-companies/actions.ts"
 )
-CONTACTS_SECTION_TSX = WEB_ROOT / "components/coach/contacts-section.tsx"
+CONTACTS_SECTION_TSX = CAREERHUB_DIR / "components/coach/contacts-section.tsx"
 
 # ---------------------------------------------------------------------------
 # 1. The revalidation Server Action exists and revalidates both the list
