@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { getCoachUser } from "@/features/career-hub/lib/coach";
+import { getCoachUser, isCoach } from "@/features/career-hub/lib/coach";
 import { CoachSidebar } from "@/features/career-hub/components/coach/coach-sidebar";
 import { CoachHeader } from "@/features/career-hub/components/coach/coach-header";
 
@@ -18,6 +18,14 @@ export default async function CoachWorkspaceLayout({
   const claims = await getCoachUser();
   if (!claims) {
     redirect("/coach/login");
+  }
+
+  // Authenticated is not the same as staff. Since the merge this Supabase
+  // project also holds every student account, so a valid session proves only
+  // that someone signed up. Send them to the app they do have access to rather
+  // than an empty coach shell.
+  if (!(await isCoach())) {
+    redirect("/");
   }
 
   return (

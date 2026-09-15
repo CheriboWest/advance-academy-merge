@@ -68,6 +68,20 @@ class Settings:
         self.sponsor_resolve_max_per_crawl: int = int(
             os.getenv("SPONSOR_RESOLVE_MAX_PER_CRAWL", "50")
         )
+        # Coach allowlist, mirroring AdvanceAcademyTools' ADMIN_USER_IDS
+        # (backend/src/lib/admin.ts). Comma-separated Supabase user ids that
+        # count as coaches regardless of the users.is_admin flag. This is the
+        # bootstrap path: it works before anyone has the flag set, and it
+        # survives a mistyped update that would otherwise lock every coach out
+        # of the workspace. Empty is the safe default - nobody is allowlisted.
+        self.admin_user_ids: list[str] = [
+            uid.strip() for uid in os.getenv("ADMIN_USER_IDS", "").split(",") if uid.strip()
+        ]
+        # How long a coach/not-coach answer is trusted before re-reading it,
+        # matching the 60s TTL in backend/src/lib/user-access.ts. Long enough to
+        # keep a page of API calls to one lookup, short enough that revoking a
+        # coach takes effect within a minute.
+        self.role_cache_ttl: float = float(os.getenv("ROLE_CACHE_TTL_SECONDS", "60"))
         # Job-board crawler credentials.
         self.adzuna_app_id: str = os.getenv("ADZUNA_APP_ID", "")
         self.adzuna_app_key: str = os.getenv("ADZUNA_APP_KEY", "")

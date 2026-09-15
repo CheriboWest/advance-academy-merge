@@ -2,6 +2,7 @@ import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createSupabaseServerClient } from "@/shared/auth/supabase-server";
+import { getServerEnv } from "@/shared/env/server";
 import type {
   CoachCompanyRow,
   CoachDashboardData,
@@ -62,6 +63,44 @@ export const getCoachUser = cache(async () => {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getClaims();
   return data?.claims ?? null;
+});
+
+/**
+ * Whether the signed-in user may use the coach workspace.
+ *
+ * Asks Fastify rather than reading the column here, because `is_admin` is not
+ * the whole answer: lib/admin.ts also honours the ADMIN_USER_IDS allowlist,
+ * which is the bootstrap path and the way back in if the flag is ever mis-set.
+ * Re-reading the column directly would silently skip it.
+ *
+ * GET /api/account/me is also the approval gate's one exemption, so it answers
+ * even for an account still marked `pending` — which is what a newly-created
+ * coach is. That is deliberate: the person who approves accounts must be able
+ * to reach the workspace before someone approves theirs.
+ *
+ * Called from a Server Component, so it talks to Fastify directly. The proxy
+ * routes under app/api exist to keep BACKEND_URL out of the *browser* bundle;
+ * there is no browser here.
+ *
+ * Fails closed: any error is "not a coach".
+ */
+export const isCoach = cache(async (): Promise<boolean> => {
+  const supabase = await createSupabaseServerClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) return false;
+
+  try {
+    const res = await fetch(`${getServerEnv().backendUrl}/api/account/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return false;
+    const me = (await res.json()) as { isAdmin?: boolean };
+    return me.isAdmin === true;
+  } catch {
+    return false;
+  }
 });
 
 /** Aggregate all data shown on the coach dashboard. */

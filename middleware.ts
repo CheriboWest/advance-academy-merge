@@ -9,7 +9,20 @@ import { createServerClient } from '@supabase/ssr'
 // discovery is the top of the funnel, reachable before anyone has an account.
 // The matcher below gates EVERY page route, so omitting these would redirect the
 // entire public surface to /login.
-const PUBLIC_PATHS = ['/login', '/register', '/auth/callback', '/search', '/companies']
+//
+// '/coach/login' is public for the obvious reason — it is a sign-in page, and
+// without it middleware bounces coaches to /login before they can reach it. It
+// now signs into the same session as /login (both write the same Supabase
+// cookies since Stage 3), so the two are redundant; consolidating them is a
+// user-facing call, not a merge detail, so both stay for now.
+const PUBLIC_PATHS = [
+  '/login',
+  '/register',
+  '/auth/callback',
+  '/search',
+  '/companies',
+  '/coach/login',
+]
 
 /**
  * Authentication only: is there a real Supabase session?
@@ -32,7 +45,11 @@ const PUBLIC_PATHS = ['/login', '/register', '/auth/callback', '/search', '/comp
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  // Exact match or a real path segment below it: `/companies` must cover
+  // `/companies/acme`, but a bare startsWith would also make `/companies-admin`
+  // — or any future route sharing a prefix — public by accident.
+  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  if (isPublic) {
     return NextResponse.next()
   }
 
