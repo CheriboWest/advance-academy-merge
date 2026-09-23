@@ -355,10 +355,17 @@ dài giai đoạn merge.
 
 ## Việc còn lại (chưa làm, cố ý)
 
-- **Cutover production** — gộp vào project thật. Phần khó: `coach_user_id` trong
-  `coach_company_meta`/`outreach_emails` trỏ vào `auth.users` của career-hub,
-  không tồn tại ở project mới; phải dựng bảng ánh xạ email → uuid. Chỉ làm sau
-  khi mọi thứ trên đây xanh.
+- **Cutover production** — gộp vào project thật. Trước đây mục này ghi phần khó
+  là ánh xạ `coach_user_id` → `auth.users` mới. **Bản dump 2026-09-23 cho thấy
+  không có gì để ánh xạ:** career-hub có đúng **1 tài khoản** `auth.users`,
+  `coach_company_meta` **0 dòng**, `outreach_emails` **0 dòng**. Career-hub cũng
+  không có bảng `public.users` nào (`users` trong thống kê là `auth.users`), nên
+  không đụng bảng `users` của tools.
+
+  Thứ thật sự phải mang sang là dữ liệu crawl: `companies` 7.527 dòng, `jobs`
+  30.549, `contacts` 24 — không dòng nào phụ thuộc vào uuid người dùng.
+  `sponsor_licences` (141.904 dòng) không cần mang: nạp lại bằng
+  `run_import()` trong `backend-python/app/sponsors/importer.py`.
 - **Gộp hai trang đăng nhập** — `/login` và `/coach/login` giờ dùng chung một
   phiên nên trùng nhau. Bỏ cái nào là quyết định về sản phẩm.
 - **Bốn hạng mục Stage 6** — deep-link Career Hub → tracker, nhóm nav "Find
