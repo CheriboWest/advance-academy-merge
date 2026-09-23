@@ -3,9 +3,53 @@
 Hướng dẫn cho người dựng môi trường (bạn + dev team). Làm theo thứ tự; mỗi bước
 có cách kiểm tra đã xong chưa.
 
-> **Không bước nào trong file này đụng vào production.** Hai repo cũ và hai
-> Supabase project cũ vẫn chạy nguyên. Cutover là việc riêng, sau khi mọi thứ ở
-> đây xanh.
+> **Không bước nào trong file này đụng vào production.** Repo cũ vẫn chạy nguyên.
+> Supabase của career-hub **đã pause** (có bản dump trước khi pause);
+> `AdvanceAcademyTools` vẫn chạy. Cutover là việc riêng, sau khi mọi thứ ở đây xanh.
+
+---
+
+## Tình trạng — 2026-09-24
+
+Mỗi dòng kèm lệnh tự kiểm chứng, đừng tin cột trạng thái mà không chạy lại.
+
+| # | Bước | Trạng thái | Kiểm chứng bằng |
+|---|---|---|---|
+| 0 | Token lộ | ✅ remote đã sang SSH, token đã hết hạn | `grep -rl github_pat_ .` chỉ khớp file này |
+| 1 | Cứu RLS | ✅ `041` đã commit | `ls supabase/migrations/041_*.sql` |
+| 2 | Supabase project mới | ✅ `mfohgcwviupeklfyvzfo`, eu-west-2, ES256 | `curl -s https://mfohgcwviupeklfyvzfo.supabase.co/auth/v1/.well-known/jwks.json` |
+| 3 | Apply 43 migration | ✅ sạch, 2 câu verify đều 0 dòng | hai câu SQL ở cuối mục 3 |
+| 4 | Tài khoản test | ⚠️ **mới có `coach1`, chưa confirm** | `select email, email_confirmed_at is not null from auth.users;` |
+| 5 | File env | ❌ chưa có file nào | `ls .env.local backend/.env backend-python/.env` |
+| 6 | Cài & chạy | ⚠️ `node_modules` + `.venv` đã có, chưa chạy được vì thiếu env | `ls node_modules backend-python/.venv` |
+| 7 | Kiểm tra toàn bộ | ❌ chưa chạy | — |
+| 8 | Repo GitHub | ✅ `CheriboWest/advance-academy-merge` | `git remote -v` |
+| — | **Deploy Vercel** | ⚠️ frontend sống, backend chưa nối | bảng ngay dưới |
+| — | **Dữ liệu** | ❌ project mới chỉ có schema, 0 dòng | `select count(*) from companies;` |
+
+### Trạng thái bản deploy
+
+```bash
+url=https://advance-academy-merge-r7tn.vercel.app
+curl -s -o /dev/null -w "%{http_code}\n" $url/search        # 200  — Career Hub công khai chạy
+curl -s -o /dev/null -w "%{http_code}\n" $url/login         # 200  — auth client khởi tạo được
+curl -s -w "\n%{http_code}\n" $url/api/account/me           # 502  — CHƯA có backend
+```
+
+`502` ở dòng cuối là mong đợi cho tới khi deploy Fastify: `BACKEND_URL` chưa set
+nên proxy gọi vào `http://localhost:4000` ngay trong container của Vercel.
+
+**Career Hub có deploy, chỉ chưa có lối vào từ nav** — `components/navigation.tsx`
+không trỏ tới `/search` hay `/coach/*`. Vào thẳng bằng URL. Đây là hạng mục
+Stage 6 ("nhóm nav Find Jobs") ở cuối file, chưa làm là cố ý.
+
+### Còn lại, theo thứ tự
+
+1. Confirm + phân quyền `coach1`, tạo 3 tài khoản còn lại (mục 4)
+2. Ba file env (mục 5)
+3. Chạy local + test (mục 6, 7) ← rẻ hơn debug trên production
+4. Deploy Fastify + FastAPI, rồi set nốt `BACKEND_URL` / `NEXT_PUBLIC_API_URL` trên Vercel
+5. Đổ dữ liệu crawl từ bản dump (tuỳ chọn, để smoke test có cái mà xem)
 
 ---
 
@@ -359,21 +403,17 @@ cd backend-python && for f in test_*.py; do .venv/bin/python "$f" >/dev/null || 
 
 ---
 
-## 8. Repo trên GitHub (chưa tạo)
+## 8. Repo trên GitHub — ĐÃ XONG (2026-09-23)
 
-Repo hiện chỉ nằm ở máy. Cả hai remote production đều đã bị khoá đường push
-(push URL = `DISABLED-production-repo`), nên không thể lỡ tay đẩy nhầm.
+`origin` = `git@github.com:CheriboWest/advance-academy-merge.git`, nhánh `main`.
+Vercel import từ đây, root directory để trống (repo root chính là project).
 
-Khi bạn chốt chỗ đặt repo mới:
+Hai remote production vẫn bị khoá đường push (push URL =
+`DISABLED-production-repo`), nên không thể lỡ tay đẩy nhầm — **đừng "sửa"**.
 
 ```bash
-gh repo create <owner>/advance-academy --private
-git remote add origin git@github.com:<owner>/advance-academy.git
-git push -u origin main
+git remote -v      # origin đọc/ghi được; tools-upstream & careerhub chỉ fetch
 ```
-
-> `gh` trên máy này đang đăng nhập bằng tài khoản `arokepg`, còn hai repo kia
-> thuộc `CheriboWest` — nên `<owner>` cần bạn xác nhận.
 
 ---
 
