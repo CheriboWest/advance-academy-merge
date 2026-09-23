@@ -9,45 +9,73 @@ có cách kiểm tra đã xong chưa.
 
 ---
 
-## 0. Trước tiên: revoke cái token đang lộ
+## 0. Token đang lộ — đã xử lý, còn một nút bấm
 
-Không liên quan merge. **Làm hôm nay dù có merge hay không.**
+Không liên quan merge.
 
-Repo `career-hub-main` trên máy bạn đang giữ một GitHub Personal Access Token
-dạng chữ thường trong URL remote — ai đọc được thư mục đó là đọc được token:
+`career-hub-main` từng giữ một GitHub PAT dạng chữ thường trong URL remote.
+Hiện trạng:
 
-```bash
-git -C career-hub-main remote -v      # sẽ thấy github_pat_11B7D5TT...
-```
+- Remote đã đổi sang SSH, đã kiểm tra `ls-remote` chạy được.
+- Token (`cheribowest-key`, fine-grained) **đã hết hạn** — không authenticate
+  được nữa, nên đây không còn là sự cố khẩn.
+- `AdvanceAcademyTools-main` vốn đã dùng SSH, không dính.
 
-1. GitHub → Settings → Developer settings → Personal access tokens → **Revoke**
-   cái token đó.
-2. Đổi remote sang SSH:
-   ```bash
-   git -C career-hub-main remote set-url origin git@github.com:CheriboWest/career-hub.git
-   ```
+Còn lại: GitHub → Settings → Developer settings → Personal access tokens →
+Fine-grained tokens → **Delete** `cheribowest-key`. Dọn cho gọn, không gấp.
 
-Repo merge này không dùng token đó — cả hai remote đều qua SSH.
-
-**Xong khi:** `git -C career-hub-main remote -v` không còn chuỗi `github_pat_`.
+**Xong khi:** `grep -rl github_pat_ .` chỉ còn khớp đúng file SETUP.md này.
 
 ---
 
-## 1. Cứu RLS policy chỉ tồn tại trên DB (không có trong git)
+## 1. Cứu RLS policy chỉ tồn tại trên DB — ĐÃ XONG (2026-09-23)
 
-Đây là thứ **duy nhất** trong cả hệ thống không dựng lại được từ code. Bốn bảng
-(`companies`, `jobs`, `coach_company_meta`, `outreach_emails`) có RLS policy chỉ
-nằm trên Supabase project của career-hub. `0011_contacts.sql` nói thẳng là
-"not visible here to safely replicate".
+Đã dump từ career-hub trước khi pause. Kết quả nằm ở
+`supabase/migrations/041_recovered_coach_rls.sql`. Phần dưới giữ lại để chạy lại
+lúc cutover.
 
-Nếu bỏ qua: mỗi coach sẽ đọc được outreach draft của coach khác, **và không có
-gì báo lỗi**.
+Ba điều chỉnh so với giả định ban đầu của file này:
 
-Vào Supabase dashboard của **career-hub** → SQL Editor → chạy (thuần `SELECT`,
-không sửa gì):
+- **Ba bảng có policy, không phải bốn.** `coach_company_meta` (4), `outreach_emails`
+  (4), `jobs` (1) — tổng 9. `companies` bật RLS nhưng **không có policy nào**, nên
+  không có gì để cứu; nó khớp sẵn với trạng thái mà `040` hướng tới.
+- **15 bảng còn lại bật RLS mà không policy** → deny-all, chỉ service-role vào
+  được. Đúng thiết kế.
+- **7 bảng trên live không có trong migration nào** (`search_history`,
+  `sponsor_registry_syncs`, `sponsor_registry_entries`, `company_sponsorships`,
+  `company_sponsorship_matches`, `company_sponsorship_snapshots`,
+  `company_sponsorship_assessments`). Không dòng code nào đụng tới — tàn dư của
+  thế hệ sponsorship trước khi `029`/`030` thay thế. **Cố ý không bê sang.**
+
+> **Nếu chạy lại: làm trước mọi thứ khác.** Project đã pause thì không mở SQL
+> Editor được nữa — pause trước khi dump là tự khoá mình khỏi bản duy nhất.
+
+**A. Sinh thẳng DDL** (cột kết quả `ddl` chính là nội dung file `041`):
 
 ```sql
-select tablename, policyname, cmd, roles, qual, with_check
+select format(
+         'alter table %I.%I enable row level security;',
+         schemaname, tablename)
+  from pg_tables
+ where schemaname = 'public' and rowsecurity
+ union all
+select format(
+         'create policy %I on %I.%I as %s for %s to %s%s%s;',
+         policyname, schemaname, tablename,
+         case when permissive = 'PERMISSIVE' then 'permissive' else 'restrictive' end,
+         lower(cmd),
+         array_to_string(roles, ', '),
+         coalesce(' using (' || qual || ')', ''),
+         coalesce(' with check (' || with_check || ')', ''))
+  from pg_policies
+ where schemaname = 'public';
+```
+
+**B. Dump thô để đối chiếu** — chạy luôn, lưu kết quả lại. Câu A có thể hụt ở
+policy có biểu thức lạ; bản thô là chỗ kiểm tra khi nghi ngờ:
+
+```sql
+select tablename, policyname, permissive, cmd, roles, qual, with_check
   from pg_policies where schemaname = 'public' order by tablename, policyname;
 
 select tablename, rowsecurity from pg_tables where schemaname = 'public';
@@ -58,8 +86,14 @@ select grantee, table_name, privilege_type
    and grantee in ('anon','authenticated','service_role');
 ```
 
-Chuyển kết quả thành file `supabase/migrations/041_recovered_coach_rls.sql`
-trong repo này — mỗi policy thành một câu `create policy`.
+Dán cột `ddl` của câu A vào `supabase/migrations/041_recovered_coach_rls.sql`,
+rồi **commit ngay** — đây là lúc thông tin đó lần đầu có bản sao ngoài DB sống.
+
+`041` không chép nguyên cột `ddl`: mỗi `create policy` được thêm
+`drop policy if exists` phía trước cho idempotent, các dòng
+`enable row level security` trùng với `023a`/`031`/`034` bị lược, và cuối file
+lặp lại vòng quét RLS của `011` — vì `011` chạy trước khi bảng career-hub tồn
+tại nên `crawl_runs` và `discovery_queries` không được nó phủ.
 
 **Xong khi:** file `041_*.sql` tồn tại và chứa policy cho cả 4 bảng.
 
@@ -99,6 +133,7 @@ không dùng Supabase CLI; migration chạy tay là quy trình sẵn có.
 
 ```
 supabase/migrations/001_*.sql  →  023_*.sql      # AdvanceAcademyTools
+supabase/migrations/023a_careerhub_base.sql      # 3 bảng gốc career-hub
 supabase/migrations/024_ch0001 →  038_ch0015     # career-hub (đã đánh số lại)
 supabase/migrations/039_company_delete_across_both_schemas.sql
 supabase/migrations/040_close_public_company_read.sql
@@ -109,6 +144,11 @@ Ghi chú:
 
 - **Bỏ qua `schema_May_5_2026.sql`** và `supabase/careerhub/schema.sql` — cả hai
   là bản chụp tham khảo, **không phải migration**. Chạy chúng sẽ hỏng.
+- **`023a` là file mới, bắt buộc trên project trắng.** `jobs`,
+  `coach_company_meta`, `outreach_emails` có trước các migration đánh số của
+  career-hub, nên `024`–`039` chỉ `alter table if exists` chúng — trên DB trắng
+  các lệnh đó **no-op im lặng**, và `026` mới là chỗ nổ. `023a` tạo sẵn ba bảng
+  đó (không tạo `companies` — `001` đã tạo).
 - `024_ch0001` cố ý viết kiểu cộng thêm (`add column if not exists`) nên nó
   chồng lên bảng `companies` mà `001` đã tạo. Đúng thiết kế, không phải lỗi.
 - Tên file giữ cả số cũ (`ch0001`) vì các file đó tham chiếu nhau trong phần ghi
@@ -128,6 +168,18 @@ select tablename, rowsecurity from pg_tables
 ```
 
 **Xong khi:** câu trên trả về **0 dòng**.
+
+Câu đó không bắt được bảng *thiếu* (bảng không tồn tại thì không nằm trong
+`pg_tables`), nên kiểm tra thêm:
+
+```sql
+select unnest(array['companies','jobs','coach_company_meta','outreach_emails',
+                    'contacts','crawl_runs','users']) as t
+except
+select tablename from pg_tables where schemaname = 'public';
+```
+
+**Xong khi:** cũng **0 dòng**.
 
 ---
 
