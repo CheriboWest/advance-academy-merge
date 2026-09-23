@@ -99,9 +99,24 @@ tại nên `crawl_runs` và `discovery_queries` không được nó phủ.
 
 ---
 
-## 2. Tạo Supabase project staging (project thứ ba)
+## 2. Tạo Supabase project staging — ĐÃ XONG (2026-09-23)
 
-Không migrate project nào đang chạy.
+Project đang dùng:
+
+| | |
+|---|---|
+| Tên | `advance-academy-merge` |
+| Ref | `mfohgcwviupeklfyvzfo` |
+| URL | `https://mfohgcwviupeklfyvzfo.supabase.co` |
+| Region | `eu-west-2` (London) — app là CareerHub UK, dùng Reed API |
+| JWT | ES256 (đã xác minh JWKS trả 1 key `"alg":"ES256"`) |
+| Pooler host | `aws-0-eu-west-2.pooler.supabase.com:5432`, user `postgres.mfohgcwviupeklfyvzfo` |
+
+Career Hub đã pause để nhường slot Free (2 active project / organization);
+`AdvanceAcademyTools` vẫn chạy. Bản dump trước khi pause nằm ngoài repo ở
+`~/career-hub-backup-2026-09-23.sql` — **không commit**, có dữ liệu thật.
+
+Phần dưới giữ lại cho lần dựng project tiếp theo.
 
 1. supabase.com → **New project**. Đặt tên gì cũng được, ví dụ `advance-academy-staging`.
 2. **Bật asymmetric JWT signing key ngay** — Project Settings → JWT Keys → dùng
@@ -126,10 +141,33 @@ Không migrate project nào đang chạy.
 
 ---
 
-## 3. Apply migration — đúng thứ tự này
+## 3. Apply migration — đúng thứ tự này — ĐÃ XONG (2026-09-23)
 
-Supabase SQL Editor, chạy **lần lượt từng file**, không nhảy cóc. Dự án này
-không dùng Supabase CLI; migration chạy tay là quy trình sẵn có.
+Cả 43 file đã chạy sạch trên `advance-academy-merge`, hai câu kiểm tra ở cuối
+mục này đều trả 0 dòng.
+
+**Cách nhanh hơn dán tay 43 lần.** Không file migration nào chứa meta-command
+của psql, nên gộp lại chạy một lần được (đây không phải Supabase CLI — vẫn là
+đúng những file SQL đó):
+
+```bash
+cd supabase/migrations
+{ printf '%s\n\n' '\set ON_ERROR_STOP on'
+  for f in $(LC_ALL=C ls [0-9]*.sql); do printf '%s\n' "\\echo '-- $f'"; cat "$f"; echo; done
+} > /tmp/all.sql
+
+psql -h aws-0-eu-west-2.pooler.supabase.com -p 5432 \
+     -U postgres.mfohgcwviupeklfyvzfo -d postgres -W -f /tmp/all.sql
+```
+
+`LC_ALL=C` là bắt buộc — nó giữ `023_` trước `023a`, và `018_` trước `018a`.
+`ON_ERROR_STOP` làm psql dừng ở lỗi đầu tiên, dòng `-- <file>` cuối cùng in ra
+chính là file hỏng. Dán tay qua SQL Editor vẫn được, chỉ lâu hơn.
+
+Rất nhiều `NOTICE: ... already exists, skipping` là **bình thường**: `002` khai
+báo lại bảng mà `001` đã tạo, `024` khai báo lại cột mà `001`/`023a` đã tạo.
+NOTICE ở `024` báo cột của `jobs` đã tồn tại chính là bằng chứng `023a` chạy
+đúng.
 
 ```
 supabase/migrations/001_*.sql  →  023_*.sql      # AdvanceAcademyTools
