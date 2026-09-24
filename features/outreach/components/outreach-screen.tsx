@@ -19,7 +19,7 @@ import { EnrichmentPanel } from './enrichment-panel'
 import { ManualContextManager } from './manual-context-manager'
 
 const inputClass =
-  'w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm'
+  'w-full px-4 py-2.5 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm'
 const textareaClass = `${inputClass} min-h-24 resize-y`
 
 function Field({
@@ -106,7 +106,7 @@ function FileExtractor({
           {loading ? 'Extracting...' : 'Upload File'}
           <input type="file" accept=".pdf,.docx" className="hidden" onChange={handleFile} disabled={loading} />
         </label>
-        <span className="text-xs text-gray-400">{placeholder}</span>
+        <span className="text-xs text-subtle-foreground">{placeholder}</span>
       </div>
       {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
     </div>
@@ -147,12 +147,12 @@ function UrlExtractor({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder={placeholder}
-          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         />
         <button
           onClick={handleExtract}
           disabled={loading || !url.trim()}
-          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200 disabled:opacity-50 flex items-center gap-2"
+          className="px-4 py-2 bg-card text-foreground rounded-lg text-sm font-semibold hover:bg-muted disabled:opacity-50 flex items-center gap-2"
         >
           {loading ? <Loader className="w-4 h-4 animate-spin" /> : <LinkIcon className="w-4 h-4" />}
           Extract URL
@@ -217,7 +217,7 @@ function JdInput({
           className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
             activeTab === 'url'
               ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              : 'bg-card text-muted-foreground hover:bg-muted'
           }`}
         >
           Paste Link
@@ -228,7 +228,7 @@ function JdInput({
           className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
             activeTab === 'paste'
               ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              : 'bg-card text-muted-foreground hover:bg-muted'
           }`}
         >
           Paste Text
@@ -244,7 +244,7 @@ function JdInput({
               onChange={(e) => onJdUrlChange(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleValidate()}
               placeholder="https://company.com/jobs/role or LinkedIn job URL"
-              className="flex-1 px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
             <button
               type="button"
@@ -285,7 +285,7 @@ function JdInput({
 
       {activeTab === 'url' && jdText && (
         <details className="mt-3">
-          <summary className="text-xs text-gray-500 cursor-pointer hover:text-blue-600 font-semibold">
+          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-blue-600 font-semibold">
             View / edit extracted JD text
           </summary>
           <textarea
@@ -344,7 +344,7 @@ function OutreachForm({
   return (
     <div className="space-y-8">
       {/* Section 1 — Identity */}
-      <div className="p-8 bg-white border border-gray-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+      <div className="p-8 bg-background border rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">1</span>
           Who are you? (Identity Context)
@@ -361,9 +361,9 @@ function OutreachForm({
             />
           </Field>
 
-          <div className="border-t border-gray-100 pt-6">
+          <div className="border-t border-border pt-6">
             <Field label="Portfolio / Additional Context (Optional)">
-              <p className="text-xs text-gray-500 mb-2">
+              <p className="text-xs text-muted-foreground mb-2">
                 Add a portfolio URL, case study, or project page. We&apos;ll extract the readable text via Jina.
               </p>
               <UrlExtractor
@@ -389,7 +389,7 @@ function OutreachForm({
       </div>
 
       {/* Section 2 — Target + JD */}
-      <div className="p-8 bg-white border border-gray-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+      <div className="p-8 bg-background border rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">2</span>
           The Role & Target
@@ -397,7 +397,7 @@ function OutreachForm({
         <div className="space-y-6">
           {/* JD input — first and prominent */}
           <Field label="Job Description">
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-muted-foreground mb-3">
               Paste a link to the JD (we&apos;ll validate it) or paste the text directly. Used to match your CV and generate smarter company insights.
             </p>
             <JdInput
@@ -413,7 +413,7 @@ function OutreachForm({
             />
           </Field>
 
-          <div className="border-t border-gray-100 pt-6 grid md:grid-cols-2 gap-6">
+          <div className="border-t border-border pt-6 grid md:grid-cols-2 gap-6">
             <Field label="Target Company" required>
               <input
                 value={form.targetCompany}
@@ -464,7 +464,7 @@ function OutreachForm({
               <select
                 value={form.intent}
                 onChange={(e) => updateForm({ intent: e.target.value as OutreachIntent })}
-                className={`${inputClass} bg-gray-50`}
+                className={`${inputClass} bg-card`}
               >
                 {INTENT_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -476,7 +476,7 @@ function OutreachForm({
           </div>
 
           <Field label="Additional Enrichment Links (Optional)">
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-muted-foreground mb-3">
               Add labeled URLs for extra context (company blog, mutual project, news article, etc.).
               We&apos;ll extract the content and pass it to the AI alongside your JD.
             </p>
@@ -507,12 +507,12 @@ function OutreachForm({
       />
 
       {/* Section 4 — Output preferences */}
-      <div className="p-8 bg-white border border-gray-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+      <div className="p-8 bg-background border rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <h3 className="text-xl font-serif font-bold text-blue-900 mb-4 flex items-center gap-2">
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">4</span>
           What to generate
         </h3>
-        <p className="ml-10 mb-4 text-sm text-gray-500">
+        <p className="ml-10 mb-4 text-sm text-muted-foreground">
           Pick which messages you want. Unselected ones are skipped to save tokens.
         </p>
         <div className="ml-10 flex flex-wrap gap-6">
@@ -600,7 +600,7 @@ export function OutreachScreen() {
         <h1 className="text-4xl sm:text-5xl font-serif font-extrabold text-blue-900 mb-4 tracking-tight">
           Recruitment Outreach Generator
         </h1>
-        <p className="text-gray-600 text-lg sm:text-xl max-w-2xl mx-auto">
+        <p className="text-muted-foreground text-lg sm:text-xl max-w-2xl mx-auto">
           Generate highly personalised outreach from your JD, CV, and real company insights — powered by Exa search and Claude AI.
         </p>
       </div>
@@ -619,7 +619,7 @@ export function OutreachScreen() {
         />
       ) : (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="mb-8 flex items-center justify-between bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+          <div className="mb-8 flex items-center justify-between bg-background p-4 rounded-xl border border-border shadow-sm">
             <button
               onClick={() => setResults(null)}
               className="px-4 py-2 text-yellow-600 font-semibold hover:bg-yellow-50 rounded-lg flex items-center gap-2 transition-colors"
@@ -637,7 +637,7 @@ export function OutreachScreen() {
 
           <div className="space-y-8">
             {results.linkedInMessage !== undefined && (
-              <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
+              <div className="bg-background rounded-2xl p-8 border shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
                 <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
                   <svg
@@ -658,7 +658,7 @@ export function OutreachScreen() {
                   </svg>
                   LinkedIn Connection Note
                 </h3>
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 mb-6 text-base text-gray-800 leading-relaxed min-h-[100px]">
+                <div className="bg-card rounded-xl p-6 border border-border mb-6 text-base text-foreground leading-relaxed min-h-[100px]">
                   {results.linkedInMessage}
                 </div>
                 <div className="flex items-center justify-between">
@@ -677,7 +677,7 @@ export function OutreachScreen() {
             )}
 
             {results.email && (
-              <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
+              <div className="bg-background rounded-2xl p-8 border shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-yellow-500" />
                 <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
                   <svg
@@ -699,16 +699,16 @@ export function OutreachScreen() {
                 </h3>
 
                 <div className="mb-8">
-                  <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Subject Line</p>
-                  <div className="bg-gray-50 rounded-xl px-5 py-4 border border-gray-100 flex items-center justify-between gap-4">
-                    <span className="text-base text-gray-900 font-semibold">{results.email.subject}</span>
+                  <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Subject Line</p>
+                  <div className="bg-card rounded-xl px-5 py-4 border border-border flex items-center justify-between gap-4">
+                    <span className="text-base text-foreground font-semibold">{results.email.subject}</span>
                     <CopyButton text={results.email.subject} />
                   </div>
                 </div>
 
                 <div>
-                  <p className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Email Body</p>
-                  <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 mb-6 text-base text-gray-800 whitespace-pre-wrap leading-relaxed min-h-[200px]">
+                  <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Email Body</p>
+                  <div className="bg-card rounded-xl p-6 border border-border mb-6 text-base text-foreground whitespace-pre-wrap leading-relaxed min-h-[200px]">
                     {results.email.body}
                   </div>
                   <div className="flex justify-end">

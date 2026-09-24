@@ -174,7 +174,7 @@ export function JobTrackingScreen() {
           Could not load your jobs: {(error as Error).message}
         </div>
       ) : visible.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
+        <div className="rounded-lg border border-dashed border-border p-8 text-center">
           <p className="text-sm text-muted-foreground">
             {total === 0
               ? 'Nothing tracked yet. Add a job by hand, or hit Save on a role in Dream Company.'

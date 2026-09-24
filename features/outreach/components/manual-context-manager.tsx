@@ -74,7 +74,7 @@ export function ManualContextManager({ contexts, onUpdate }: ManualContextManage
           {contexts.map((c) => (
             <div
               key={c.id}
-              className="rounded-xl border border-gray-200 bg-gray-50 p-4"
+              className="rounded-xl border bg-card p-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
@@ -91,7 +91,7 @@ export function ManualContextManager({ contexts, onUpdate }: ManualContextManage
                       {c.url}
                     </a>
                     {c.status === 'loading' && (
-                      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         <Loader className="h-3 w-3 animate-spin" /> Extracting…
                       </span>
                     )}
@@ -111,7 +111,7 @@ export function ManualContextManager({ contexts, onUpdate }: ManualContextManage
                     <textarea
                       value={c.extractedText}
                       onChange={(e) => updateExtractedText(c.id, e.target.value)}
-                      className="mt-2 w-full min-h-20 resize-y rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="mt-2 w-full min-h-20 resize-y rounded-lg border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   )}
                 </div>
@@ -129,8 +129,8 @@ export function ManualContextManager({ contexts, onUpdate }: ManualContextManage
         </div>
       )}
 
-      <div className="rounded-xl border border-dashed border-gray-300 bg-white p-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+      <div className="rounded-xl border border-dashed border-border bg-background p-4 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Add a context link
         </p>
         <div className="flex flex-col gap-3 md:flex-row">
@@ -138,13 +138,13 @@ export function ManualContextManager({ contexts, onUpdate }: ManualContextManage
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title (e.g. Job Description)"
-            className="md:w-1/3 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="md:w-1/3 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://..."
-            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()

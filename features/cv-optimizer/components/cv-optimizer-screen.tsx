@@ -48,7 +48,7 @@ const KEYWORD_CATEGORY_COLOR: Record<AtsKeywordCategory, string> = {
   hard_skill: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   industry_term: 'bg-teal-100 text-teal-700 border-teal-200',
   certification: 'bg-amber-100 text-amber-700 border-amber-200',
-  seniority_indicator: 'bg-gray-100 text-gray-700 border-gray-200',
+  seniority_indicator: 'bg-card text-foreground',
   mandatory_requirement: 'bg-red-100 text-red-700 border-red-200',
 }
 
@@ -107,7 +107,7 @@ function FileUploadZone({ label, fileName, parsing, onFile, onClear }: FileUploa
 
   return (
     <div>
-      <p className="text-sm font-medium text-gray-700 mb-1">{label}</p>
+      <p className="text-sm font-medium text-foreground mb-1">{label}</p>
       {fileName ? (
         <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
           <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
@@ -127,12 +127,12 @@ function FileUploadZone({ label, fileName, parsing, onFile, onClear }: FileUploa
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
           className={`cursor-pointer rounded-lg border-2 border-dashed px-4 py-5 text-center transition-colors ${
-            isDragOver ? 'border-yellow-400 bg-yellow-50' : 'border-gray-300 hover:border-yellow-400'
+            isDragOver ? 'border-yellow-400 bg-yellow-50' : 'border-border hover:border-yellow-400'
           }`}
         >
-          <Upload className="w-6 h-6 text-gray-400 mx-auto mb-1" />
-          <p className="text-sm text-gray-600">Drop a file or <span className="text-yellow-600 font-medium">browse</span></p>
-          <p className="text-xs text-gray-400 mt-0.5">PDF or DOCX</p>
+          <Upload className="w-6 h-6 text-subtle-foreground mx-auto mb-1" />
+          <p className="text-sm text-muted-foreground">Drop a file or <span className="text-yellow-600 font-medium">browse</span></p>
+          <p className="text-xs text-subtle-foreground mt-0.5">PDF or DOCX</p>
         </div>
       )}
       <input ref={inputRef} type="file" accept=".pdf,.docx" className="hidden"
@@ -143,7 +143,7 @@ function FileUploadZone({ label, fileName, parsing, onFile, onClear }: FileUploa
 
 function ScoreBar({ score }: { score: number }) {
   return (
-    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+    <div className="w-full bg-muted rounded-full h-2 mt-2">
       <div className={`h-2 rounded-full transition-all ${scoreBar(score)}`} style={{ width: `${score}%` }} />
     </div>
   )
@@ -169,7 +169,7 @@ function CvOverviewTab({ results }: { results: AnalyzeCvResult }) {
             </div>
           </div>
           <ScoreBar score={section.score} />
-          <p className="text-gray-700 text-sm mt-3">{section.feedback}</p>
+          <p className="text-foreground text-sm mt-3">{section.feedback}</p>
         </div>
       ))}
     </div>
@@ -208,7 +208,7 @@ function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
         <div className="flex items-center justify-between mb-1">
           <div>
             <h4 className="font-semibold text-blue-900">ATS Compatibility Score</h4>
-            <p className="text-xs text-gray-500 mt-0.5">Recruitment-grade scoring across mandatory requirements, keyword coverage, and relevance signals</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Recruitment-grade scoring across mandatory requirements, keyword coverage, and relevance signals</p>
           </div>
           <span className={`text-3xl font-bold ${scoreColor(results.atsCheck.score)}`}>
             {results.atsCheck.score}
@@ -232,7 +232,7 @@ function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
       {keywords.length > 0 && (
         <div>
           <h4 className="font-semibold text-blue-900 mb-2">Extracted Keywords</h4>
-          <p className="text-xs text-gray-500 mb-3">
+          <p className="text-xs text-muted-foreground mb-3">
             Every requirement, tool, and qualification the employer is screening for — mapped against your CV. {foundCount}/{totalCount} found.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -251,9 +251,9 @@ function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
                   <span className="text-sm font-semibold text-blue-900">
                     {s.signal.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                   </span>
-                  <span className={`text-lg font-bold ${impactColor(s.score)}`}>{s.score}<span className="text-xs text-gray-400">/10</span></span>
+                  <span className={`text-lg font-bold ${impactColor(s.score)}`}>{s.score}<span className="text-xs text-subtle-foreground">/10</span></span>
                 </div>
-                <p className="text-xs text-gray-700">{s.reasoning}</p>
+                <p className="text-xs text-foreground">{s.reasoning}</p>
               </div>
             ))}
           </div>
@@ -291,7 +291,7 @@ function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
         <div>
           <h4 className="font-semibold text-blue-900 mb-3">JD Requirement Alignment</h4>
           {results.jdAlignment.alignmentSummary && (
-            <p className="text-sm text-gray-700 mb-4 leading-relaxed">{results.jdAlignment.alignmentSummary}</p>
+            <p className="text-sm text-foreground mb-4 leading-relaxed">{results.jdAlignment.alignmentSummary}</p>
           )}
           <div className="grid sm:grid-cols-2 gap-4">
             {results.jdAlignment.matchedRequirements.length > 0 && (
@@ -377,13 +377,13 @@ function BulletCard({ bullet, bulletKey, targetRole, state, onAnswersChange, onR
   return (
     <div className={`rounded-xl border p-5 ${bulletBorder(bullet.impactScore)}`}>
       <div className="flex items-start justify-between gap-4 mb-2">
-        <p className="text-sm text-gray-800 italic flex-1">&ldquo;{bullet.original}&rdquo;</p>
+        <p className="text-sm text-foreground italic flex-1">&ldquo;{bullet.original}&rdquo;</p>
         <div className="flex-shrink-0 text-right">
           <span className={`text-xl font-bold ${impactColor(bullet.impactScore)}`}>{bullet.impactScore}</span>
-          <span className="text-xs text-gray-400">/10</span>
+          <span className="text-xs text-subtle-foreground">/10</span>
         </div>
       </div>
-      <p className="text-xs text-gray-600">{bullet.feedback}</p>
+      <p className="text-xs text-muted-foreground">{bullet.feedback}</p>
       {!bullet.hasImpact && (
         <span className="inline-block mt-2 rounded-full bg-red-100 text-red-600 text-xs px-2 py-0.5 font-medium">No measurable impact</span>
       )}
@@ -405,20 +405,20 @@ function BulletCard({ bullet, bulletKey, targetRole, state, onAnswersChange, onR
                   {copiedSuggested ? 'Copied!' : 'Copy'}
                 </button>
               </div>
-              <p className="text-sm text-gray-800 leading-relaxed">{bullet.autoRewrite}</p>
+              <p className="text-sm text-foreground leading-relaxed">{bullet.autoRewrite}</p>
             </div>
           )}
 
           {/* OPTION 2 — Personalize with your answers */}
           {hasQuestions && (
-            <div className="rounded-lg border border-blue-200 bg-white p-4">
+            <div className="rounded-lg border border-blue-200 bg-background p-4">
               <button
                 onClick={onTogglePersonalize}
                 className="w-full flex items-center justify-between text-left"
               >
                 <div>
                   <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide">Option 2 — Personalize It</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">Answer a few quick questions and we&apos;ll rewrite using your real impact details.</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Answer a few quick questions and we&apos;ll rewrite using your real impact details.</p>
                 </div>
                 <span className="text-xs font-medium text-blue-600 flex-shrink-0">
                   {state.personalizeOpen ? 'Hide' : 'Answer questions'}
@@ -426,10 +426,10 @@ function BulletCard({ bullet, bulletKey, targetRole, state, onAnswersChange, onR
               </button>
 
               {state.personalizeOpen && (
-                <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+                <div className="mt-4 space-y-3 border-t border-border pt-4">
                   {bullet.clarifyingQuestions.map((q, qIdx) => (
                     <div key={`${bulletKey}-q-${qIdx}`}>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">{q}</label>
+                      <label className="block text-xs font-medium text-foreground mb-1">{q}</label>
                       <input
                         type="text"
                         value={state.answers[qIdx] ?? ''}
@@ -439,7 +439,7 @@ function BulletCard({ bullet, bulletKey, targetRole, state, onAnswersChange, onR
                           onAnswersChange(next)
                         }}
                         placeholder="Your answer..."
-                        className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
+                        className="w-full rounded-md border px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
                       />
                     </div>
                   ))}
@@ -466,7 +466,7 @@ function BulletCard({ bullet, bulletKey, targetRole, state, onAnswersChange, onR
                           {copiedPersonalized ? 'Copied!' : 'Copy'}
                         </button>
                       </div>
-                      <p className="text-sm text-gray-800 leading-relaxed">{state.rewritten}</p>
+                      <p className="text-sm text-foreground leading-relaxed">{state.rewritten}</p>
                     </div>
                   )}
                 </div>
@@ -485,7 +485,7 @@ function BulletsTab({ results, targetRole }: { results: AnalyzeCvResult; targetR
   const [copiedPersonalizedKey, setCopiedPersonalizedKey] = useState<string | null>(null)
 
   if (results.bulletEvaluations.length === 0) {
-    return <p className="text-gray-500 text-sm">No bullet evaluations returned. Ensure the CV contains structured experience bullets.</p>
+    return <p className="text-muted-foreground text-sm">No bullet evaluations returned. Ensure the CV contains structured experience bullets.</p>
   }
 
   // Group by project, preserving original order within each project
@@ -575,7 +575,7 @@ function BulletsTab({ results, targetRole }: { results: AnalyzeCvResult; targetR
 
       {Array.from(groups.entries()).map(([project, group]) => (
         <div key={project} className="space-y-3">
-          <h4 className="font-semibold text-blue-900 text-base border-b border-gray-200 pb-2">{project}</h4>
+          <h4 className="font-semibold text-blue-900 text-base border-b pb-2">{project}</h4>
           {group.bullets.map((bullet, localIdx) => {
             const key = `${project}::${group.originalIndices[localIdx]}`
             const state = getState(key, bullet.clarifyingQuestions.length)
@@ -613,7 +613,7 @@ interface RewriteTabProps {
 
 function RewriteTab({ results, cvFile, onDownload, downloading, downloadError, downloadNotice }: RewriteTabProps) {
   if (results.rewriteSuggestions.length === 0) {
-    return <p className="text-gray-500 text-sm">No rewrite suggestions returned.</p>
+    return <p className="text-muted-foreground text-sm">No rewrite suggestions returned.</p>
   }
 
   const isDocx = cvFile ? cvFile.name.toLowerCase().endsWith('.docx') : false
@@ -647,25 +647,25 @@ function RewriteTab({ results, cvFile, onDownload, downloading, downloadError, d
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{downloadNotice}</div>
       )}
       {results.rewriteSuggestions.map((suggestion: RewriteSuggestion, idx: number) => (
-        <div key={idx} className="rounded-xl border border-gray-200 overflow-hidden">
-          <div className="bg-gray-100 px-4 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wide">
+        <div key={idx} className="rounded-xl border overflow-hidden">
+          <div className="bg-card px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             {suggestion.section}
           </div>
-          <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
+          <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-border">
             <div className="p-5 bg-red-50">
               <p className="text-xs font-semibold text-red-600 mb-2 uppercase tracking-wide">Current</p>
-              <p className="text-sm text-gray-800 leading-relaxed">{suggestion.current}</p>
+              <p className="text-sm text-foreground leading-relaxed">{suggestion.current}</p>
             </div>
             <div className="p-5 bg-green-50 relative">
-              <div className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden sm:flex w-7 h-7 bg-white border border-gray-200 rounded-full items-center justify-center shadow-sm">
-                <ArrowRight className="w-3 h-3 text-gray-400" />
+              <div className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden sm:flex w-7 h-7 bg-background border rounded-full items-center justify-center shadow-sm">
+                <ArrowRight className="w-3 h-3 text-subtle-foreground" />
               </div>
               <p className="text-xs font-semibold text-green-600 mb-2 uppercase tracking-wide">Suggested</p>
-              <p className="text-sm text-gray-800 leading-relaxed">{suggestion.suggested}</p>
+              <p className="text-sm text-foreground leading-relaxed">{suggestion.suggested}</p>
             </div>
           </div>
-          <div className="px-4 py-2 bg-gray-50 border-t border-gray-200">
-            <p className="text-xs text-gray-500"><span className="font-medium text-gray-700">Why: </span>{suggestion.reason}</p>
+          <div className="px-4 py-2 bg-card border-t">
+            <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Why: </span>{suggestion.reason}</p>
           </div>
         </div>
       ))}
@@ -684,7 +684,7 @@ function ActionPlanSection({ title, icon, items, emptyMessage }: {
     return (
       <div>
         <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">{icon}{title}</h4>
-        <p className="text-sm text-gray-500 italic">{emptyMessage}</p>
+        <p className="text-sm text-muted-foreground italic">{emptyMessage}</p>
       </div>
     )
   }
@@ -693,9 +693,9 @@ function ActionPlanSection({ title, icon, items, emptyMessage }: {
       <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">{icon}{title}</h4>
       <div className="space-y-2">
         {items.map((item, idx) => (
-          <div key={idx} className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+          <div key={idx} className="rounded-lg border bg-background px-4 py-3">
             <p className="text-sm font-semibold text-blue-900">{item.title}</p>
-            {item.description && <p className="text-xs text-gray-600 mt-1 leading-relaxed">{item.description}</p>}
+            {item.description && <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{item.description}</p>}
           </div>
         ))}
       </div>
@@ -767,7 +767,7 @@ function ActionPlanTab({ plan }: { plan: ActionPlan }) {
     plan.intermediateRoles.length > 0
 
   if (!hasAnything) {
-    return <p className="text-gray-500 text-sm">No action plan returned.</p>
+    return <p className="text-muted-foreground text-sm">No action plan returned.</p>
   }
 
   return (
@@ -945,31 +945,31 @@ export function CvOptimizerScreen() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-4xl font-serif font-bold text-blue-900 mb-2">CV Optimizer</h1>
-      <p className="text-gray-500 mb-8">Upload your CV and a job description — our AI runs a full recruitment-grade analysis in seconds.</p>
+      <p className="text-muted-foreground mb-8">Upload your CV and a job description — our AI runs a full recruitment-grade analysis in seconds.</p>
 
       {isBusy && !results ? (
         <AnalyzingPanel status={state.status === 'submitting' ? 'submitting' : 'running'} />
       ) : !results ? (
         <div className="grid md:grid-cols-2 gap-8">
           {/* Left — inputs */}
-          <div className="bg-gray-50 rounded-xl p-8 space-y-5">
+          <div className="bg-card rounded-xl p-8 space-y-5">
             <input
               value={form.targetRole}
               onChange={(e) => updateField('targetRole', e.target.value)}
               placeholder="Target role (e.g. Frontend Developer)"
-              className="w-full rounded-lg border border-gray-200 px-4 py-3 bg-white"
+              className="w-full rounded-lg border px-4 py-3 bg-background"
             />
             <div className="space-y-2">
               <FileUploadZone label="CV" fileName={cvFileName} parsing={cvParsing} onFile={handleCvFile}
                 onClear={() => { setCvFile(null); setCvFileName(null); updateField('currentCvText', '') }} />
               <textarea value={form.currentCvText} onChange={(e) => updateField('currentCvText', e.target.value)}
-                placeholder="Or paste your CV text here..." className="min-h-36 w-full rounded-lg border border-gray-200 px-4 py-3 bg-white text-sm" />
+                placeholder="Or paste your CV text here..." className="min-h-36 w-full rounded-lg border px-4 py-3 bg-background text-sm" />
             </div>
             <div className="space-y-2">
               <FileUploadZone label="Job Description" fileName={jdFileName} parsing={jdParsing} onFile={handleJdFile}
                 onClear={() => { setJdFileName(null); updateField('jobDescription', '') }} />
               <textarea value={form.jobDescription} onChange={(e) => updateField('jobDescription', e.target.value)}
-                placeholder="Or paste the job description here..." className="min-h-28 w-full rounded-lg border border-gray-200 px-4 py-3 bg-white text-sm" />
+                placeholder="Or paste the job description here..." className="min-h-28 w-full rounded-lg border px-4 py-3 bg-background text-sm" />
             </div>
 
             {(() => {
@@ -1032,7 +1032,7 @@ export function CvOptimizerScreen() {
             </div>
             <div className="bg-blue-50 rounded-xl p-6">
               <h3 className="text-lg font-semibold text-blue-900 mb-3">Optimization Tips</h3>
-              <ul className="space-y-2 text-sm text-gray-700">
+              <ul className="space-y-2 text-sm text-foreground">
                 {[
                   'Upload both a CV and JD for the most accurate keyword and alignment analysis.',
                   'Quantify every bullet — numbers and percentages score significantly higher.',
@@ -1059,34 +1059,34 @@ export function CvOptimizerScreen() {
           {/* Score header: overall + 25/40/35 breakdown */}
           <div className="grid sm:grid-cols-4 gap-4 mb-8">
             <div className={`rounded-xl border p-6 ${scoreBg(results.overallScore)}`}>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Overall Score</p>
-              <p className={`text-4xl font-bold ${scoreColor(results.overallScore)}`}>{results.overallScore}<span className="text-lg text-gray-400">/100</span></p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Overall Score</p>
+              <p className={`text-4xl font-bold ${scoreColor(results.overallScore)}`}>{results.overallScore}<span className="text-lg text-subtle-foreground">/100</span></p>
               <ScoreBar score={results.overallScore} />
-              <p className="text-[10px] text-gray-500 mt-2">Weighted composite of the three dimensions</p>
+              <p className="text-[10px] text-muted-foreground mt-2">Weighted composite of the three dimensions</p>
             </div>
             <div className={`rounded-xl border p-6 ${scoreBg(results.scoreBreakdown.cvOverview)}`}>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">CV Overview <span className="text-gray-400">(25%)</span></p>
-              <p className={`text-4xl font-bold ${scoreColor(results.scoreBreakdown.cvOverview)}`}>{results.scoreBreakdown.cvOverview}<span className="text-lg text-gray-400">/100</span></p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">CV Overview <span className="text-subtle-foreground">(25%)</span></p>
+              <p className={`text-4xl font-bold ${scoreColor(results.scoreBreakdown.cvOverview)}`}>{results.scoreBreakdown.cvOverview}<span className="text-lg text-subtle-foreground">/100</span></p>
               <ScoreBar score={results.scoreBreakdown.cvOverview} />
             </div>
             <div className={`rounded-xl border p-6 ${scoreBg(results.scoreBreakdown.atsAndKeywordIntelligence)}`}>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">ATS & Keywords <span className="text-gray-400">(40%)</span></p>
-              <p className={`text-4xl font-bold ${scoreColor(results.scoreBreakdown.atsAndKeywordIntelligence)}`}>{results.scoreBreakdown.atsAndKeywordIntelligence}<span className="text-lg text-gray-400">/100</span></p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">ATS & Keywords <span className="text-subtle-foreground">(40%)</span></p>
+              <p className={`text-4xl font-bold ${scoreColor(results.scoreBreakdown.atsAndKeywordIntelligence)}`}>{results.scoreBreakdown.atsAndKeywordIntelligence}<span className="text-lg text-subtle-foreground">/100</span></p>
               <ScoreBar score={results.scoreBreakdown.atsAndKeywordIntelligence} />
             </div>
             <div className={`rounded-xl border p-6 ${scoreBg(results.scoreBreakdown.bulletImpact)}`}>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Bullet Impact <span className="text-gray-400">(35%)</span></p>
-              <p className={`text-4xl font-bold ${scoreColor(results.scoreBreakdown.bulletImpact)}`}>{results.scoreBreakdown.bulletImpact}<span className="text-lg text-gray-400">/100</span></p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Bullet Impact <span className="text-subtle-foreground">(35%)</span></p>
+              <p className={`text-4xl font-bold ${scoreColor(results.scoreBreakdown.bulletImpact)}`}>{results.scoreBreakdown.bulletImpact}<span className="text-lg text-subtle-foreground">/100</span></p>
               <ScoreBar score={results.scoreBreakdown.bulletImpact} />
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="mb-6 flex gap-1 overflow-x-auto border-b border-gray-200">
+          <div className="mb-6 flex gap-1 overflow-x-auto border-b">
             {TABS.map(({ id, label }) => (
               <button key={id} onClick={() => setTab(id)}
                 className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  tab === id ? 'border-yellow-500 text-blue-900' : 'border-transparent text-gray-500 hover:text-gray-800'
+                  tab === id ? 'border-yellow-500 text-blue-900' : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}>
                 {label}
               </button>

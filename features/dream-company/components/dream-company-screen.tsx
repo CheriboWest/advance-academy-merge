@@ -108,7 +108,7 @@ const EMPTY_FORM: DreamCompanyInput = {
 }
 
 const MARKET_LEVEL_COLORS: Record<string, string> = {
-  entry: 'bg-gray-100 text-gray-800',
+  entry: 'bg-card text-foreground',
   junior: 'bg-blue-100 text-blue-800',
   mid: 'bg-green-100 text-green-800',
   senior: 'bg-purple-100 text-purple-800',
@@ -125,7 +125,7 @@ const URGENCY_COLORS: Record<string, string> = {
 const DEMAND_COLORS: Record<string, string> = {
   high: 'bg-green-100 text-green-800',
   medium: 'bg-yellow-100 text-yellow-800',
-  low: 'bg-gray-100 text-gray-800',
+  low: 'bg-card text-foreground',
 }
 
 // ─── Main Screen Component ──────────────────────────────────
@@ -216,7 +216,7 @@ export function DreamCompanyScreen() {
         <h1 className="text-4xl font-serif font-bold text-blue-900 mb-3">
           Dream Company Finder
         </h1>
-        <p className="text-lg text-gray-600">
+        <p className="text-lg text-muted-foreground">
           Input your career profile, discover your ideal roles, and find real job opportunities.
         </p>
       </div>
@@ -261,7 +261,7 @@ export function DreamCompanyScreen() {
               className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors ${
                 isDragOver
                   ? 'border-yellow-500 bg-yellow-50'
-                  : 'border-gray-300 hover:border-gray-400 bg-gray-50'
+                  : 'border-border hover:border-border bg-card'
               }`}
             >
               <input
@@ -277,21 +277,21 @@ export function DreamCompanyScreen() {
               {cvParsing ? (
                 <div className="flex flex-col items-center gap-3">
                   <Loader2 className="w-10 h-10 text-yellow-500 animate-spin" />
-                  <p className="text-sm text-gray-600">Parsing {uploadedFileName}...</p>
+                  <p className="text-sm text-muted-foreground">Parsing {uploadedFileName}...</p>
                 </div>
               ) : uploadedFileName ? (
                 <div className="flex flex-col items-center gap-3">
                   <CheckCircle2 className="w-10 h-10 text-green-500" />
-                  <p className="text-sm font-medium text-gray-900">{uploadedFileName}</p>
-                  <p className="text-xs text-gray-500">Click or drop to replace</p>
+                  <p className="text-sm font-medium text-foreground">{uploadedFileName}</p>
+                  <p className="text-xs text-muted-foreground">Click or drop to replace</p>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3">
-                  <Upload className="w-10 h-10 text-gray-400" />
-                  <p className="text-sm font-medium text-gray-700">
+                  <Upload className="w-10 h-10 text-subtle-foreground" />
+                  <p className="text-sm font-medium text-foreground">
                     Drag & drop your CV here, or click to browse
                   </p>
-                  <p className="text-xs text-gray-500">Supports PDF and DOCX</p>
+                  <p className="text-xs text-muted-foreground">Supports PDF and DOCX</p>
                 </div>
               )}
             </div>
@@ -327,7 +327,7 @@ export function DreamCompanyScreen() {
                   value={form.skills}
                   onChange={(e) => updateField('skills', e.target.value)}
                 />
-                <p className="text-xs text-gray-500 mt-1">Separate skills with commas</p>
+                <p className="text-xs text-muted-foreground mt-1">Separate skills with commas</p>
               </div>
               <div>
                 <Label htmlFor="interests">Interests</Label>
@@ -463,14 +463,14 @@ function StepIndicator({ step, current, label }: { step: string; current: string
             ? 'bg-green-500 text-white'
             : isActive
               ? 'bg-yellow-500 text-blue-900'
-              : 'bg-gray-200 text-gray-500'
+              : 'bg-muted text-muted-foreground'
         }`}
       >
         {isComplete ? <CheckCircle2 className="w-4 h-4" /> : stepIdx + 1}
       </div>
       <span
         className={`text-sm ${
-          isActive ? 'text-blue-900 font-medium' : isComplete ? 'text-green-700' : 'text-gray-400'
+          isActive ? 'text-blue-900 font-medium' : isComplete ? 'text-green-700' : 'text-subtle-foreground'
         }`}
       >
         {label}
@@ -546,10 +546,10 @@ function ProfileAnalysisTab({ analysis }: { analysis: ProfileAnalysis }) {
   return (
     <div className="space-y-6 mt-4">
       <div className="flex flex-wrap items-center gap-4">
-        <Badge className={MARKET_LEVEL_COLORS[analysis.marketLevel] || 'bg-gray-100 text-gray-800'}>
+        <Badge className={MARKET_LEVEL_COLORS[analysis.marketLevel] || 'bg-card text-foreground'}>
           {analysis.marketLevel.toUpperCase()}
         </Badge>
-        <span className="text-sm text-gray-600">
+        <span className="text-sm text-muted-foreground">
           {analysis.salaryRange.currency} {analysis.salaryRange.min.toLocaleString()} -{' '}
           {analysis.salaryRange.max.toLocaleString()}
         </span>
@@ -558,30 +558,30 @@ function ProfileAnalysisTab({ analysis }: { analysis: ProfileAnalysis }) {
       <div className="flex items-center gap-6">
         <ReadinessRing score={analysis.readinessScore} />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900">Readiness Score</p>
-          <p className="text-sm text-gray-600 mt-1">{analysis.readinessNote}</p>
+          <p className="text-sm font-medium text-foreground">Readiness Score</p>
+          <p className="text-sm text-muted-foreground mt-1">{analysis.readinessNote}</p>
         </div>
       </div>
 
       <div className="border-l-4 border-yellow-500 bg-yellow-50 rounded-r-lg p-4">
-        <p className="text-sm font-medium text-gray-900 mb-1">Unique Value Proposition</p>
-        <p className="text-sm text-gray-700 italic">{analysis.uniqueValueProposition}</p>
+        <p className="text-sm font-medium text-foreground mb-1">Unique Value Proposition</p>
+        <p className="text-sm text-foreground italic">{analysis.uniqueValueProposition}</p>
       </div>
 
       <div>
-        <p className="text-sm font-medium text-gray-900 mb-1">Market Level Rationale</p>
-        <p className="text-sm text-gray-600">{analysis.marketLevelRationale}</p>
+        <p className="text-sm font-medium text-foreground mb-1">Market Level Rationale</p>
+        <p className="text-sm text-muted-foreground">{analysis.marketLevelRationale}</p>
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Core Strengths</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-3">Core Strengths</h3>
         <div className="space-y-3">
           {analysis.coreStrengths.map((s, i) => (
             <div key={i} className="flex gap-3">
               <CheckCircle2 className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
               <div>
-                <p className="text-sm font-medium text-gray-900">{s.strength}</p>
-                <p className="text-xs text-gray-500">{s.evidence}</p>
+                <p className="text-sm font-medium text-foreground">{s.strength}</p>
+                <p className="text-xs text-muted-foreground">{s.evidence}</p>
               </div>
             </div>
           ))}
@@ -589,7 +589,7 @@ function ProfileAnalysisTab({ analysis }: { analysis: ProfileAnalysis }) {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Critical Gaps</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-3">Critical Gaps</h3>
         <div className="space-y-3">
           {analysis.criticalGaps.map((g, i) => (
             <div key={i} className={`flex gap-3 p-3 rounded-lg border ${URGENCY_COLORS[g.urgency]}`}>
@@ -624,7 +624,7 @@ function ReadinessRing({ score }: { score: number }) {
         <circle cx="40" cy="40" r={radius} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} className="transition-all duration-1000" />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-xl font-bold text-gray-900">{score}</span>
+        <span className="text-xl font-bold text-foreground">{score}</span>
       </div>
     </div>
   )
@@ -670,7 +670,7 @@ function RolesTab({
               aria-disabled={disabled}
               className={`transition-all ${
                 isPicking && !disabled ? 'cursor-pointer' : ''
-              } ${isSelected ? 'ring-2 ring-yellow-500 bg-yellow-50/50' : isPicking && !disabled ? 'hover:border-gray-300' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${isSelected ? 'ring-2 ring-yellow-500 bg-yellow-50/50' : isPicking && !disabled ? 'hover:border-border' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={() => isPicking && !disabled && onToggleRole(role)}
             >
               <CardHeader className="pb-2">
@@ -689,15 +689,15 @@ function RolesTab({
               <CardContent className="space-y-3">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium text-gray-700">Fit Score</span>
+                    <span className="text-xs font-medium text-foreground">Fit Score</span>
                     <span className="text-xs font-bold text-blue-900">{role.fitScore}%</span>
                   </div>
                   <Progress value={role.fitScore} className="h-2" />
                 </div>
-                <p className="text-sm text-gray-600">{role.fitReason}</p>
+                <p className="text-sm text-muted-foreground">{role.fitReason}</p>
                 <div className="flex items-center justify-between">
                   <Badge className={DEMAND_COLORS[role.demandLevel]}>{role.demandLevel} demand</Badge>
-                  <span className="text-sm font-medium text-gray-900">{role.avgSalary}</span>
+                  <span className="text-sm font-medium text-foreground">{role.avgSalary}</span>
                 </div>
               </CardContent>
             </Card>
@@ -722,10 +722,10 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-gray-800 leading-relaxed">{roadmap.futureYou.personTheyWillBecome}</p>
+          <p className="text-sm text-foreground leading-relaxed">{roadmap.futureYou.personTheyWillBecome}</p>
           <div className="border-t border-yellow-200 pt-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">What You Will Achieve</p>
-            <p className="text-sm text-gray-700 leading-relaxed">{roadmap.futureYou.achievementSummary}</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">What You Will Achieve</p>
+            <p className="text-sm text-foreground leading-relaxed">{roadmap.futureYou.achievementSummary}</p>
           </div>
         </CardContent>
       </Card>
@@ -769,7 +769,7 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
               // Save button, and a button inside an anchor is invalid HTML.
               <div
                 key={job.url || i}
-                className="flex items-start justify-between gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"
+                className="flex items-start justify-between gap-3 p-4 rounded-lg border hover:border-blue-300 transition-colors"
               >
                 <a
                   href={job.url}
@@ -779,11 +779,11 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
                 >
                   <p className="text-sm font-medium text-blue-900 truncate group-hover:underline inline-flex items-center gap-1.5 max-w-full">
                     <span className="truncate">{job.title}</span>
-                    <ExternalLink className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <ExternalLink className="w-3.5 h-3.5 text-subtle-foreground shrink-0" />
                   </p>
-                  {job.snippet && <p className="text-xs text-gray-600 mt-1 line-clamp-2">{job.snippet}</p>}
+                  {job.snippet && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{job.snippet}</p>}
                   {formatPostedDate(job.publishedDate) && (
-                    <p className="text-xs text-gray-400 mt-1">{formatPostedDate(job.publishedDate)}</p>
+                    <p className="text-xs text-subtle-foreground mt-1">{formatPostedDate(job.publishedDate)}</p>
                   )}
                 </a>
                 <SaveJobButton
@@ -811,7 +811,7 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
           Career Roadmap
         </h3>
 
-        <div className="absolute left-5 top-14 bottom-0 w-0.5 bg-gray-200" />
+        <div className="absolute left-5 top-14 bottom-0 w-0.5 bg-muted" />
 
         <div className="space-y-8">
           {roadmap.phases.map((phase, i) => (
@@ -821,16 +821,16 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3 mb-1">
                     <Badge className="bg-blue-900 text-white">Phase {phase.phase}</Badge>
-                    <span className="text-sm text-gray-500">{phase.duration}</span>
+                    <span className="text-sm text-muted-foreground">{phase.duration}</span>
                   </div>
                   <CardTitle className="text-lg">{phase.goal}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Actions</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Actions</p>
                     <ul className="space-y-2">
                       {phase.actions.map((action, j) => (
-                        <li key={j} className="flex items-start gap-2 text-sm text-gray-700">
+                        <li key={j} className="flex items-start gap-2 text-sm text-foreground">
                           <ChevronRight className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
                           {action}
                         </li>
@@ -838,7 +838,7 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
                     </ul>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Skills to Build</p>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Skills to Build</p>
                     {/* These "skills" are long descriptive phrases ("Category (detail, detail…)"),
                         not short tags — a nowrap Badge overflowed the card. Render each as a
                         wrapping row: bold category + muted parenthetical detail. */}

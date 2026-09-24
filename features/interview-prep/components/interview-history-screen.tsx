@@ -128,7 +128,7 @@ function ListView({
           <History className="w-9 h-9 text-yellow-500" />
           Interview History
         </h2>
-        <p className="text-gray-600 text-lg">
+        <p className="text-muted-foreground text-lg">
           Review your past mock interviews and feedback reports.
         </p>
       </div>
@@ -141,9 +141,9 @@ function ListView({
       )}
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-background rounded-xl border p-12 text-center">
           <Loader2 className="w-8 h-8 animate-spin text-yellow-500 mx-auto mb-3" />
-          <p className="text-gray-500">Loading sessions…</p>
+          <p className="text-muted-foreground">Loading sessions…</p>
         </div>
       ) : sessions.length === 0 ? (
         <div className="bg-blue-50 rounded-xl p-12 text-center">
@@ -151,7 +151,7 @@ function ListView({
           <h2 className="text-xl font-semibold text-blue-900 mb-2">
             No interviews yet
           </h2>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             Complete your first mock interview to see it here.
           </p>
         </div>
@@ -172,7 +172,7 @@ function ListView({
               type="button"
               onClick={onLoadMore}
               disabled={loadingMore || openingId}
-              className="mx-auto flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-blue-900 hover:border-blue-300 disabled:opacity-50"
+              className="mx-auto flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium text-blue-900 hover:border-blue-300 disabled:opacity-50"
             >
               {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
               {loadingMore ? 'Loading…' : 'Load more'}
@@ -201,7 +201,7 @@ function SessionCard({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-full text-left bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:border-blue-300 hover:shadow-md transition-all disabled:opacity-50"
+      className="w-full text-left bg-background rounded-xl border shadow-sm p-5 hover:border-blue-300 hover:shadow-md transition-all disabled:opacity-50"
     >
       <div className="flex items-start gap-4">
         <div className="text-4xl">{persona?.avatar ?? '🎙️'}</div>
@@ -212,14 +212,14 @@ function SessionCard({
               <h3 className="font-semibold text-blue-900">
                 {persona?.name ?? session.persona_id}
                 {session.context_json?.jobTitle && (
-                  <span className="text-gray-500 font-normal">
+                  <span className="text-muted-foreground font-normal">
                     {' · '}
                     {session.context_json.jobTitle}
                   </span>
                 )}
               </h3>
               {session.context_json?.companyName && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   {session.context_json.companyName}
                 </p>
               )}
@@ -228,7 +228,7 @@ function SessionCard({
             <StatusBadge status={session.status} />
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 mt-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-2">
             <span className="flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5" />
               {formatDate(session.started_at)}
@@ -248,7 +248,7 @@ function SessionCard({
             >
               {overall.toFixed(1)}
             </div>
-            <div className="text-xs text-gray-400">/10</div>
+            <div className="text-xs text-subtle-foreground">/10</div>
             <div className={`text-xs font-medium mt-0.5 ${irsScoreColor(overall)}`}>
               {irsScoreLabel(overall)}
             </div>
@@ -268,7 +268,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-        styles[status] ?? 'bg-gray-100 text-gray-600'
+        styles[status] ?? 'bg-card text-muted-foreground'
       }`}
     >
       {status}
@@ -307,22 +307,22 @@ function DetailView({
     <div className="space-y-6">
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-gray-600 hover:text-blue-900 font-medium"
+        className="flex items-center gap-2 text-muted-foreground hover:text-blue-900 font-medium"
       >
         <ArrowLeft className="w-4 h-4" /> Back to history
       </button>
 
       {/* Header card */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
+      <div className="bg-background rounded-xl border shadow-sm p-8">
         <div className="flex items-start gap-4 mb-6">
           <div className="text-5xl">{persona?.avatar ?? '🎙️'}</div>
           <div className="flex-1">
             <h1 className="text-2xl font-serif font-bold text-blue-900">
               {persona?.name ?? session.persona_id}
             </h1>
-            <p className="text-gray-500">{persona?.title}</p>
+            <p className="text-muted-foreground">{persona?.title}</p>
             {session.context_json?.jobTitle && (
-              <p className="text-sm text-gray-600 mt-2">
+              <p className="text-sm text-muted-foreground mt-2">
                 <span className="font-medium">{session.context_json.jobTitle}</span>
                 {session.context_json.companyName && (
                   <> · {session.context_json.companyName}</>
@@ -333,36 +333,36 @@ function DetailView({
           <StatusBadge status={session.status} />
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm border-t border-gray-100 pt-5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm border-t border-border pt-5">
           <div>
-            <div className="text-xs text-gray-400 uppercase tracking-wide">
+            <div className="text-xs text-subtle-foreground uppercase tracking-wide">
               Started
             </div>
-            <div className="text-gray-900 font-medium mt-0.5">
+            <div className="text-foreground font-medium mt-0.5">
               {formatDateTime(session.started_at)}
             </div>
           </div>
           <div>
-            <div className="text-xs text-gray-400 uppercase tracking-wide">
+            <div className="text-xs text-subtle-foreground uppercase tracking-wide">
               Ended
             </div>
-            <div className="text-gray-900 font-medium mt-0.5">
+            <div className="text-foreground font-medium mt-0.5">
               {session.ended_at ? formatDateTime(session.ended_at) : '—'}
             </div>
           </div>
           <div>
-            <div className="text-xs text-gray-400 uppercase tracking-wide">
+            <div className="text-xs text-subtle-foreground uppercase tracking-wide">
               Duration
             </div>
-            <div className="text-gray-900 font-medium mt-0.5">
+            <div className="text-foreground font-medium mt-0.5">
               {formatDuration(session.started_at, session.ended_at)}
             </div>
           </div>
           <div>
-            <div className="text-xs text-gray-400 uppercase tracking-wide">
+            <div className="text-xs text-subtle-foreground uppercase tracking-wide">
               Mode
             </div>
-            <div className="text-gray-900 font-medium mt-0.5 capitalize">
+            <div className="text-foreground font-medium mt-0.5 capitalize">
               {session.mode.replace('_', ' ')}
             </div>
           </div>
@@ -391,7 +391,7 @@ function DetailView({
 
       {/* Overall score */}
       {score && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
+        <div className="bg-background rounded-xl border shadow-sm p-8">
           <h3 className="text-sm font-semibold text-blue-900 mb-4">
             Overall Session Score
           </h3>
@@ -401,7 +401,7 @@ function DetailView({
             >
               {overall.toFixed(1)}
             </span>
-            <span className="text-xl text-gray-400 mb-1">/10</span>
+            <span className="text-xl text-subtle-foreground mb-1">/10</span>
             <span
               className={`ml-2 mb-2 text-sm font-semibold ${irsScoreColor(overall)}`}
             >
@@ -421,17 +421,17 @@ function DetailView({
       {report ? (
         <>
           {report.summary && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div className="bg-background rounded-xl border shadow-sm p-6">
               <h3 className="text-sm font-semibold text-blue-900 mb-3">
                 Summary
               </h3>
-              <p className="text-gray-700 leading-relaxed">{report.summary}</p>
+              <p className="text-foreground leading-relaxed">{report.summary}</p>
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {report.strengths && report.strengths.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <div className="bg-background rounded-xl border shadow-sm p-6">
                 <h3 className="text-sm font-semibold text-emerald-700 mb-4 flex items-center gap-2">
                   <CheckCircle className="w-4 h-4" /> Strengths
                 </h3>
@@ -441,7 +441,7 @@ function DetailView({
                       <div className="font-semibold text-blue-900 text-sm">
                         {s.title}
                       </div>
-                      <p className="text-sm text-gray-600 mt-1 leading-relaxed">
+                      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                         {s.detail}
                       </p>
                     </div>
@@ -451,7 +451,7 @@ function DetailView({
             )}
 
             {report.improvements && report.improvements.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <div className="bg-background rounded-xl border shadow-sm p-6">
                 <h3 className="text-sm font-semibold text-amber-700 mb-4 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4" /> Areas to Improve
                 </h3>
@@ -461,7 +461,7 @@ function DetailView({
                       <div className="font-semibold text-blue-900 text-sm">
                         {s.title}
                       </div>
-                      <p className="text-sm text-gray-600 mt-1 leading-relaxed">
+                      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                         {s.detail}
                       </p>
                     </div>
@@ -472,7 +472,7 @@ function DetailView({
           </div>
         </>
       ) : (
-        <div className="bg-blue-50 rounded-xl p-8 text-center text-gray-600">
+        <div className="bg-blue-50 rounded-xl p-8 text-center text-muted-foreground">
           No final report available for this session yet.
         </div>
       )}
@@ -501,10 +501,10 @@ function JobContextCard({
   if (!hasAnyField) return null
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+    <div className="bg-background rounded-xl border shadow-sm">
       <button
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 rounded-xl transition-colors"
+        className="w-full flex items-center justify-between p-5 text-left hover:bg-card rounded-xl transition-colors"
       >
         <div className="flex items-center gap-3">
           <Briefcase className="w-5 h-5 text-blue-900" />
@@ -513,7 +513,7 @@ function JobContextCard({
           </h3>
         </div>
         <ChevronDown
-          className={`w-4 h-4 text-gray-500 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`}
         />
       </button>
 
@@ -531,10 +531,10 @@ function JobContextCard({
           </div>
           {ctx.jobDescription && (
             <div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">
+              <div className="text-xs text-subtle-foreground uppercase tracking-wide mb-1">
                 Job description
               </div>
-              <pre className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap font-sans leading-relaxed max-h-80 overflow-y-auto">
+              <pre className="text-sm text-foreground bg-card rounded-lg p-3 whitespace-pre-wrap font-sans leading-relaxed max-h-80 overflow-y-auto">
                 {ctx.jobDescription}
               </pre>
             </div>
@@ -556,10 +556,10 @@ function normalizeExtraLinks(value: string | string[] | null | undefined): strin
 function ExtraLinksField({ links }: { links: string[] }) {
   return (
     <div>
-      <div className="text-xs text-gray-400 uppercase tracking-wide">Extra links</div>
-      <div className="text-gray-900 mt-0.5 wrap-break-word">
+      <div className="text-xs text-subtle-foreground uppercase tracking-wide">Extra links</div>
+      <div className="text-foreground mt-0.5 wrap-break-word">
         {links.length === 0 ? (
-          <span className="text-gray-400">—</span>
+          <span className="text-subtle-foreground">—</span>
         ) : (
           <ul className="space-y-0.5">
             {links.map((url, idx) => (
@@ -592,8 +592,8 @@ function ContextField({
 }) {
   return (
     <div>
-      <div className="text-xs text-gray-400 uppercase tracking-wide">{label}</div>
-      <div className="text-gray-900 mt-0.5 wrap-break-word">
+      <div className="text-xs text-subtle-foreground uppercase tracking-wide">{label}</div>
+      <div className="text-foreground mt-0.5 wrap-break-word">
         {value ? (
           isLink ? (
             <a
@@ -608,7 +608,7 @@ function ContextField({
             value
           )
         ) : (
-          <span className="text-gray-400">—</span>
+          <span className="text-subtle-foreground">—</span>
         )}
       </div>
     </div>
@@ -629,12 +629,12 @@ function TranscriptView({
   onSelect: (idx: number) => void
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <div className="bg-background rounded-xl border shadow-sm p-6">
       <h3 className="text-sm font-semibold text-blue-900 mb-4 flex items-center gap-2">
         <MessageSquare className="w-4 h-4" /> Conversation transcript
       </h3>
       {exchanges.length === 0 ? (
-        <div className="text-center text-gray-500 py-10">
+        <div className="text-center text-muted-foreground py-10">
           No answered exchanges recorded for this session.
         </div>
       ) : (
@@ -643,7 +643,7 @@ function TranscriptView({
             <div key={idx} className="space-y-2">
               {/* Interviewer question */}
               <div className="flex justify-start">
-                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-gray-100 text-gray-800">
+                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-card text-foreground">
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">
                     {ex.question_text}
                   </p>
@@ -696,14 +696,14 @@ function SelectedAnswerPanel({
 }) {
   return (
     <>
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
+      <div className="bg-background border rounded-xl p-4">
         <h3 className="text-sm font-semibold text-blue-900 mb-3">
           Selected Answer Score
         </h3>
         {score && exchange ? (
           <IRSMeter score={score} />
         ) : (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             Click any candidate answer in the transcript to view its IRS breakdown.
           </p>
         )}
@@ -713,19 +713,19 @@ function SelectedAnswerPanel({
         <CoachHistoryPanel coaches={exchange.coaches} />
       )}
 
-      <div className="bg-white border border-gray-200 rounded-xl p-4">
+      <div className="bg-background border rounded-xl p-4">
         <h3 className="text-sm font-semibold text-blue-900 mb-3">
           Session Progress
         </h3>
         <div className="flex justify-between text-sm">
-          <span className="text-gray-500">Answers given</span>
-          <span className="font-medium text-gray-700">{answeredCount}</span>
+          <span className="text-muted-foreground">Answers given</span>
+          <span className="font-medium text-foreground">{answeredCount}</span>
         </div>
       </div>
 
       <div className="bg-blue-50 rounded-xl p-4">
         <h3 className="text-sm font-semibold text-blue-900 mb-3">IRS Rubric</h3>
-        <div className="space-y-2 text-xs text-gray-600">
+        <div className="space-y-2 text-xs text-muted-foreground">
           <p>
             <span className="font-semibold text-blue-900">I - Integrity (30%):</span>{' '}
             Authenticity, honesty, internal consistency
@@ -756,7 +756,7 @@ function CoachHistoryPanel({ coaches }: { coaches: SessionExchangeCoach[] }) {
           <Sparkles className="w-4 h-4 text-yellow-500" />
           Enhanced Responses
         </h3>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-muted-foreground">
           {total} version{total === 1 ? '' : 's'}
         </span>
       </div>
@@ -784,14 +784,14 @@ function CoachCard({
   return (
     <div
       className={`rounded-xl p-4 space-y-4 border ${
-        isLatest ? 'bg-white border-yellow-300 shadow-sm' : 'bg-gray-50 border-gray-200'
+        isLatest ? 'bg-background border-yellow-300 shadow-sm' : 'bg-card'
       }`}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span
             className={`px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums ${
-              isLatest ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-200 text-gray-600'
+              isLatest ? 'bg-yellow-100 text-yellow-800' : 'bg-muted text-muted-foreground'
             }`}
           >
             {versionLabel}
@@ -800,41 +800,41 @@ function CoachCard({
             <span className="text-xs font-medium text-yellow-700">Latest</span>
           )}
         </div>
-        <span className="text-xs text-gray-400" title={coach.created_at}>
+        <span className="text-xs text-subtle-foreground" title={coach.created_at}>
           {formatDateTime(coach.created_at)}
         </span>
       </div>
 
       {coach.critique && (
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
             Critique
           </div>
-          <p className="text-sm text-gray-700 leading-relaxed">{coach.critique}</p>
+          <p className="text-sm text-foreground leading-relaxed">{coach.critique}</p>
         </div>
       )}
 
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
           Improved Answer
         </div>
-        <div className="text-sm text-gray-800 leading-relaxed bg-yellow-50 rounded-lg p-3 whitespace-pre-wrap">
+        <div className="text-sm text-foreground leading-relaxed bg-yellow-50 rounded-lg p-3 whitespace-pre-wrap">
           <ImprovedAnswerWithPlaceholders text={coach.improved_answer} />
         </div>
       </div>
 
       {coach.missing_evidence_prompts.length > 0 && (
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2 flex items-center gap-1">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1">
             <HelpCircle className="w-3.5 h-3.5" />
             Missing Evidence Prompts ({coach.missing_evidence_prompts.length})
           </div>
           <ul className="space-y-2">
             {coach.missing_evidence_prompts.map((p, i) => (
-              <li key={i} className="text-sm text-gray-700 bg-white rounded-lg p-2.5 border border-gray-100">
+              <li key={i} className="text-sm text-foreground bg-background rounded-lg p-2.5 border border-border">
                 <p className="font-medium">{p.question}</p>
                 {p.bulletText && (
-                  <p className="text-xs text-gray-500 mt-1 italic">
+                  <p className="text-xs text-muted-foreground mt-1 italic">
                     Linked CV bullet: {p.bulletText}
                   </p>
                 )}
@@ -894,13 +894,13 @@ function exchangeToIrsScore(ex: SessionExchange): IRSScore {
 function ScoreStat({ label, value }: { label: string; value: number | undefined }) {
   const v = value ?? 0
   return (
-    <div className="bg-gray-50 rounded-lg p-3">
-      <div className="text-xs text-gray-500 uppercase tracking-wide">
+    <div className="bg-card rounded-lg p-3">
+      <div className="text-xs text-muted-foreground uppercase tracking-wide">
         {label}
       </div>
       <div className={`text-2xl font-bold tabular-nums mt-1 ${irsScoreColor(v)}`}>
         {v.toFixed(1)}
-        <span className="text-sm text-gray-400 font-normal">/10</span>
+        <span className="text-sm text-subtle-foreground font-normal">/10</span>
       </div>
     </div>
   )

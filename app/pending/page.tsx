@@ -16,8 +16,8 @@ export default function PendingPage() {
   }, [status, router])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
+    <div className="min-h-screen flex items-center justify-center bg-card px-4">
+      <div className="w-full max-w-md bg-background rounded-2xl shadow-xl p-8 text-center">
         <div className="w-16 h-16 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg className="w-8 h-8 text-blue-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
@@ -37,7 +37,7 @@ export default function PendingPage() {
           {loading ? 'Checking your account…' : rejected ? 'Access not approved' : 'Awaiting approval'}
         </h1>
 
-        <p className="text-sm text-gray-500 mb-6">
+        <p className="text-sm text-muted-foreground mb-6">
           {rejected ? (
             <>Your account request was not approved. Please speak to your programme coach if you think this is a mistake.</>
           ) : (

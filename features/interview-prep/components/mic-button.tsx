@@ -179,11 +179,11 @@ export function MicButton({ disabled, transcribing, onTranscribe, onTranscribed 
   if (status === 'unsupported') {
     label = 'Mic unsupported'
     icon = <Mic className="w-3.5 h-3.5" />
-    buttonClass = 'bg-gray-100 text-gray-400 cursor-not-allowed'
+    buttonClass = 'bg-card text-subtle-foreground cursor-not-allowed'
   } else if (isBusy) {
     label = 'Transcribing...'
     icon = <Loader2 className="w-3.5 h-3.5 animate-spin" />
-    buttonClass = 'bg-gray-100 text-gray-500 cursor-wait'
+    buttonClass = 'bg-card text-muted-foreground cursor-wait'
   } else if (isRecording) {
     label = `Stop (${mm}:${ss})`
     icon = <Square className="w-3.5 h-3.5 fill-current" />
@@ -210,7 +210,7 @@ export function MicButton({ disabled, transcribing, onTranscribe, onTranscribed 
         className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${buttonClass}`}
       >
         {isRecording && (
-          <span className="w-2 h-2 rounded-full bg-white animate-pulse" aria-hidden />
+          <span className="w-2 h-2 rounded-full bg-background animate-pulse" aria-hidden />
         )}
         {icon}
         {label}

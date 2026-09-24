@@ -42,13 +42,13 @@ export function EnrichmentPanel({
   const selectedCount = selectedInsightCards.length
 
   return (
-    <div className="p-8 bg-white border border-gray-200 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    <div className="p-8 bg-background border rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
       <div className="mb-6">
         <h3 className="text-xl font-serif font-bold text-blue-900 flex items-center gap-2">
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">3</span>
           Company Insights
         </h3>
-        <p className="mt-1 ml-10 text-sm text-gray-500">
+        <p className="mt-1 ml-10 text-sm text-muted-foreground">
           {hasJd
             ? 'AI will generate targeted search queries from your JD to find relevant company insights.'
             : 'Add a JD above to get smarter, role-specific search queries.'}
@@ -102,7 +102,7 @@ export function EnrichmentPanel({
           </span>
         )}
         {!canSearch && (
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-subtle-foreground">
             Fill in Target Company and Target Role to enable search.
           </p>
         )}
@@ -130,13 +130,13 @@ export function EnrichmentPanel({
           <div className="mb-3 flex items-center gap-2">
             <Lightbulb className="w-4 h-4 text-yellow-500" />
             <h4 className="text-sm font-bold text-blue-900">Company Insights</h4>
-            <span className="text-xs text-gray-400">— top 3 auto-selected, adjust as needed</span>
+            <span className="text-xs text-subtle-foreground">— top 3 auto-selected, adjust as needed</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {showSkeletons &&
               Array.from({ length: 6 }).map((_, i) => <SignalCardSkeleton key={i} />)}
             {hasResults && enrichmentResults!.insightResults.length === 0 && (
-              <p className="text-xs text-gray-400 italic col-span-2">No results found. Try adjusting the company name or role.</p>
+              <p className="text-xs text-subtle-foreground italic col-span-2">No results found. Try adjusting the company name or role.</p>
             )}
             {hasResults &&
               enrichmentResults!.insightResults.map((card, index) => (

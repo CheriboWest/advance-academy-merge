@@ -18,7 +18,7 @@ function getHostname(url: string): string {
 function scoreBadgeClass(score: number): string {
   if (score >= 80) return 'bg-green-100 text-green-800 border-green-200'
   if (score >= 50) return 'bg-amber-100 text-amber-800 border-amber-200'
-  return 'bg-gray-100 text-gray-600 border-gray-200'
+  return 'bg-card text-muted-foreground'
 }
 
 interface SignalCardProps {
@@ -46,9 +46,9 @@ export function SignalCard({ card, selected, onSelect, autoRecommended }: Signal
         }
       }}
       className={cn(
-        'relative cursor-pointer rounded-xl border bg-white p-4 shadow-sm transition-all',
+        'relative cursor-pointer rounded-xl border bg-background p-4 shadow-sm transition-all',
         'hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500',
-        selected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200',
+        selected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-border',
       )}
     >
       {autoRecommended && (
@@ -105,7 +105,7 @@ export function SignalCard({ card, selected, onSelect, autoRecommended }: Signal
           'mt-2 rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed',
           autoRecommended
             ? 'bg-blue-50 text-blue-800 border border-blue-100'
-            : 'text-gray-500 italic',
+            : 'text-muted-foreground italic',
         )}>
           <Sparkles className="inline h-3 w-3 mr-1 text-blue-400" />
           {card.reason}
@@ -113,14 +113,14 @@ export function SignalCard({ card, selected, onSelect, autoRecommended }: Signal
       )}
 
       {previewSnippet && (
-        <p className="mt-2 text-xs text-gray-600 leading-relaxed">{previewSnippet}{card.snippet.length > 100 ? '…' : ''}</p>
+        <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{previewSnippet}{card.snippet.length > 100 ? '…' : ''}</p>
       )}
 
       {card.exaText && (
         <Collapsible open={open} onOpenChange={setOpen} className="mt-3">
           <CollapsibleTrigger
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-blue-600"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-blue-600"
           >
             <ChevronDown
               className={cn('h-3 w-3 transition-transform', open && 'rotate-180')}
@@ -129,7 +129,7 @@ export function SignalCard({ card, selected, onSelect, autoRecommended }: Signal
           </CollapsibleTrigger>
           <CollapsibleContent
             onClick={(e) => e.stopPropagation()}
-            className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 p-3 text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap"
+            className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-border bg-card p-3 text-[11px] text-foreground leading-relaxed whitespace-pre-wrap"
           >
             {card.exaText}
           </CollapsibleContent>
@@ -141,11 +141,11 @@ export function SignalCard({ card, selected, onSelect, autoRecommended }: Signal
 
 export function SignalCardSkeleton() {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm animate-pulse">
-      <div className="h-4 w-3/4 rounded bg-gray-200" />
-      <div className="mt-3 h-3 w-1/2 rounded bg-gray-100" />
-      <div className="mt-3 h-3 w-full rounded bg-gray-100" />
-      <div className="mt-2 h-3 w-5/6 rounded bg-gray-100" />
+    <div className="rounded-xl border bg-background p-4 shadow-sm animate-pulse">
+      <div className="h-4 w-3/4 rounded bg-muted" />
+      <div className="mt-3 h-3 w-1/2 rounded bg-card" />
+      <div className="mt-3 h-3 w-full rounded bg-card" />
+      <div className="mt-2 h-3 w-5/6 rounded bg-card" />
     </div>
   )
 }

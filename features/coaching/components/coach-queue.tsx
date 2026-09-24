@@ -22,14 +22,14 @@ import { useCoachingSessions } from '../hooks/use-coaching'
  */
 
 const STATUS_STYLE: Record<CoachingSessionStatus, { label: string; className: string }> = {
-  draft: { label: 'Booked', className: 'bg-gray-100 text-gray-700' },
+  draft: { label: 'Booked', className: 'bg-card text-foreground' },
   generating: { label: 'Generating…', className: 'bg-blue-100 text-blue-800' },
   context_needed: { label: 'Needs context', className: 'bg-yellow-100 text-yellow-900' },
   ready: { label: 'Ready to review', className: 'bg-purple-100 text-purple-900' },
   failed: { label: 'Failed', className: 'bg-red-100 text-red-800' },
   approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
-  done: { label: 'Done', className: 'bg-gray-100 text-gray-500' },
-  cancelled: { label: 'Cancelled', className: 'bg-gray-100 text-gray-400' },
+  done: { label: 'Done', className: 'bg-card text-muted-foreground' },
+  cancelled: { label: 'Cancelled', className: 'bg-card text-subtle-foreground' },
 }
 
 /** Sessions still needing the coach, most urgent first. */

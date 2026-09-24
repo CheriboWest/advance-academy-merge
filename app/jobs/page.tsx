@@ -33,7 +33,7 @@ export default function JobsPage() {
   if (loading || !session) return null
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <Navigation currentView="jobs" onNavigate={handleNavigate} />
       {/* useSearchParams needs a Suspense boundary under the App Router. */}
       <Suspense fallback={null}>

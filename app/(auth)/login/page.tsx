@@ -48,9 +48,9 @@ export default function LoginPage() {
   if (linkSent) {
     return (
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+        <div className="bg-background rounded-2xl shadow-xl p-8 text-center">
           <h2 className="text-xl font-serif font-bold text-blue-900 mb-2">Check your email</h2>
-          <p className="text-sm text-gray-500 mb-6">
+          <p className="text-sm text-muted-foreground mb-6">
             We sent a login link to <strong className="text-blue-900">{email}</strong>. Click it to sign in.
           </p>
           <button
@@ -66,10 +66,10 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-md">
-      <div className="bg-white rounded-2xl shadow-xl p-8">
+      <div className="bg-background rounded-2xl shadow-xl p-8">
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-serif font-bold text-blue-900">Welcome back</h1>
-          <p className="mt-1 text-sm text-gray-500">Sign in to continue your career journey</p>
+          <p className="mt-1 text-sm text-muted-foreground">Sign in to continue your career journey</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -84,7 +84,7 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-900 focus:ring-1 focus:ring-blue-900 transition"
+              className="w-full rounded-lg border border-border px-3 py-2.5 text-sm outline-none focus:border-blue-900 focus:ring-1 focus:ring-blue-900 transition"
               placeholder="you@example.com"
             />
           </div>
@@ -100,7 +100,7 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-900 focus:ring-1 focus:ring-blue-900 transition"
+              className="w-full rounded-lg border border-border px-3 py-2.5 text-sm outline-none focus:border-blue-900 focus:ring-1 focus:ring-blue-900 transition"
               placeholder="••••••••"
             />
           </div>
@@ -120,9 +120,9 @@ export default function LoginPage() {
 
         {/* Passwordless alternative */}
         <div className="my-5 flex items-center gap-3">
-          <span className="h-px flex-1 bg-gray-200" />
-          <span className="text-xs text-gray-400">or</span>
-          <span className="h-px flex-1 bg-gray-200" />
+          <span className="h-px flex-1 bg-muted" />
+          <span className="text-xs text-subtle-foreground">or</span>
+          <span className="h-px flex-1 bg-muted" />
         </div>
         <button
           type="button"
@@ -133,7 +133,7 @@ export default function LoginPage() {
           {linkLoading ? 'Sending link…' : 'Email me a login link'}
         </button>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
+        <p className="mt-6 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}
           <Link href="/register" className="font-semibold text-blue-900 hover:text-yellow-600 transition-colors">
             Create one

@@ -123,15 +123,15 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
         <h1 className="text-4xl font-serif font-bold text-blue-900 mb-2">
           Interview Preparation
         </h1>
-        <p className="text-gray-600 text-lg">
+        <p className="text-muted-foreground text-lg">
           Practice with AI interviewers tailored to your target role and company.
         </p>
       </div>
 
       {coachingLoad.state === 'loading' && (
-        <div className="mb-6 flex items-center gap-3 rounded-lg border bg-gray-50 p-4">
-          <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
-          <p className="text-sm text-gray-700">Loading your coach&rsquo;s prep pack…</p>
+        <div className="mb-6 flex items-center gap-3 rounded-lg border bg-card p-4">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <p className="text-sm text-foreground">Loading your coach&rsquo;s prep pack…</p>
         </div>
       )}
 
@@ -234,7 +234,7 @@ function StepIndicator({ currentStep }: { currentStep: InterviewStep }) {
                 ? 'bg-blue-900 text-white'
                 : i < currentIndex
                   ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-gray-100 text-gray-400'
+                  : 'bg-card text-subtle-foreground'
             }`}
           >
             {i < currentIndex ? (
@@ -247,7 +247,7 @@ function StepIndicator({ currentStep }: { currentStep: InterviewStep }) {
             {s.label}
           </div>
           {i < steps.length - 1 && (
-            <div className={`w-8 h-0.5 ${i < currentIndex ? 'bg-emerald-300' : 'bg-gray-200'}`} />
+            <div className={`w-8 h-0.5 ${i < currentIndex ? 'bg-emerald-300' : 'bg-muted'}`} />
           )}
         </div>
       ))}
@@ -414,7 +414,7 @@ function SetupStep({
           <label className="block text-sm font-semibold text-blue-900 mb-2">
             Paste a job posting URL to auto-fill
           </label>
-          <p className="text-xs text-gray-600 mb-3">
+          <p className="text-xs text-muted-foreground mb-3">
             We use Jina Reader + AI to pull the job title, description, company name, website, and links from a LinkedIn (or similar) job page. Anything we can&apos;t find is left blank for you to fill in.
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
@@ -424,7 +424,7 @@ function SetupStep({
               onChange={(e) => setJobUrl(e.target.value)}
               placeholder="https://www.linkedin.com/jobs/view/..."
               disabled={extracting}
-              className="flex-1 p-3 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:opacity-50"
+              className="flex-1 p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:opacity-50"
             />
             <button
               type="button"
@@ -463,7 +463,7 @@ function SetupStep({
             CV from your library *
           </label>
           {cvLoading ? (
-            <div className="flex items-center gap-2 text-sm text-gray-500 p-3 border border-gray-200 rounded-xl">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 border rounded-xl">
               <Loader2 className="w-4 h-4 animate-spin" /> Loading your CVs…
             </div>
           ) : cvVersions.length === 0 ? (
@@ -488,7 +488,7 @@ function SetupStep({
                   value={selectedCvId}
                   onChange={(e) => handleSelectCv(e.target.value)}
                   disabled={loadingRawText}
-                  className="w-full p-3 pr-10 border border-gray-200 rounded-xl text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:opacity-50 appearance-none"
+                  className="w-full p-3 pr-10 border rounded-xl text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:opacity-50 appearance-none"
                 >
                   {cvVersions.map((cv) => (
                     <option key={cv.id} value={cv.id}>
@@ -500,10 +500,10 @@ function SetupStep({
                     </option>
                   ))}
                 </select>
-                <FileText className="w-4 h-4 text-gray-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <FileText className="w-4 h-4 text-subtle-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
               <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-subtle-foreground">
                   {loadingRawText
                     ? 'Loading CV…'
                     : context.cvText.length > 0
@@ -533,7 +533,7 @@ function SetupStep({
             value={context.jobTitle}
             onChange={(e) => updateContext({ jobTitle: e.target.value })}
             placeholder="e.g., Senior Frontend Engineer"
-            className="w-full p-3 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
           />
         </div>
       </div>
@@ -545,7 +545,7 @@ function SetupStep({
             value={context.jobDescription}
             onChange={(e) => updateContext({ jobDescription: e.target.value })}
             placeholder="Paste the full job description here..."
-            className="w-full h-32 p-4 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 resize-none"
+            className="w-full h-32 p-4 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 resize-none"
           />
         </div>
 
@@ -556,20 +556,20 @@ function SetupStep({
             value={context.companyName}
             onChange={(e) => updateContext({ companyName: e.target.value })}
             placeholder="e.g., Google"
-            className="w-full p-3 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
           />
         </div>
 
         <div>
           <label className="block text-sm font-semibold text-blue-900 mb-2">
-            Company URL <span className="text-gray-400 font-normal">(optional)</span>
+            Company URL <span className="text-subtle-foreground font-normal">(optional)</span>
           </label>
           <input
             type="url"
             value={context.companyUrl}
             onChange={(e) => updateContext({ companyUrl: e.target.value })}
             placeholder="e.g., https://google.com"
-            className="w-full p-3 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
           />
         </div>
 
@@ -580,7 +580,7 @@ function SetupStep({
 
         <div>
           <label className="block text-sm font-semibold text-blue-900 mb-2">
-            Preferred questions <span className="text-gray-400 font-normal">(optional)</span>
+            Preferred questions <span className="text-subtle-foreground font-normal">(optional)</span>
           </label>
           <textarea
             rows={4}
@@ -596,9 +596,9 @@ function SetupStep({
               })
             }
             placeholder={'One question per line, e.g.\nWalk me through the payments migration you led.\nHow do you decide what not to build?'}
-            className="w-full p-3 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             The interviewer asks these first, rephrased in their own voice, while still
             following up on your answers. Leave empty for the usual behaviour.
           </p>
@@ -675,7 +675,7 @@ function AdditionalLinksField({
     <div>
       <label className="block text-sm font-semibold text-blue-900 mb-2">
         Additional Links{' '}
-        <span className="text-gray-400 font-normal">
+        <span className="text-subtle-foreground font-normal">
           (optional · max {ADDITIONAL_LINKS_MAX})
         </span>
       </label>
@@ -691,8 +691,8 @@ function AdditionalLinksField({
                   onChange={(e) => handleChange(idx, e.target.value)}
                   maxLength={ADDITIONAL_LINK_MAX_LENGTH}
                   placeholder="https://linkedin.com/in/..."
-                  className={`flex-1 p-3 border rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 ${
-                    err ? 'border-red-300' : 'border-gray-200'
+                  className={`flex-1 p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 ${
+                    err ? 'border-red-300' : 'border-border'
                   }`}
                 />
                 {rows.length > 1 && (
@@ -700,7 +700,7 @@ function AdditionalLinksField({
                     type="button"
                     onClick={() => handleRemove(idx)}
                     aria-label="Remove link"
-                    className="px-3 py-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl border border-gray-200 transition-colors"
+                    className="px-3 py-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-xl border transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -746,7 +746,7 @@ function PersonaStep({
 }) {
   return (
     <div>
-      <p className="text-gray-600 mb-6 text-center">
+      <p className="text-muted-foreground mb-6 text-center">
         Choose your interviewer persona. Each has a unique style and evaluation approach.
       </p>
 
@@ -758,20 +758,20 @@ function PersonaStep({
             className={`p-5 rounded-xl border-2 text-left transition-all ${
               selectedPersona === persona.id
                 ? 'border-blue-900 bg-blue-50 shadow-md'
-                : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                : 'hover:border-border hover:shadow-sm'
             }`}
           >
             <div className="flex items-center gap-3 mb-3">
               <span className="text-3xl">{persona.avatar}</span>
               <div>
                 <h3 className="font-semibold text-blue-900">{persona.name}</h3>
-                <p className="text-xs text-gray-500">{persona.title}</p>
+                <p className="text-xs text-muted-foreground">{persona.title}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-3">{persona.description}</p>
+            <p className="text-sm text-muted-foreground mb-3">{persona.description}</p>
             <div className="flex flex-wrap gap-1.5">
               {persona.style.split(' · ').map((tag) => (
-                <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
+                <span key={tag} className="px-2 py-0.5 bg-card text-muted-foreground text-xs rounded-full">
                   {tag}
                 </span>
               ))}
@@ -788,7 +788,7 @@ function PersonaStep({
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               mode === 'text'
                 ? 'bg-blue-900 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                : 'bg-muted text-foreground hover:bg-muted'
             }`}
           >
             Text Mode
@@ -799,13 +799,13 @@ function PersonaStep({
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
               mode === 'voice'
                 ? 'bg-blue-900 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                : 'bg-muted text-foreground hover:bg-muted'
             }`}
           >
             <Mic className="w-3.5 h-3.5" /> Voice Mode
           </button>
         </div>
-        <p className="text-xs text-gray-600 ml-auto">
+        <p className="text-xs text-muted-foreground ml-auto">
           {mode === 'voice'
             ? 'Speak your answers — we transcribe them for you.'
             : 'Type your answers in the chat box.'}
@@ -815,7 +815,7 @@ function PersonaStep({
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 px-5 py-2.5 text-gray-600 hover:text-gray-800 transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
@@ -897,11 +897,11 @@ function InterviewStepView({
             <span className="text-2xl">{persona.avatar}</span>
             <div>
               <h3 className="font-semibold text-blue-900 text-sm">{persona.name}</h3>
-              <p className="text-xs text-gray-500">{persona.title}</p>
+              <p className="text-xs text-muted-foreground">{persona.title}</p>
             </div>
             <div className="flex gap-1.5 ml-auto">
               {persona.style.split(' · ').map((tag) => (
-                <span key={tag} className="px-2 py-0.5 bg-white text-gray-600 text-xs rounded-full">
+                <span key={tag} className="px-2 py-0.5 bg-background text-muted-foreground text-xs rounded-full">
                   {tag}
                 </span>
               ))}
@@ -915,7 +915,7 @@ function InterviewStepView({
               <div className={`flex ${msg.role === 'candidate' ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    msg.role === 'candidate' ? 'bg-blue-900 text-white' : 'bg-gray-100 text-gray-800'
+                    msg.role === 'candidate' ? 'bg-blue-900 text-white' : 'bg-card text-foreground'
                   }`}
                 >
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
@@ -940,8 +940,8 @@ function InterviewStepView({
 
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-gray-100 rounded-2xl px-4 py-3">
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+              <div className="bg-card rounded-2xl px-4 py-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   {isEvaluating ? 'Generating your feedback report...' : 'Thinking...'}
                 </div>
@@ -953,7 +953,7 @@ function InterviewStepView({
         </div>
 
         {session.status === 'active' && (
-          <div className="border border-gray-200 rounded-xl p-3">
+          <div className="border rounded-xl p-3">
             <textarea
               ref={textareaRef}
               value={input}
@@ -966,10 +966,10 @@ function InterviewStepView({
               }
               disabled={loading || transcribing}
               rows={3}
-              className="w-full text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none resize-none disabled:opacity-50"
+              className="w-full text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none resize-none disabled:opacity-50"
             />
             <div className="flex items-center justify-between mt-2 gap-2">
-              <span className="text-xs text-gray-400">{input.length} characters</span>
+              <span className="text-xs text-subtle-foreground">{input.length} characters</span>
               <div className="flex items-center gap-2">
                 {mode === 'voice' && (
                   <MicButton
@@ -984,7 +984,7 @@ function InterviewStepView({
                 <button
                   onClick={onEnd}
                   disabled={candidateAnswerCount < 1 || loading}
-                  className="px-4 py-2 text-sm text-gray-500 hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-4 py-2 text-sm text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   End Interview
                 </button>
@@ -1003,18 +1003,18 @@ function InterviewStepView({
 
       <div className="space-y-4">
         {lastScore && (
-          <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="bg-background border rounded-xl p-4">
             <h3 className="text-sm font-semibold text-blue-900 mb-3">Last Answer Score</h3>
             <IRSMeter score={lastScore} />
           </div>
         )}
 
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
+        <div className="bg-background border rounded-xl p-4">
           <h3 className="text-sm font-semibold text-blue-900 mb-3">Session Progress</h3>
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Answers given</span>
-              <span className="font-medium text-gray-700">{candidateAnswerCount}</span>
+              <span className="text-muted-foreground">Answers given</span>
+              <span className="font-medium text-foreground">{candidateAnswerCount}</span>
             </div>
             {candidateAnswerCount > 0 && <RunningAverages messages={session.messages} />}
           </div>
@@ -1022,7 +1022,7 @@ function InterviewStepView({
 
         <div className="bg-blue-50 rounded-xl p-4">
           <h3 className="text-sm font-semibold text-blue-900 mb-3">IRS Rubric</h3>
-          <div className="space-y-2 text-xs text-gray-600">
+          <div className="space-y-2 text-xs text-muted-foreground">
             <p>
               <span className="font-semibold text-blue-900">I - Integrity (30%):</span> Authenticity, honesty, internal consistency
             </p>
@@ -1051,21 +1051,21 @@ function RunningAverages({
     Math.round((scored.reduce((sum, m) => sum + fn(m.irsScore!), 0) / scored.length) * 10) / 10
 
   return (
-    <div className="space-y-1.5 pt-2 border-t border-gray-100">
+    <div className="space-y-1.5 pt-2 border-t border-border">
       <div className="flex justify-between text-xs">
-        <span className="text-gray-500">Avg Integrity</span>
+        <span className="text-muted-foreground">Avg Integrity</span>
         <span className="font-medium">{avg((s) => s.integrity.score).toFixed(1)}</span>
       </div>
       <div className="flex justify-between text-xs">
-        <span className="text-gray-500">Avg Relevance</span>
+        <span className="text-muted-foreground">Avg Relevance</span>
         <span className="font-medium">{avg((s) => s.relevance.score).toFixed(1)}</span>
       </div>
       <div className="flex justify-between text-xs">
-        <span className="text-gray-500">Avg Substance</span>
+        <span className="text-muted-foreground">Avg Substance</span>
         <span className="font-medium">{avg((s) => s.substance.score).toFixed(1)}</span>
       </div>
       <div className="flex justify-between text-xs font-semibold">
-        <span className="text-gray-600">Overall</span>
+        <span className="text-muted-foreground">Overall</span>
         <span className={irsScoreColor(avg((s) => s.overall))}>{avg((s) => s.overall).toFixed(1)}/10</span>
       </div>
     </div>
@@ -1233,7 +1233,7 @@ function CoachPanel({
                   <p className="text-xs font-semibold text-blue-900 mb-0.5">
                     Evidence the AI coach will use
                   </p>
-                  <p className="text-[11px] text-gray-500">
+                  <p className="text-[11px] text-muted-foreground">
                     Top {preview.bullets.length || '0'} bullet
                     {preview.bullets.length === 1 ? '' : 's'} retrieved by similarity
                     (≥ {Math.round(preview.threshold * 100)}%). Add or remove bullets to control
@@ -1243,7 +1243,7 @@ function CoachPanel({
                 </div>
 
                 {selectedBullets.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-blue-200 p-3 text-xs text-gray-500 italic">
+                  <div className="rounded-lg border border-dashed border-blue-200 p-3 text-xs text-muted-foreground italic">
                     No bullets selected. Add at least one from your CV pool below — or click
                     Generate anyway to let the coach work from your answer alone (expect more
                     placeholders).
@@ -1280,7 +1280,7 @@ function CoachPanel({
                 </div>
 
                 <div className="pt-2 border-t border-blue-200 flex items-center justify-between">
-                  <span className="text-[11px] text-gray-500">
+                  <span className="text-[11px] text-muted-foreground">
                     {selectedBullets.length} bullet
                     {selectedBullets.length === 1 ? '' : 's'} will be sent to the coach
                   </span>
@@ -1306,9 +1306,9 @@ function CoachPanel({
             {coach && (
               <div>
                 {coach.critique && (
-                  <p className="text-xs text-gray-600 italic mb-2">{coach.critique}</p>
+                  <p className="text-xs text-muted-foreground italic mb-2">{coach.critique}</p>
                 )}
-                <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                <div className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                   {renderImproved(coach.improvedAnswer)}
                 </div>
                 {coach.missingEvidencePrompts.length > 0 && (
@@ -1326,7 +1326,7 @@ function CoachPanel({
                     ))}
                   </div>
                 )}
-                <div className="mt-3 pt-2 border-t border-blue-200 flex items-center justify-between text-[11px] text-gray-500">
+                <div className="mt-3 pt-2 border-t border-blue-200 flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>
                     Used {selectedBullets.length} bullet{selectedBullets.length === 1 ? '' : 's'}
                   </span>
@@ -1415,11 +1415,11 @@ function CoachBulletRow({
   const artifactCount = bullet.gaps.reduce((s, g) => s + g.artifacts.length, 0)
 
   return (
-    <li className="border border-blue-200 bg-white rounded-lg">
+    <li className="border border-blue-200 bg-background rounded-lg">
       <div className="flex items-start gap-2 p-2.5">
         <button
           onClick={() => setExpanded((e) => !e)}
-          className="mt-0.5 text-gray-400 hover:text-blue-700 shrink-0"
+          className="mt-0.5 text-subtle-foreground hover:text-blue-700 shrink-0"
           aria-label={expanded ? 'Collapse' : 'Expand'}
         >
           {expanded ? (
@@ -1430,10 +1430,10 @@ function CoachBulletRow({
         </button>
         <div className="flex-1 min-w-0">
           {bullet.sectionPath && (
-            <p className="text-[10px] text-gray-400 mb-0.5">{bullet.sectionPath}</p>
+            <p className="text-[10px] text-subtle-foreground mb-0.5">{bullet.sectionPath}</p>
           )}
-          <p className="text-xs text-gray-800 leading-snug">{bullet.bulletText}</p>
-          <p className="text-[10px] text-gray-500 mt-1">
+          <p className="text-xs text-foreground leading-snug">{bullet.bulletText}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">
             {bullet.similarity > 0 && (
               <span className="mr-2">{Math.round(bullet.similarity * 100)}% match</span>
             )}
@@ -1445,7 +1445,7 @@ function CoachBulletRow({
         </div>
         <button
           onClick={onRemove}
-          className="text-gray-400 hover:text-red-600 shrink-0"
+          className="text-subtle-foreground hover:text-red-600 shrink-0"
           title="Remove from coach evidence"
         >
           <X className="w-3.5 h-3.5" />
@@ -1454,7 +1454,7 @@ function CoachBulletRow({
       {expanded && (
         <div className="px-2.5 pb-2.5 pt-1 space-y-2 border-t border-blue-100">
           {bullet.gaps.length === 0 ? (
-            <p className="text-[11px] text-gray-400 italic">No gaps generated for this bullet.</p>
+            <p className="text-[11px] text-subtle-foreground italic">No gaps generated for this bullet.</p>
           ) : (
             bullet.gaps.map((gap) => (
               <CoachGapBlock
@@ -1480,7 +1480,7 @@ function CoachGapBlock({
   const [adding, setAdding] = useState(false)
   return (
     <div>
-      <p className="text-[11px] font-medium text-gray-800">{gap.question}</p>
+      <p className="text-[11px] font-medium text-foreground">{gap.question}</p>
       {gap.artifacts.length === 0 ? (
         <div className="mt-1 flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
@@ -1575,7 +1575,7 @@ function CoachArtifactView({
           onChange={(e) => setText(e.target.value)}
           rows={4}
           disabled={busy}
-          className="w-full p-2 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 resize-y min-h-16 bg-white"
+          className="w-full p-2 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 resize-y min-h-16 bg-background"
         />
         {err && <p className="text-[11px] text-red-600 mt-1">{err}</p>}
         <div className="flex items-center gap-2 mt-1.5">
@@ -1589,12 +1589,12 @@ function CoachArtifactView({
           <button
             onClick={() => setEditing(false)}
             disabled={busy}
-            className="text-[11px] text-gray-500 hover:text-gray-700"
+            className="text-[11px] text-muted-foreground hover:text-foreground"
           >
             Cancel
           </button>
           {busy && (
-            <span className="text-[10px] text-gray-500 italic">Re-summarising…</span>
+            <span className="text-[10px] text-muted-foreground italic">Re-summarising…</span>
           )}
         </div>
       </div>
@@ -1602,20 +1602,20 @@ function CoachArtifactView({
   }
 
   return (
-    <div className="group rounded border border-gray-200 bg-gray-50/60 p-1.5">
+    <div className="group rounded border bg-card/60 p-1.5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[9px] uppercase tracking-wide text-emerald-700 font-semibold">
           ✓ {artifact.sourceType}
         </span>
         <button
           onClick={startEdit}
-          className="flex items-center gap-1 text-[10px] text-gray-400 hover:text-emerald-700 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+          className="flex items-center gap-1 text-[10px] text-subtle-foreground hover:text-emerald-700 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
           title="Edit this answer"
         >
           <Pencil className="w-3 h-3" /> Edit
         </button>
       </div>
-      <p className="mt-0.5 text-[11px] text-gray-700 whitespace-pre-wrap leading-snug">
+      <p className="mt-0.5 text-[11px] text-foreground whitespace-pre-wrap leading-snug">
         {artifact.contentText || artifact.sourceUrl || '(no content)'}
       </p>
     </div>
@@ -1665,7 +1665,7 @@ function CoachArtifactComposer({
         placeholder="Type the evidence (a paragraph, project blurb, etc.)…"
         rows={3}
         disabled={busy}
-        className="w-full p-2 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-amber-300 resize-y min-h-16 bg-white"
+        className="w-full p-2 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-amber-300 resize-y min-h-16 bg-background"
       />
       {err && <p className="text-[11px] text-red-600 mt-1">{err}</p>}
       <div className="flex items-center gap-2 mt-1.5">
@@ -1679,11 +1679,11 @@ function CoachArtifactComposer({
         <button
           onClick={onCancel}
           disabled={busy}
-          className="text-[11px] text-gray-500 hover:text-gray-700"
+          className="text-[11px] text-muted-foreground hover:text-foreground"
         >
           Cancel
         </button>
-        {busy && <span className="text-[10px] text-gray-500 italic">Summarising…</span>}
+        {busy && <span className="text-[10px] text-muted-foreground italic">Summarising…</span>}
       </div>
     </div>
   )
@@ -1715,22 +1715,22 @@ function CoachBulletPicker({
   }, [allBullets, exclude, query])
 
   return (
-    <div className="border border-blue-200 bg-white rounded-lg p-2">
+    <div className="border border-blue-200 bg-background rounded-lg p-2">
       <div className="flex items-center gap-2 mb-2">
-        <Search className="w-3 h-3 text-gray-400" />
+        <Search className="w-3 h-3 text-subtle-foreground" />
         <input
           autoFocus
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search your CV bullets…"
-          className="flex-1 text-xs p-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
+          className="flex-1 text-xs p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
         />
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-700" title="Close picker">
+        <button onClick={onClose} className="text-subtle-foreground hover:text-foreground" title="Close picker">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
       {filtered.length === 0 ? (
-        <p className="text-[11px] text-gray-500 italic px-1">
+        <p className="text-[11px] text-muted-foreground italic px-1">
           {allBullets.length === 0
             ? 'No bullets in your CV pool yet.'
             : 'No matches — adjust the search.'}
@@ -1741,13 +1741,13 @@ function CoachBulletPicker({
             <li key={b.id}>
               <button
                 onClick={() => onPick(b.id)}
-                className="w-full text-left p-1.5 rounded border border-gray-200 hover:border-blue-300 hover:bg-blue-50/40"
+                className="w-full text-left p-1.5 rounded border hover:border-blue-300 hover:bg-blue-50/40"
               >
                 {b.sectionPath && (
-                  <p className="text-[10px] text-gray-400">{b.sectionPath}</p>
+                  <p className="text-[10px] text-subtle-foreground">{b.sectionPath}</p>
                 )}
-                <p className="text-[11px] text-gray-800 line-clamp-2">{b.bulletText}</p>
-                <p className="text-[10px] text-gray-500 mt-0.5">
+                <p className="text-[11px] text-foreground line-clamp-2">{b.bulletText}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
                   {b.answeredGapCount}/{b.gapCount} gaps filled
                 </p>
               </button>
@@ -1797,15 +1797,15 @@ function JitForm({
   const [val, setVal] = useState('')
   const [busy, setBusy] = useState(false)
   return (
-    <div className="bg-white border border-yellow-200 rounded-lg p-2">
-      <p className="text-xs font-medium text-gray-800 mb-0.5">{question}</p>
-      {bulletText && <p className="text-[10px] text-gray-400 mb-1 truncate">re: {bulletText}</p>}
+    <div className="bg-background border border-yellow-200 rounded-lg p-2">
+      <p className="text-xs font-medium text-foreground mb-0.5">{question}</p>
+      {bulletText && <p className="text-[10px] text-subtle-foreground mb-1 truncate">re: {bulletText}</p>}
       <div className="flex gap-1.5">
         <input
           value={val}
           onChange={(e) => setVal(e.target.value)}
           placeholder="Type your answer…"
-          className="flex-1 text-xs p-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
+          className="flex-1 text-xs p-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
         />
         <button
           onClick={async () => {
@@ -1843,13 +1843,13 @@ function ReportStep({
     <div className="max-w-3xl mx-auto">
       <div className="text-center mb-8">
         <h2 className="text-3xl font-serif font-bold text-blue-900 mb-2">Interview Complete</h2>
-        <p className="text-gray-600">{report.summary}</p>
+        <p className="text-muted-foreground">{report.summary}</p>
         <div className="mt-4 flex items-center justify-center gap-2">
           <span className={`text-5xl font-bold tabular-nums ${irsScoreColor(report.overallIRS.overall)}`}>
             {report.overallIRS.overall.toFixed(1)}
           </span>
           <div className="text-left">
-            <span className="text-lg text-gray-400">/10</span>
+            <span className="text-lg text-subtle-foreground">/10</span>
             <p className={`text-sm font-semibold ${irsScoreColor(report.overallIRS.overall)}`}>
               {irsScoreLabel(report.overallIRS.overall)}
             </p>
@@ -1857,7 +1857,7 @@ function ReportStep({
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+      <div className="bg-background border rounded-xl p-6 mb-6">
         <h3 className="text-sm font-semibold text-blue-900 mb-4">IRS Breakdown</h3>
         <IRSMeter score={report.overallIRS} />
       </div>
@@ -1893,7 +1893,7 @@ function ReportStep({
       <div className="flex items-center justify-center gap-4">
         <button
           onClick={onNavigateHome}
-          className="px-5 py-2.5 text-gray-600 hover:text-gray-800 border border-gray-200 rounded-xl transition-colors"
+          className="px-5 py-2.5 text-muted-foreground hover:text-foreground border rounded-xl transition-colors"
         >
           Back to Home
         </button>

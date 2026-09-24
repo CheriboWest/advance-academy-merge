@@ -145,7 +145,7 @@ export function CvLibraryScreen() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-4xl font-serif font-bold text-blue-900 mb-2">CV Library</h1>
-        <p className="text-gray-600 text-lg">
+        <p className="text-muted-foreground text-lg">
           Upload a CV once. We&apos;ll extract every bullet, find the 5 most important missing details
           per bullet, and store the evidence you provide so future interviews can use it.
         </p>
@@ -163,17 +163,17 @@ export function CvLibraryScreen() {
       )}
 
       {loading ? (
-        <div className="flex items-center gap-2 text-gray-500">
+        <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading…
         </div>
       ) : versions.length === 0 ? (
-        <p className="text-gray-500 text-sm">No CVs yet. Upload one above to get started.</p>
+        <p className="text-muted-foreground text-sm">No CVs yet. Upload one above to get started.</p>
       ) : (
         <div className="space-y-3">
           {versions.map((v) => (
             <div
               key={v.id}
-              className="border border-gray-200 rounded-xl p-4 flex items-center justify-between bg-white"
+              className="border rounded-xl p-4 flex items-center justify-between bg-background"
             >
               <button onClick={() => setSelectedId(v.id)} className="flex-1 text-left">
                 <div className="flex items-center gap-2 mb-1">
@@ -189,10 +189,10 @@ export function CvLibraryScreen() {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                   {v.bulletCount} bullets · {v.openGapCount} gaps remaining
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5 italic">
+                <p className="text-xs text-subtle-foreground mt-0.5 italic">
                   {v.sourceFilePath
                     ? `Uploaded from ${v.sourceFilePath}`
                     : "Cannot find source file's path"}
@@ -205,7 +205,7 @@ export function CvLibraryScreen() {
                       await authedFetch(`/api/cv-library/versions/${v.id}/activate`, { method: 'POST' })
                       refresh()
                     }}
-                    className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50"
+                    className="px-3 py-1.5 text-sm border rounded-lg hover:bg-card"
                   >
                     Make active
                   </button>
@@ -217,7 +217,7 @@ export function CvLibraryScreen() {
                     await authedFetch(`/api/cv-library/versions/${v.id}`, { method: 'DELETE' })
                     refresh()
                   }}
-                  className="p-2 text-gray-400 hover:text-red-600"
+                  className="p-2 text-subtle-foreground hover:text-red-600"
                   aria-label="Delete CV"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -285,14 +285,14 @@ function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) 
           onChange={(e) => setName(e.target.value)}
           placeholder='Name this CV (e.g. "2025 SWE CV")'
           disabled={busy}
-          className="flex-1 p-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+          className="flex-1 p-3 border rounded-xl text-sm bg-background focus:outline-none focus:ring-2 focus:ring-blue-200"
         />
         <input
           type="file"
           accept=".pdf,.docx"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           disabled={busy}
-          className="flex-1 p-2 text-sm bg-white border border-gray-200 rounded-xl"
+          className="flex-1 p-2 text-sm bg-background border rounded-xl"
         />
         <button
           onClick={submit}
@@ -316,7 +316,7 @@ function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) 
           <AlertCircle className="w-3.5 h-3.5" /> {err}
         </p>
       )}
-      <p className="mt-2 text-xs text-gray-500">
+      <p className="mt-2 text-xs text-muted-foreground">
         Parsing usually takes 20-60s. After parsing, you&apos;ll review each bullet and merge
         duplicates from previous CVs.
       </p>
@@ -420,17 +420,17 @@ function BulletResolutionStep({
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 mb-4"
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
       >
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
       <h1 className="text-3xl font-serif font-bold text-blue-900 mb-2">Resolve bullet points</h1>
-      <p className="text-gray-600 mb-6">
+      <p className="text-muted-foreground mb-6">
         For each bullet we parsed, check if it&apos;s the same as one from a previous CV. Merging
         means the new CV will share that bullet&apos;s gaps and evidence — no re-typing.
       </p>
 
-      <div className="mb-4 p-3 bg-gray-50 rounded-xl text-sm">
+      <div className="mb-4 p-3 bg-card rounded-xl text-sm">
         <div className="flex items-center justify-between">
           <span>
             <strong>{phase1.parsedBullets.length}</strong> bullets parsed ·{' '}
@@ -488,13 +488,13 @@ function BulletResolutionCard({
   return (
     <div
       className={`border rounded-xl p-4 ${
-        isMerged ? 'border-emerald-200 bg-emerald-50/40' : 'border-gray-200 bg-white'
+        isMerged ? 'border-emerald-200 bg-emerald-50/40' : 'bg-background'
       }`}
     >
       {parsed.sectionPath && (
-        <p className="text-xs text-gray-400 mb-1">{parsed.sectionPath}</p>
+        <p className="text-xs text-subtle-foreground mb-1">{parsed.sectionPath}</p>
       )}
-      <p className="text-sm font-medium text-gray-900 mb-3">
+      <p className="text-sm font-medium text-foreground mb-3">
         &ldquo;{parsed.bulletText}&rdquo;
       </p>
 
@@ -502,7 +502,7 @@ function BulletResolutionCard({
         {/* "This is new" option */}
         <label
           className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border text-sm ${
-            !isMerged ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+            !isMerged ? 'border-blue-300 bg-blue-50' : 'hover:bg-card'
           }`}
         >
           <input
@@ -512,12 +512,12 @@ function BulletResolutionCard({
             onChange={() => onDecide('new')}
             className="accent-blue-900"
           />
-          <span className="font-medium text-gray-700">This is a new bullet (create fresh gaps)</span>
+          <span className="font-medium text-foreground">This is a new bullet (create fresh gaps)</span>
         </label>
 
         {/* Candidate matches */}
         {hasCandidates && (
-          <p className="text-xs text-gray-500 font-medium mt-2 mb-1">
+          <p className="text-xs text-muted-foreground font-medium mt-2 mb-1">
             Or merge with an existing bullet:
           </p>
         )}
@@ -527,7 +527,7 @@ function BulletResolutionCard({
             className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer border text-sm ${
               isMerged && decision.existingBulletId === c.bulletId
                 ? 'border-emerald-300 bg-emerald-50'
-                : 'border-gray-200 hover:bg-gray-50'
+                : 'hover:bg-card'
             }`}
           >
             <input
@@ -538,8 +538,8 @@ function BulletResolutionCard({
               className="accent-emerald-600 mt-0.5"
             />
             <div className="flex-1">
-              <p className="text-gray-800">&ldquo;{c.bulletText}&rdquo;</p>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-foreground">&ldquo;{c.bulletText}&rdquo;</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {c.sectionPath && `${c.sectionPath} · `}
                 {c.similarity > 0 && `${Math.round(c.similarity * 100)}% similar · `}
                 {c.answeredGapCount}/{c.gapCount} gaps filled
@@ -548,7 +548,7 @@ function BulletResolutionCard({
           </label>
         ))}
         {!hasCandidates && (
-          <p className="text-xs text-gray-400 italic">No similar bullets found in previous CVs.</p>
+          <p className="text-xs text-subtle-foreground italic">No similar bullets found in previous CVs.</p>
         )}
       </div>
     </div>
@@ -593,7 +593,7 @@ function CvDetail({
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 mb-4"
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
       >
         <ArrowLeft className="w-4 h-4" /> Back to library
       </button>
@@ -609,24 +609,24 @@ function CvDetail({
               </span>
             )}
           </p>
-          <p className="text-xs text-gray-400 mt-0.5 italic">
+          <p className="text-xs text-subtle-foreground mt-0.5 italic">
             {version.sourceFilePath
               ? `Uploaded from ${version.sourceFilePath}`
               : "Cannot find source file's path"}
           </p>
         </div>
       )}
-      <p className="text-gray-600 mb-6">
+      <p className="text-muted-foreground mb-6">
         For each bullet on your CV, answer the most important questions an interviewer would ask.
         Shared bullets show evidence from all linked CV versions.
       </p>
 
-      <div className="mb-6 p-3 bg-gray-50 rounded-xl text-sm">
+      <div className="mb-6 p-3 bg-card rounded-xl text-sm">
         <strong>{filledGaps}</strong> of {totalGaps} gaps filled
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-gray-500">
+        <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading bullets…
         </div>
       ) : (
@@ -681,19 +681,19 @@ function BulletCard({
   }
 
   return (
-    <div className="border border-gray-200 rounded-xl p-5 bg-white">
+    <div className="border rounded-xl p-5 bg-background">
       <p className="text-xs font-bold uppercase tracking-wide text-blue-900 mb-1">
         CV bullet point {index}
       </p>
       {bullet.sectionPath && (
-        <p className="text-xs text-gray-400 mb-1">{bullet.sectionPath}</p>
+        <p className="text-xs text-subtle-foreground mb-1">{bullet.sectionPath}</p>
       )}
       <div className="flex items-start justify-between gap-2 mb-4">
-        <p className="text-sm font-medium text-gray-900">&ldquo;{bullet.bulletText}&rdquo;</p>
+        <p className="text-sm font-medium text-foreground">&ldquo;{bullet.bulletText}&rdquo;</p>
         <button
           onClick={loadSimilar}
           disabled={mergeLoading}
-          className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-700 shrink-0"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-blue-700 shrink-0"
           title="Merge with another bullet"
         >
           {mergeLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <GitMerge className="w-3 h-3" />}
@@ -707,17 +707,17 @@ function BulletCard({
             Merge into one of these similar bullets:
           </p>
           {candidates.length === 0 ? (
-            <p className="text-xs text-gray-500 italic">No similar bullets found.</p>
+            <p className="text-xs text-muted-foreground italic">No similar bullets found.</p>
           ) : (
             <div className="space-y-2">
               {candidates.map((c) => (
                 <button
                   key={c.bulletId}
                   onClick={() => doMerge(c.bulletId)}
-                  className="w-full text-left p-2 rounded border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50 text-sm"
+                  className="w-full text-left p-2 rounded border hover:border-emerald-300 hover:bg-emerald-50 text-sm"
                 >
-                  <p className="text-gray-800">&ldquo;{c.bulletText}&rdquo;</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-foreground">&ldquo;{c.bulletText}&rdquo;</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {c.similarity > 0 && `${Math.round(c.similarity * 100)}% · `}
                     {c.answeredGapCount}/{c.gapCount} gaps filled
                   </p>
@@ -727,7 +727,7 @@ function BulletCard({
           )}
           <button
             onClick={() => setMergeMode(false)}
-            className="mt-2 text-xs text-gray-500 hover:text-gray-700"
+            className="mt-2 text-xs text-muted-foreground hover:text-foreground"
           >
             Cancel
           </button>
@@ -803,7 +803,7 @@ function ArtifactRow({
           onChange={(e) => setText(e.target.value)}
           rows={4}
           disabled={busy}
-          className="w-full p-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 resize-y min-h-20 bg-white"
+          className="w-full p-2 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-emerald-300 resize-y min-h-20 bg-background"
         />
         {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
         <div className="flex items-center gap-2 mt-2">
@@ -817,12 +817,12 @@ function ArtifactRow({
           <button
             onClick={cancel}
             disabled={busy}
-            className="text-xs text-gray-500 hover:text-gray-700"
+            className="text-xs text-muted-foreground hover:text-foreground"
           >
             Cancel
           </button>
           {busy && (
-            <span className="text-xs text-gray-500 italic">
+            <span className="text-xs text-muted-foreground italic">
               Re-summarising — this may take a few seconds…
             </span>
           )}
@@ -841,7 +841,7 @@ function ArtifactRow({
       </p>
       <button
         onClick={startEdit}
-        className="flex items-center gap-1 text-xs text-gray-400 hover:text-emerald-700 shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+        className="flex items-center gap-1 text-xs text-subtle-foreground hover:text-emerald-700 shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
         title="Edit this answer"
       >
         <Pencil className="w-3 h-3" /> Edit
@@ -903,8 +903,8 @@ function GapForm({
         isAnswered
           ? 'border-emerald-200 bg-emerald-50/40'
           : isSkipped
-            ? 'border-gray-200 bg-gray-50'
-            : 'border-gray-200'
+            ? 'bg-card'
+            : 'border-border'
       }`}
     >
       <div className="flex items-start gap-2 mb-2">
@@ -913,18 +913,18 @@ function GapForm({
             isAnswered
               ? 'bg-emerald-500 text-white'
               : isSkipped
-                ? 'bg-gray-300 text-gray-600'
+                ? 'bg-muted text-muted-foreground'
                 : 'bg-yellow-400 text-blue-900'
           }`}
         >
           {gap.ordinal}
         </span>
         <div className="flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
             Bullet gap {gap.ordinal}
           </p>
-          <p className="text-sm font-medium text-gray-800">{gap.question}</p>
-          {gap.rationale && <p className="text-xs text-gray-500 mt-0.5">{gap.rationale}</p>}
+          <p className="text-sm font-medium text-foreground">{gap.question}</p>
+          {gap.rationale && <p className="text-xs text-muted-foreground mt-0.5">{gap.rationale}</p>}
         </div>
       </div>
 
@@ -943,7 +943,7 @@ function GapForm({
             onChange={(e) => setText(e.target.value)}
             placeholder="Type or paste your answer. Drag the corner to make this bigger."
             rows={4}
-            className="w-full p-2 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-300 resize-y min-h-20"
+            className="w-full p-2 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-300 resize-y min-h-20"
           />
           {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
           <div className="flex items-center gap-2 mt-2">
@@ -958,7 +958,7 @@ function GapForm({
               <button
                 onClick={skip}
                 disabled={busy}
-                className="text-xs text-gray-500 hover:text-gray-700"
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
                 Skip
               </button>
@@ -1061,7 +1061,7 @@ function CoachUnderstandingSection({
           </button>
         )}
       </div>
-      <p className="text-xs text-gray-600 mb-3">
+      <p className="text-xs text-muted-foreground mb-3">
         Generate a report showing what the AI coach currently knows about the selected CV,
         what&apos;s missing, and which bullet points might be duplicates worth merging.
       </p>
@@ -1072,7 +1072,7 @@ function CoachUnderstandingSection({
             value={selectedVersionId}
             onChange={(e) => setSelectedVersionId(e.target.value)}
             disabled={generating}
-            className="w-full sm:w-auto text-sm border border-purple-200 rounded-lg px-3 py-2 bg-white text-gray-800 disabled:opacity-40"
+            className="w-full sm:w-auto text-sm border border-purple-200 rounded-lg px-3 py-2 bg-background text-foreground disabled:opacity-40"
           >
             {versions.map((v) => (
               <option key={v.id} value={v.id}>
@@ -1126,7 +1126,7 @@ function CoachUnderstandingSection({
             >
               <div className="flex items-center gap-2 mb-1">
                 <FileText className="w-3.5 h-3.5 text-purple-500" />
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-muted-foreground">
                   {new Date(r.createdAt).toLocaleDateString()} {new Date(r.createdAt).toLocaleTimeString()}
                 </span>
                 <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] rounded-full">
@@ -1135,7 +1135,7 @@ function CoachUnderstandingSection({
                     : 'All CVs'}
                 </span>
               </div>
-              <p className="text-xs text-gray-700 line-clamp-2">{r.preview}</p>
+              <p className="text-xs text-foreground line-clamp-2">{r.preview}</p>
             </button>
           ))}
         </div>
@@ -1166,13 +1166,13 @@ function ReportViewer({ reportId, onBack }: { reportId: string; onBack: () => vo
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 mb-4"
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
       >
         <ArrowLeft className="w-4 h-4" /> Back to CV Library
       </button>
 
       {loading ? (
-        <div className="flex items-center gap-2 text-gray-500">
+        <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading report…
         </div>
       ) : report ? (
@@ -1181,16 +1181,16 @@ function ReportViewer({ reportId, onBack }: { reportId: string; onBack: () => vo
             <h1 className="text-2xl font-serif font-bold text-purple-900 flex items-center gap-2">
               <Brain className="w-6 h-6" /> Coach Understanding Report
             </h1>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-muted-foreground">
               {new Date(report.createdAt).toLocaleDateString()} {new Date(report.createdAt).toLocaleTimeString()}
             </span>
           </div>
-          <div className="prose prose-sm max-w-none prose-headings:text-purple-900 prose-strong:text-gray-900 prose-li:text-gray-700">
+          <div className="prose prose-sm max-w-none prose-headings:text-purple-900 prose-strong:text-foreground prose-li:text-foreground">
             <MarkdownRenderer content={report.reportMd} />
           </div>
         </>
       ) : (
-        <p className="text-gray-500">Report not found.</p>
+        <p className="text-muted-foreground">Report not found.</p>
       )}
     </div>
   )
@@ -1221,7 +1221,7 @@ function MarkdownRenderer({ content }: { content: string }) {
       )
     } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
       elements.push(
-        <li key={key++} className="ml-4 text-sm text-gray-700 mb-1 list-disc">
+        <li key={key++} className="ml-4 text-sm text-foreground mb-1 list-disc">
           {renderInline(trimmed.slice(2))}
         </li>,
       )
@@ -1229,7 +1229,7 @@ function MarkdownRenderer({ content }: { content: string }) {
       elements.push(<div key={key++} className="h-2" />)
     } else {
       elements.push(
-        <p key={key++} className="text-sm text-gray-700 mb-2 leading-relaxed">
+        <p key={key++} className="text-sm text-foreground mb-2 leading-relaxed">
           {renderInline(trimmed)}
         </p>,
       )
@@ -1249,9 +1249,9 @@ function renderInline(text: string): (string | JSX.Element)[] {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index))
     if (m[1]) {
-      parts.push(<strong key={`b${i++}`} className="font-semibold text-gray-900">{m[1]}</strong>)
+      parts.push(<strong key={`b${i++}`} className="font-semibold text-foreground">{m[1]}</strong>)
     } else if (m[2]) {
-      parts.push(<span key={`q${i++}`} className="italic text-gray-600">&ldquo;{m[2]}&rdquo;</span>)
+      parts.push(<span key={`q${i++}`} className="italic text-muted-foreground">&ldquo;{m[2]}&rdquo;</span>)
     }
     last = m.index + m[0].length
   }

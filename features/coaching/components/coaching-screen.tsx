@@ -223,7 +223,7 @@ export function CoachingScreen() {
                   ) : null}
                   <span
                     className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
-                      readable ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                      readable ? 'bg-green-100 text-green-800' : 'bg-card text-muted-foreground'
                     }`}
                   >
                     {readable ? 'Ready to read' : 'Your coach is preparing it'}

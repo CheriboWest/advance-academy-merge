@@ -81,7 +81,7 @@ function statusVariant(status: string): 'default' | 'secondary' | 'destructive' 
 const CONTACT_STYLE: Record<Contactability, string> = {
   yes: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   pending: 'bg-amber-50 text-amber-800 border-amber-200',
-  no: 'bg-gray-100 text-gray-600 border-gray-200',
+  no: 'bg-card text-muted-foreground',
 }
 
 const CONTACT_LABEL: Record<Contactability, string> = {

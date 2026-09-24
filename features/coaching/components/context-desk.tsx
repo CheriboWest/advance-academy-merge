@@ -25,7 +25,7 @@ import { useCoachingAction, useUpdateCoachingSession } from '../hooks/use-coachi
 const SEVERITY_STYLE: Record<ContextGap['severity'], string> = {
   blocking: 'border-red-300 bg-red-50 text-red-900',
   important: 'border-yellow-300 bg-yellow-50 text-yellow-900',
-  nice_to_have: 'border-gray-200 bg-gray-50 text-gray-700',
+  nice_to_have: 'bg-card text-foreground',
 }
 
 const SEVERITY_LABEL: Record<ContextGap['severity'], string> = {

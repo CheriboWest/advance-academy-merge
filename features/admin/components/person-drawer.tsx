@@ -34,7 +34,7 @@ const TOOL_ICON: Record<string, typeof FileText> = {
 const CONTACT_STYLE = {
   yes: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   pending: 'bg-amber-50 text-amber-800 border-amber-200',
-  no: 'bg-gray-100 text-gray-600 border-gray-200',
+  no: 'bg-card text-muted-foreground',
 } as const
 
 const CONTACT_LABEL = {

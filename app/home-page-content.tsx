@@ -45,7 +45,7 @@ export function HomePageContent() {
   if (loading || !session) return null
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <Navigation currentView={currentView} onNavigate={handleNavigate} />
 
       {currentView === 'home' && (

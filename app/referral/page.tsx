@@ -58,9 +58,9 @@ export default function ReferralPage() {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-12">
-      <div className="rounded-2xl bg-white p-8 shadow-xl">
+      <div className="rounded-2xl bg-background p-8 shadow-xl">
         <h1 className="text-2xl font-serif font-bold text-blue-900">Invite friends, unlock more</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-muted-foreground">
           Every friend who signs in through your link gives you{' '}
           <strong className="text-blue-900">+2 Dream Company credits</strong> — up to 3 friends.
         </p>
@@ -76,7 +76,7 @@ export default function ReferralPage() {
                 <input
                   readOnly
                   value={inviteUrl}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-600 outline-none"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm text-muted-foreground outline-none"
                 />
                 <button
                   onClick={copyLink}
@@ -90,12 +90,12 @@ export default function ReferralPage() {
             {/* Progress */}
             <div className="mt-6">
               <div className="mb-1 flex justify-between text-sm">
-                <span className="text-gray-500">Referrals</span>
+                <span className="text-muted-foreground">Referrals</span>
                 <span className="font-semibold text-blue-900">
                   {status.referralCount} / {status.maxReferrals}
                 </span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+              <div className="h-2 overflow-hidden rounded-full bg-card">
                 <div
                   className="h-full rounded-full bg-yellow-500 transition-all"
                   style={{ width: `${(status.referralCount / status.maxReferrals) * 100}%` }}
@@ -109,7 +109,7 @@ export default function ReferralPage() {
                 <p className="text-sm font-semibold text-blue-900">
                   You&apos;ve maxed out your referral rewards 🎉
                 </p>
-                <p className="mt-1 text-sm text-gray-600">
+                <p className="mt-1 text-sm text-muted-foreground">
                   Ready to go further? Join our Mentorship programme for unlimited access and
                   1-on-1 guidance.
                 </p>

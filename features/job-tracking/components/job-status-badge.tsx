@@ -4,7 +4,7 @@ import { SAVED_JOB_STATUS_LABELS, type SavedJobStatus } from '@advance-academy/c
 
 /** One colour per stage so a mixed list scans without reading every label. */
 export const STATUS_TONE: Record<SavedJobStatus, string> = {
-  saved: 'bg-gray-100 text-gray-700 border-gray-200',
+  saved: 'bg-card text-foreground',
   preparing: 'bg-yellow-50 text-yellow-800 border-yellow-200',
   applied: 'bg-blue-50 text-blue-800 border-blue-200',
   follow_up: 'bg-orange-50 text-orange-800 border-orange-200',

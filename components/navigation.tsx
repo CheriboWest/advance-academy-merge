@@ -37,7 +37,7 @@ interface NavigationProps {
 
 /*
  * One set of interaction classes for the whole bar. The previous version spelled
- * the hover out per element and landed on `hover:bg-gray-100` — #F3F4F6 against
+ * the hover out per element and landed on `hover:bg-card` — #F3F4F6 against
  * a white bar, a step so small it reads as nothing happening. The idle state
  * here moves both the background and the text colour on hover, which is what
  * makes a target feel live; `duration-150` keeps it immediate rather than a
@@ -45,7 +45,7 @@ interface NavigationProps {
  */
 const NAV_BASE =
   'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150'
-const NAV_IDLE = 'text-gray-600 hover:bg-blue-900/10 hover:text-blue-900'
+const NAV_IDLE = 'text-muted-foreground hover:bg-blue-900/10 hover:text-blue-900'
 const NAV_ACTIVE = 'bg-blue-900 text-white hover:bg-blue-800'
 
 /** Wallet balance pill. Admins spend nothing, so they see ∞ rather than a number. */
@@ -167,7 +167,7 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
   }
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+    <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center gap-3">
           <button
@@ -228,7 +228,7 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
                 Admin
               </Link>
             ) : null}
-            <span className="mx-1 h-6 w-px bg-gray-200" aria-hidden="true" />
+            <span className="mx-1 h-6 w-px bg-muted" aria-hidden="true" />
             <button onClick={handleSignOut} className={`${NAV_BASE} ${NAV_IDLE}`}>
               <LogOut className="h-4 w-4" />
               Sign out
@@ -237,7 +237,7 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="ml-auto rounded-lg p-2 text-gray-600 transition-colors duration-150 hover:bg-blue-900/10 hover:text-blue-900 md:hidden"
+            className="ml-auto rounded-lg p-2 text-muted-foreground transition-colors duration-150 hover:bg-blue-900/10 hover:text-blue-900 md:hidden"
             aria-expanded={mobileMenuOpen}
             aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
           >
@@ -273,7 +273,7 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
               </div>
             ))}
 
-            <div className="mt-3 border-t border-gray-200 pt-3">
+            <div className="mt-3 border-t pt-3">
               <button
                 onClick={() => handleNavigate('history')}
                 aria-current={currentView === 'history' ? 'page' : undefined}

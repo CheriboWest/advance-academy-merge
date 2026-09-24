@@ -23,13 +23,13 @@ function ToolCard({ item, onNavigate }: { item: NavItem; onNavigate: (view: View
   return (
     <button
       onClick={() => onNavigate(item.view)}
-      className="group flex h-full w-full flex-col items-start rounded-xl border border-gray-200 bg-white p-6 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-yellow-500 hover:bg-yellow-500/5 hover:shadow-lg"
+      className="group flex h-full w-full flex-col items-start rounded-xl border bg-background p-6 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-yellow-500 hover:bg-yellow-500/5 hover:shadow-lg"
     >
       <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-yellow-500 transition-colors duration-150 group-hover:bg-blue-900">
         <Icon className="h-5 w-5 text-blue-900 transition-colors duration-150 group-hover:text-yellow-500" />
       </span>
       <h3 className="mb-2 font-serif text-xl font-semibold text-blue-900">{item.label}</h3>
-      <p className="mb-4 text-sm leading-relaxed text-gray-600">{item.description}</p>
+      <p className="mb-4 text-sm leading-relaxed text-muted-foreground">{item.description}</p>
       <span className="mt-auto inline-flex items-center gap-1 text-sm font-medium text-yellow-600">
         Open
         <ChevronRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5" />
@@ -46,7 +46,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
           <h1 className="mb-6 text-balance font-serif text-5xl font-bold text-blue-900 md:text-6xl">
             Accelerate Your Career
           </h1>
-          <p className="mx-auto max-w-2xl text-balance text-xl text-gray-600">
+          <p className="mx-auto max-w-2xl text-balance text-xl text-muted-foreground">
             Powered by AI-driven tools designed to help you land your dream job. From discovering
             perfect companies to mastering interviews.
           </p>
@@ -94,7 +94,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
             </button>
             <button
               onClick={() => onNavigate('cv')}
-              className="rounded-lg bg-white/20 px-6 py-3 font-semibold transition-colors duration-150 hover:bg-white/35"
+              className="rounded-lg bg-background/20 px-6 py-3 font-semibold transition-colors duration-150 hover:bg-background/35"
             >
               Optimize Your CV
             </button>
