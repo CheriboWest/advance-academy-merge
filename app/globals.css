@@ -57,51 +57,27 @@
   --highlight: var(--secondary);
   --highlight-foreground: var(--secondary-foreground);
   --highlight-ink: oklch(0.620 0.130 66);
-}
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  /* --highlight/-foreground alias --secondary and so follow it here. Only the
-     ink needs its own dark value: on a dark ground the darker gold disappears,
-     so career-hub lightens it back to the fill colour. */
-  --highlight-ink: oklch(0.815 0.145 84);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  /* One step lighter than --muted-foreground, for text that is deliberately
+     recessive: placeholders, timestamps, decorative icons. ~2.6:1 on white, so
+     it is below the threshold for anything a reader actually needs — if the
+     text carries meaning, use --muted-foreground instead. It exists because the
+     app had FOUR grays doing three jobs; this is the third job. */
+  --subtle-foreground: #9BA3AC;
 }
 
 @theme inline {
   --font-sans: var(--font-inter), 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-playfair), 'Playfair Display Fallback', ui-serif, Georgia, serif;
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  /* career-hub reaches for `font-display` in 7 places — KPI figures, lead
+     scores, the workspace wordmark — and this variable did not exist, so every
+     one of them silently fell back to Inter. Same stack as serif; the separate
+     name is kept because those uses are numerals and a wordmark, not headings,
+     and may want to diverge later. */
+  --font-display: var(--font-playfair), 'Playfair Display Fallback', ui-serif, Georgia, serif;
+  /* Was 'Geist Mono', which no next/font call ever loads. The system stack
+     needs no download and is what the browser would have reached anyway. */
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -117,6 +93,7 @@
   --color-highlight-ink: var(--highlight-ink);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -149,6 +126,35 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  /*
+   * Preflight resets h1–h6 to `font-weight: inherit`. career-hub's headings
+   * carry size and nothing else, so every one of them rendered as 400-weight
+   * Inter next to this app's `font-serif font-bold` headings — the single
+   * reason the two halves looked like two different websites.
+   *
+   * Set here rather than on ~50 components, for the same reason the cursor rule
+   * above is: a class on each heading is one more thing to forget on the next.
+   * AdvanceAcademyTools is unaffected — its headings already spell these out.
+   *
+   * `:not([data-slot])` is the opt-out. Every shadcn primitive carries that
+   * attribute, so `DialogTitle` — a Radix <h2> — keeps its own type. `CardTitle`
+   * is a <div> and `TableHead` a <th>, so both are immune already.
+   *
+   * h3 and below stay sans on purpose: career-hub's `text-lg` h3s are section
+   * micro-labels, and Playfair at 18px reads as a rendering bug, not a heading.
+   */
+  h1:not([data-slot]),
+  h2:not([data-slot]) {
+    @apply font-serif font-bold text-primary;
+  }
+
+  h3:not([data-slot]),
+  h4:not([data-slot]),
+  h5,
+  h6 {
+    @apply font-semibold text-foreground;
   }
 
   /*
