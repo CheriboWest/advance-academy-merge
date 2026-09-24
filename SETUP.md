@@ -18,15 +18,17 @@ Mỗi dòng kèm lệnh tự kiểm chứng, đừng tin cột trạng thái mà
 | 0 | Token lộ | ✅ remote đã sang SSH, token đã hết hạn | `grep -rl github_pat_ .` chỉ khớp file này |
 | 1 | Cứu RLS | ✅ `041` đã commit | `ls supabase/migrations/041_*.sql` |
 | 2 | Supabase project mới | ✅ `mfohgcwviupeklfyvzfo`, eu-west-2, ES256 | `curl -s https://mfohgcwviupeklfyvzfo.supabase.co/auth/v1/.well-known/jwks.json` |
-| 3 | Apply 43 migration | ✅ sạch, 2 câu verify đều 0 dòng | hai câu SQL ở cuối mục 3 |
-| 4 | Tài khoản test | ⚠️ `coach1` xong (admin+approved); thiếu `coach2`, `student1`, `student2` | `select email, is_admin, status from public.users;` |
+| 3 | Apply migration | ✅ 43 file + `042`, `043` vá sau | hai câu SQL ở cuối mục 3 |
+| 4 | Tài khoản test | ✅ 2 coach + 2 student (`student2` để `pending` là cố ý) | `select email, is_admin, status from public.users;` |
 | 5 | File env | ✅ cả ba file đã đầy đủ | `grep -rn PASTE_ .env.local backend/.env backend-python/.env` → rỗng |
 | 6 | Cài & chạy | ✅ ba tiến trình lên, health 200 | `curl localhost:8000/health`, `curl localhost:4000/api/health` |
 | 7 | Test tự động | ✅ tsc 0 lỗi, backend 239/239, vitest 7/7, python 32/32 | các lệnh ở mục 7 |
 | 7 | Smoke test tay | ✅ xong 2026-09-24, tìm ra 3 bug (xem dưới) | 11 bước ở mục 7 |
 | 8 | Repo GitHub | ✅ `CheriboWest/advance-academy-merge` | `git remote -v` |
-| — | **Deploy Vercel** | ⚠️ frontend sống, backend chưa nối | bảng ngay dưới |
+| — | **Deploy Vercel** | ✅ đã nối cả hai backend | `curl .../api/account/me` → **401** |
+| — | **Deploy Railway** | ✅ 2 service, EU West, 1 replica mỗi cái | mục "Deploy hai backend" dưới |
 | — | **Dữ liệu** | ✅ 7.527 companies, 30.549 jobs, 24 contacts | `select count(*) from companies;` |
+| — | **Nav → Career Hub** | ✅ có link `Employers` + `Coach` | mở `/` sau khi đăng nhập |
 
 ### Trạng thái bản deploy
 
@@ -35,19 +37,16 @@ url=https://advance-academy-merge-r7tn.vercel.app
 curl -s -o /dev/null -w "%{http_code}\n" $url/search              # 200 — Career Hub công khai
 curl -s -o /dev/null -w "%{http_code}\n" $url/companies/ecoonline # 200 — dữ liệu thật
 curl -s -o /dev/null -w "%{http_code}\n" $url/login               # 200 — auth client OK
-curl -s -w "\n%{http_code}\n" $url/api/account/me                 # 502 — CHƯA có backend
+curl -s -w "\n%{http_code}\n" $url/api/account/me                 # 401 — chuỗi đã thông
+
+curl -s https://backend-production-a8824.up.railway.app/api/health        # Fastify
+curl -s https://backend-python-production-5144.up.railway.app/health      # FastAPI
 ```
 
-`/search` và `/companies/*` đọc thẳng Supabase từ server nên **đã chạy được bằng
-dữ liệu thật trên production**, không cần đợi Fastify. Mọi thứ đi qua
-`app/api/*` thì chưa.
-
-`502` ở dòng cuối là mong đợi cho tới khi deploy Fastify: `BACKEND_URL` chưa set
-nên proxy gọi vào `http://localhost:4000` ngay trong container của Vercel.
-
-**Career Hub có deploy, chỉ chưa có lối vào từ nav** — `components/navigation.tsx`
-không trỏ tới `/search` hay `/coach/*`. Vào thẳng bằng URL. Đây là hạng mục
-Stage 6 ("nhóm nav Find Jobs") ở cuối file, chưa làm là cố ý.
+Dòng `/api/account/me` là phép thử quan trọng nhất: **401 là đúng, 502 là hỏng.**
+401 nghĩa là Next proxy tới được Fastify và bị từ chối đúng vì thiếu token; 502
+nghĩa là `BACKEND_URL` sai hoặc service chết, proxy đang gọi vào `localhost:4000`
+ngay trong container của Vercel.
 
 ### Smoke test đã tìm ra gì (2026-09-24)
 
@@ -61,11 +60,18 @@ cả ba đều nằm ở ranh giới code ↔ database, nơi 239 + 7 + 32 test �
    nó nạp 100 job, chèn 43. Chỗ hỏng là ghi thống kê: code ghi
    `error_message` và `jobs_found`, migration tạo `error` và `jobs_fetched`.
    `042` thêm hai cột đúng tên.
-3. **Crawler chạy mà không có API key vẫn báo `success`** với `raw_jobs: 0` và
-   `error: null`. Chưa sửa — nhưng nhớ: **crawl ra 0 job thì nghi thiếu key
-   trước khi nghi hết quota.** Kiểm tra nhanh:
-   ```bash
-   curl -s "https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=$ADZUNA_APP_ID&app_key=$ADZUNA_APP_KEY&results_per_page=1&what=test"
+3. **Crawl ra 0 job.** Lần đầu gặp, mục này ghi là "crawler báo success khi
+   thiếu key, chưa sửa" — **sai, và `042` đã sửa rồi.** Code luôn phát hiện
+   đúng: `pipeline.py:170,188` ghi `"Adzuna credentials not configured."` vào
+   `stats.source_errors`, gộp thành `error_note`, `_finalize` ghi vào cột
+   `error_message`, `discover.py:82` đọc ra cho coach. Coach không thấy gì chỉ
+   vì cột `error_message` chưa tồn tại.
+
+   Nên khi crawl ra 0 job: **đọc `error_message` của run đó trước**, nó nói
+   thẳng thiếu credential hay lỗi gì:
+   ```sql
+   select query, location, status, error_message, jobs_found
+     from crawl_runs order by started_at desc limit 3;
    ```
 
 Bài học chung cho cutover: **DB sống của career-hub trôi khỏi migration ở ít
@@ -73,17 +79,84 @@ nhất bốn chỗ** (RLS policy, 3 bảng gốc, 17 cột thừa + kiểu `sala
 `crawl_runs` sai tên). Dựng project mới thuần từ migration sẽ **không** ra đúng
 schema mà code nhắm tới. Luôn đối chiếu với DB sống trước khi tin migration.
 
+### Deploy hai backend lên Railway — ĐÃ XONG (2026-09-24)
+
+Một project Railway (`exemplary-inspiration`), **hai service**, cùng region
+**EU West** cho gần Supabase ở London.
+
+| | Fastify | FastAPI |
+|---|---|---|
+| Service | `root` | `backend-python` |
+| Root directory | **`/` (gốc repo)** | `backend-python` |
+| Start | `npm run start --workspace backend` | `railway.json` lo |
+| Domain | `backend-production-a8824.up.railway.app` | `backend-python-production-5144.up.railway.app` |
+| Replicas | **1** | **1** |
+
+Root directory khác nhau là **bắt buộc**: npm workspace hoist toàn bộ dependency
+lên `node_modules` ở gốc repo, nên trỏ Railway vào `backend/` là thiếu sạch thư
+viện. FastAPI thì độc lập hoàn toàn.
+
+**1 replica cũng bắt buộc, và có hậu quả tiền bạc:** `@fastify/rate-limit` giữ
+bộ đếm trong bộ nhớ tiến trình, nên `DAILY_LIMIT_*` **nhân lên theo số replica**
+— hai replica là gấp đôi trần chi LLM. Bên FastAPI, `discover.py:250` chạy crawl
+bằng `background_tasks` trong tiến trình và **không có reaper**.
+
+Ba cái bẫy đã gặp:
+
+- **`tsx` phải nằm ở `dependencies`, không phải `devDependencies`.** Railway đặt
+  `NODE_ENV=production` và lược bỏ devDependencies — log có dòng
+  `npm warn config production Use --omit=dev instead`. Đừng "dọn dẹp" nó ngược
+  lại. Lý do phải chạy bằng `tsx` thay vì `node dist/`: xem commit
+  "Make tsx a runtime dependency".
+- **Fastify chết lúc khởi động nếu thiếu biến Supabase.** `main.ts:133` gọi
+  `startCvAnalysisReaper()` → `getSupabase()` ngay khi boot, không đợi request
+  đầu tiên.
+- **`FRONTEND_URL` phải để URL Vercel ở vị trí đầu tiên** — phần tử đầu là base
+  cho magic link (`passwordless.service.ts:26`). Để `localhost` trước thì mọi
+  link đăng nhập gửi đi đều hỏng với người nhận.
+
+CORS chỉ FastAPI mới cần thật, vì **trình duyệt gọi thẳng nó** (trang coach dùng
+token Supabase). Fastify thì trình duyệt không bao giờ chạm tới — mọi thứ đi qua
+`app/api/*` đọc `BACKEND_URL` phía server.
+
+```
+ALLOWED_ORIGINS=https://advance-academy-merge-r7tn.vercel.app,http://localhost:3000
+ALLOWED_ORIGIN_REGEX=https://advance-academy-merge-[a-z0-9-]+-cheribowests-projects\.vercel\.app
+```
+
+Domain production **không** khớp regex (thiếu hậu tố `-cheribowests-projects`)
+nên phải nằm trong `ALLOWED_ORIGINS`. Kiểm tra cả chiều chặn, không chỉ chiều
+cho qua — regex quá rộng thì mở toang API mà không gì báo lỗi:
+
+```bash
+api=https://backend-python-production-5144.up.railway.app
+for o in https://advance-academy-merge-r7tn.vercel.app https://evil.example; do
+  curl -s -i -X OPTIONS "$api/companies" -H "Origin: $o" \
+       -H 'Access-Control-Request-Method: GET' | grep -i access-control-allow-origin
+done   # dòng 1 phải vọng lại origin, dòng 2 phải KHÔNG ra gì
+```
+
 ### Còn lại, theo thứ tự
 
-1. Deploy Fastify + FastAPI, rồi set `BACKEND_URL` / `NEXT_PUBLIC_API_URL` trên Vercel
-2. Nối Career Hub vào nav (hạng mục Stage 6) — hiện phải gõ URL tay
-3. Nạp sponsor register (`POST /sponsors/import`) nếu cần test
-   `/coach/sponsored-companies`
-4. Cân nhắc: `public.users` không có khoá ngoại tới `auth.users`, nên xoá user
-   bên Authentication để lại dòng mồ côi, và trigger `006` chỉ xử lý
-   `on conflict (id)` — tạo lại user cùng email sẽ gãy vì `email` là unique.
-   Gặp thật khi tạo lại `coach1`. Sửa tận gốc là thêm FK `on delete cascade`,
-   nhưng phải `not valid` vì dòng `mvp@placeholder.local` không có bên `auth`.
+1. Nạp sponsor register (`POST /sponsors/import`) nếu cần test
+   `/coach/sponsored-companies` — hiện trang đó trống vì cố ý không nạp
+   `sponsor_licences`
+2. `/search` và `/companies/*` vẫn là ngõ cụt: chúng **không render nav chính**,
+   nên vào rồi chỉ có nút back của trình duyệt để ra. Nav giờ đã có lối vào
+   (`043`/commit nav), nhưng lối ra là quyết định sản phẩm — `Navigation` gọi
+   `useAuth`/`useAccount` và hiển thị chrome của người đã đăng nhập, còn
+   `/search` là trang công khai cho cả khách chưa đăng nhập.
+3. Đổi region Railway sang EU West nếu service nào còn ở US (mặc định là
+   California, mà Supabase ở London — mỗi truy vấn vượt Đại Tây Dương).
+
+**Đã cân nhắc và loại: thêm khoá ngoại `public.users.id → auth.users(id) on
+delete cascade`.** Ba khoá ngoại khai `NO ACTION` — `users.referred_by`
+(`014:19`), `users.reviewed_by` (`018:27`), `admin_actions.actor_id` (`016:16`)
+— sẽ **từ chối** cascade thay vì đi theo. Ai từng mời người khác, từng duyệt tài
+khoản, hoặc từng thao tác admin sẽ thành không xoá được. Muốn cascade chạy thông
+phải đổi cả ba sang `set null`, tức xoá danh tính người thực hiện khỏi
+`admin_actions` — bảng audit duy nhất của hệ thống. `043` giải quyết đúng triệu
+chứng (email bị kẹt) mà không đụng vào đó.
 
 ### Nạp dữ liệu — đã làm, ghi lại cách
 
