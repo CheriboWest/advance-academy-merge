@@ -20,8 +20,16 @@
 --  wants is a deliberate decision, and the decision is "the declared action is
 --  already right" - recorded in the comments below.
 --
+--  Two more were missed on the first pass and found by actually clicking the
+--  button (2026-09-24): company_sponsorship and company_sponsorship_checks are
+--  career-hub's own, added by 029 and 030 — after 027 wrote the guard. So this
+--  was never purely a merge problem: career-hub's delete button would refuse on
+--  its own database too. Nobody noticed because its coach UI was barely used —
+--  coach_company_meta held zero rows at the time of the migration.
+--
 --  Depends on: 027_ch0004, 034_ch0011 (this replaces that version of the
---  function), 001 and 008 (the four referencing tables).
+--  function), 001 and 008 (the AdvanceAcademyTools references), 029 and 030
+--  (the sponsorship ones).
 -- ============================================================================
 
 create or replace function public.delete_companies_permanently(
@@ -80,7 +88,16 @@ begin
        --   question_bank_entries     on delete set null  (likewise - a coach
        --     deleting a company must not delete interview history)
        'public.company_research_reports', 'public.company_additional_url',
-       'public.job_targets', 'public.question_bank_entries'
+       'public.job_targets', 'public.question_bank_entries',
+       -- career-hub's own sponsorship tables, added by 029 and 030 — i.e. after
+       -- 027 wrote the guard, which is why its author never listed them. Same
+       -- reasoning as the four above: both declare ON DELETE CASCADE, so the
+       -- company row going away already removes them.
+       --   company_sponsorship         on delete cascade  (a resolved link to a
+       --     sponsor licence; meaningless once the company is gone)
+       --   company_sponsorship_checks  on delete cascade  (one row of
+       --     resolution state per company)
+       'public.company_sponsorship', 'public.company_sponsorship_checks'
      );
 
   if v_unhandled is not null then
@@ -128,6 +145,7 @@ $$;
 comment on function public.delete_companies_permanently(uuid[]) is
   'Permanently deletes companies and their jobs + coach_company_meta + '
   'contacts in one transaction, unlinking (never deleting) outreach_emails. '
-  'AdvanceAcademyTools references (company_research_reports, '
-  'company_additional_url, job_targets, question_bank_entries) resolve via '
-  'their own ON DELETE actions. service_role only.';
+  'References from AdvanceAcademyTools (company_research_reports, '
+  'company_additional_url, job_targets, question_bank_entries) and from '
+  'career-hub sponsorship (company_sponsorship, company_sponsorship_checks) '
+  'resolve via their own ON DELETE actions. service_role only.';
