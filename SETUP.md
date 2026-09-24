@@ -26,16 +26,21 @@ Mỗi dòng kèm lệnh tự kiểm chứng, đừng tin cột trạng thái mà
 | 7 | Smoke test tay | ❌ chưa làm — cần trình duyệt | 11 bước ở mục 7 |
 | 8 | Repo GitHub | ✅ `CheriboWest/advance-academy-merge` | `git remote -v` |
 | — | **Deploy Vercel** | ⚠️ frontend sống, backend chưa nối | bảng ngay dưới |
-| — | **Dữ liệu** | ❌ project mới chỉ có schema, 0 dòng | `select count(*) from companies;` |
+| — | **Dữ liệu** | ✅ 7.527 companies, 30.549 jobs, 24 contacts | `select count(*) from companies;` |
 
 ### Trạng thái bản deploy
 
 ```bash
 url=https://advance-academy-merge-r7tn.vercel.app
-curl -s -o /dev/null -w "%{http_code}\n" $url/search        # 200  — Career Hub công khai chạy
-curl -s -o /dev/null -w "%{http_code}\n" $url/login         # 200  — auth client khởi tạo được
-curl -s -w "\n%{http_code}\n" $url/api/account/me           # 502  — CHƯA có backend
+curl -s -o /dev/null -w "%{http_code}\n" $url/search              # 200 — Career Hub công khai
+curl -s -o /dev/null -w "%{http_code}\n" $url/companies/ecoonline # 200 — dữ liệu thật
+curl -s -o /dev/null -w "%{http_code}\n" $url/login               # 200 — auth client OK
+curl -s -w "\n%{http_code}\n" $url/api/account/me                 # 502 — CHƯA có backend
 ```
+
+`/search` và `/companies/*` đọc thẳng Supabase từ server nên **đã chạy được bằng
+dữ liệu thật trên production**, không cần đợi Fastify. Mọi thứ đi qua
+`app/api/*` thì chưa.
 
 `502` ở dòng cuối là mong đợi cho tới khi deploy Fastify: `BACKEND_URL` chưa set
 nên proxy gọi vào `http://localhost:4000` ngay trong container của Vercel.
@@ -47,9 +52,29 @@ Stage 6 ("nhóm nav Find Jobs") ở cuối file, chưa làm là cố ý.
 ### Còn lại, theo thứ tự
 
 1. Tạo `coach2`, `student1`, `student2` (mục 4) — cần cho smoke test phân quyền
-2. Đổ dữ liệu crawl từ bản dump, nếu không `/search` sẽ trống trơn
-3. Smoke test tay, 11 bước ở mục 7, chạy trên `localhost:3000`
-4. Deploy Fastify + FastAPI, rồi set `BACKEND_URL` / `NEXT_PUBLIC_API_URL` trên Vercel
+2. Smoke test tay, 11 bước ở mục 7, chạy trên `localhost:3000`
+3. Deploy Fastify + FastAPI, rồi set `BACKEND_URL` / `NEXT_PUBLIC_API_URL` trên Vercel
+4. Nối Career Hub vào nav (hạng mục Stage 6) — hiện phải gõ URL tay
+
+### Nạp dữ liệu — đã làm, ghi lại cách
+
+Trích từ `~/career-hub-backup-2026-09-23.sql` ba bảng `companies`, `jobs`,
+`contacts` (theo thứ tự đó, vì hai bảng sau tham chiếu `companies.id`), lọc bỏ
+17 cột trôi, bọc `begin/commit`. Bỏ qua `sponsor_licences` — 139 MB và nạp lại
+được bằng `run_import()`.
+
+Hai lỗi gặp phải, cả hai đều là schema trôi chứ không phải lỗi dữ liệu:
+
+1. `column "is_recruitment_agency" does not exist` → 17 cột chỉ có trên DB sống,
+   không code nào đọc. Lọc bỏ khi nạp.
+2. `invalid input syntax for type integer: "13.00"` → `023a` khai `salary_min`
+   là `integer` theo `careerhub/schema.sql`, nhưng dữ liệu thật có 238 mức lương
+   phần lẻ khác 0. Đã sửa `023a` sang `numeric`; DB đã dựng thì chạy:
+   ```sql
+   alter table public.jobs
+     alter column salary_min type numeric,
+     alter column salary_max type numeric;
+   ```
 
 Chuỗi gọi local đã thông: `curl localhost:3000/api/account/me` trả **401**
 (`UNAUTHORIZED`) chứ không phải 502 — tức Next proxy tới được Fastify và Fastify
