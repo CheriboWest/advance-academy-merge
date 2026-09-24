@@ -34,9 +34,11 @@ export async function generateOutreach(request: OutreachRequest): Promise<Outrea
   const insightContext = insightTexts.filter((t) => t.trim()).join('\n\n---\n\n');
 
   // Split the user prompt so the stable CV prefix can carry its own cache breakpoint.
-  // On Sonnet-4 the cacheable minimum is 1024 tokens — the ~660-token system prompt is
-  // below that on its own, so the breakpoint sits at the end of `system + CV`, which
-  // clears the threshold and is byte-stable across a user's repeat requests.
+  // The breakpoint sits at the end of `system + CV` rather than on the ~660-token
+  // system prompt alone: that is byte-stable across a user's repeat requests, and it
+  // is the only arrangement that clears the cacheable minimum on either model. That
+  // minimum is 1024 tokens on Sonnet-4 but 4096 on Haiku 4.5, which is the default
+  // now — the system prompt would miss the cache entirely on its own.
   const { stable, variable } = buildOutreachUserMessageParts(request, jdContext, insightContext);
 
   const response = await withRetry(() => anthropic.messages.create({

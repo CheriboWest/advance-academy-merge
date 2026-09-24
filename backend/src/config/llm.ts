@@ -23,7 +23,7 @@ const DEFAULT_PROVIDER: LlmProvider = 'anthropic';
 const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
-const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-20250514';
+const DEFAULT_ANTHROPIC_MODEL = 'claude-haiku-4-5';
 const DEFAULT_OPENAI_MODEL = 'gpt-4.1-mini';
 const DEFAULT_ANTHROPIC_API_VERSION = '2023-06-01';
 

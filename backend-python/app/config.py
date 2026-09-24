@@ -30,7 +30,7 @@ class Settings:
 
     def __init__(self) -> None:
         self.anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
-        self.anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
+        self.anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5")
         # Request timeout (seconds) for calls to the Anthropic API.
         self.request_timeout: float = float(os.getenv("ANTHROPIC_TIMEOUT", "30"))
         # Comma-separated list of allowed CORS origins (the Vercel frontend).

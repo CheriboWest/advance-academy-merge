@@ -41,6 +41,10 @@ const PRICING: Record<string, ModelPricing> = {
   'claude-opus-4-6': { input: 15, output: 75 },
   // Haiku 4 family
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
+  // The undated alias is what the code actually asks for — config/llm.ts and
+  // cv-agents/models.ts both name it. Without this key every Haiku call fell
+  // through to FALLBACK_PRICING and was reported at Sonnet's 3/15.
+  'claude-haiku-4-5': { input: 1, output: 5 },
 };
 
 /** Conservative fallback when an unknown model name is reported. */
