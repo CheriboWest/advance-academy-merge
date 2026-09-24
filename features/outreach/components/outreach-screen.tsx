@@ -554,7 +554,7 @@ function OutreachForm({
       <button
         onClick={onGenerate}
         disabled={!canSubmit}
-        className="w-full px-6 py-5 bg-gradient-to-r from-secondary to-secondary text-primary rounded-2xl text-lg font-bold hover:from-secondary hover:to-secondary transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:-translate-y-0.5"
+        className="w-full px-6 py-5 bg-gradient-to-r from-secondary to-secondary/85 text-primary rounded-2xl text-lg font-bold hover:from-secondary/90 hover:to-secondary/75 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:-translate-y-0.5"
       >
         {loading ? (
           <>

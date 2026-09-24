@@ -161,7 +161,7 @@ function MonthCalendar({ sessions }: { sessions: CoachingSessionSummary[] }) {
             <div
               key={day}
               className={`min-h-20 rounded-md border p-1 text-left ${
-                isToday ? 'border-primary bg-primary/5/50' : 'border-transparent bg-muted/30'
+                isToday ? 'border-primary bg-primary/5' : 'border-transparent bg-muted/30'
               }`}
             >
               <div className={`text-xs ${isToday ? 'font-bold text-primary' : 'text-muted-foreground'}`}>

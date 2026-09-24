@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Menu, X } from "lucide-react";
+import { ArrowLeft, LogOut, Menu, X } from "lucide-react";
 
 import { cn } from "@/shared/utils/cn";
 import { signOutAction } from "@/app/coach/actions";
@@ -51,7 +51,17 @@ export function CoachHeader({ email }: CoachHeaderProps) {
         </div>
 
         <div className="flex items-center justify-between gap-4 sm:justify-end">
-          <span className="truncate text-sm text-muted-foreground" title={email}>
+          {/* The workspace does not render the main nav, so without this the
+              only way back to the rest of the app is the browser's back button.
+              Lives here rather than in the sidebar because the sidebar is
+              desktop-only. */}
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/">
+              <ArrowLeft className="size-4" />
+              Advance Academy
+            </Link>
+          </Button>
+          <span className="hidden truncate text-sm text-muted-foreground sm:inline" title={email}>
             {email}
           </span>
           <form action={signOutAction}>

@@ -14,7 +14,9 @@ export function CoachSidebar() {
 
   return (
     <aside className="hidden w-60 shrink-0 border-r border-border md:block">
-      <div className="sticky top-16 py-8 pr-6">
+      {/* top-0, not top-16: that offset was reserving room for the main nav bar,
+          which these pages never render. */}
+      <div className="sticky top-0 py-8 pr-6">
         <Link href="/coach/dashboard" className="flex items-center gap-2.5">
           <span className="flex size-9 items-center justify-center rounded-full bg-primary text-highlight">
             <Target className="size-5" />

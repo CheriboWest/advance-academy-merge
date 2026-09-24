@@ -276,7 +276,7 @@ function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) 
   }
 
   return (
-    <div className="rounded-xl border border-primary/20 bg-primary/5/60 p-5 mb-6">
+    <div className="rounded-xl border border-primary/20 bg-primary/5 p-5 mb-6">
       <h2 className="text-sm font-semibold text-primary mb-3">Upload a new CV</h2>
       <div className="flex flex-col sm:flex-row gap-2">
         <input
@@ -702,7 +702,7 @@ function BulletCard({
       </div>
 
       {mergeMode && (
-        <div className="mb-4 border border-primary/20 bg-primary/5/40 rounded-lg p-3">
+        <div className="mb-4 border border-primary/20 bg-primary/5 rounded-lg p-3">
           <p className="text-xs font-medium text-primary mb-2">
             Merge into one of these similar bullets:
           </p>

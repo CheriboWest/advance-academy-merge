@@ -45,7 +45,7 @@ interface NavigationProps {
  */
 const NAV_BASE =
   'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150'
-const NAV_IDLE = 'text-muted-foreground hover:bg-primary/90/10 hover:text-primary'
+const NAV_IDLE = 'text-muted-foreground hover:bg-primary/10 hover:text-primary'
 const NAV_ACTIVE = 'bg-primary text-primary-foreground hover:bg-primary/90'
 
 /** Wallet balance pill. Admins spend nothing, so they see ∞ rather than a number. */
@@ -237,7 +237,7 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="ml-auto rounded-lg p-2 text-muted-foreground transition-colors duration-150 hover:bg-primary/90/10 hover:text-primary md:hidden"
+            className="ml-auto rounded-lg p-2 text-muted-foreground transition-colors duration-150 hover:bg-primary/10 hover:text-primary md:hidden"
             aria-expanded={mobileMenuOpen}
             aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
           >

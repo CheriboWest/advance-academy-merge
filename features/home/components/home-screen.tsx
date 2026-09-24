@@ -23,7 +23,7 @@ function ToolCard({ item, onNavigate }: { item: NavItem; onNavigate: (view: View
   return (
     <button
       onClick={() => onNavigate(item.view)}
-      className="group flex h-full w-full flex-col items-start rounded-xl border bg-background p-6 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-secondary hover:bg-secondary/90/5 hover:shadow-lg"
+      className="group flex h-full w-full flex-col items-start rounded-xl border bg-background p-6 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-secondary hover:bg-secondary/5 hover:shadow-lg"
     >
       <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-secondary transition-colors duration-150 group-hover:bg-primary/90">
         <Icon className="h-5 w-5 text-primary transition-colors duration-150 group-hover:text-highlight-ink" />
@@ -80,7 +80,7 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
 
         <OrnamentalDivider />
 
-        <div className="rounded-xl bg-gradient-to-r from-primary to-primary p-12 text-center text-primary-foreground">
+        <div className="rounded-xl bg-gradient-to-r from-primary to-primary/85 p-12 text-center text-primary-foreground">
           <h2 className="mb-4 font-serif text-3xl font-bold">Ready to advance your career?</h2>
           <p className="mb-6 text-lg opacity-90">
             Start with finding your dream company or optimizing your CV.

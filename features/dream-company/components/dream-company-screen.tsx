@@ -404,7 +404,7 @@ export function DreamCompanyScreen() {
 
           {/* Live streaming progress + time expectation (M2.1 / M2.3) */}
           {loading && STEP_TIME_HINT[currentStep] && (
-            <div className="rounded-lg bg-primary/5/60 border border-primary/10 p-3">
+            <div className="rounded-lg bg-primary/5 border border-primary/10 p-3">
               <ProgressBar progress={progress} phase={rotatingPhase} />
               <p className="mt-2 text-xs text-primary/60">{STEP_TIME_HINT[currentStep]}</p>
             </div>
@@ -670,7 +670,7 @@ function RolesTab({
               aria-disabled={disabled}
               className={`transition-all ${
                 isPicking && !disabled ? 'cursor-pointer' : ''
-              } ${isSelected ? 'ring-2 ring-secondary bg-secondary/10/50' : isPicking && !disabled ? 'hover:border-border' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${isSelected ? 'ring-2 ring-secondary bg-secondary/10' : isPicking && !disabled ? 'hover:border-border' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={() => isPicking && !disabled && onToggleRole(role)}
             >
               <CardHeader className="pb-2">

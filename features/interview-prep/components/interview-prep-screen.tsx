@@ -410,7 +410,7 @@ function SetupStep({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div className="lg:col-span-2">
-        <div className="rounded-xl border border-primary/20 bg-primary/5/60 p-4">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
           <label className="block text-sm font-semibold text-primary mb-2">
             Paste a job posting URL to auto-fill
           </label>
@@ -1226,7 +1226,7 @@ function CoachPanel({
         </button>
 
         {open && preview && (
-          <div className="mt-2 border border-primary/20 bg-primary/5/60 rounded-xl p-4 space-y-3">
+          <div className="mt-2 border border-primary/20 bg-primary/5 rounded-xl p-4 space-y-3">
             {!coach && (
               <>
                 <div>
@@ -1741,7 +1741,7 @@ function CoachBulletPicker({
             <li key={b.id}>
               <button
                 onClick={() => onPick(b.id)}
-                className="w-full text-left p-1.5 rounded border hover:border-primary/40 hover:bg-primary/10/40"
+                className="w-full text-left p-1.5 rounded border hover:border-primary/40 hover:bg-primary/10"
               >
                 {b.sectionPath && (
                   <p className="text-[10px] text-subtle-foreground">{b.sectionPath}</p>

@@ -149,17 +149,25 @@
    *
    * h3 and below stay sans on purpose: career-hub's `text-lg` h3s are section
    * micro-labels, and Playfair at 18px reads as a rendering bug, not a heading.
+   *
+   * Weight and family only — NO colour. A heading inside a dark panel
+   * (`bg-primary text-primary-foreground`) has to stay legible, and pinning the
+   * base rule to `text-primary` painted navy on navy: the home page's closing
+   * banner and the CV Optimizer's analysing state both lost their heading
+   * outright. Inheriting means a heading is the colour of the text around it,
+   * which is right on every ground, and anything wanting otherwise still says
+   * so on the element.
    */
   h1:not([data-slot]),
   h2:not([data-slot]) {
-    @apply font-serif font-bold text-primary;
+    @apply font-serif font-bold;
   }
 
   h3:not([data-slot]),
   h4:not([data-slot]),
   h5,
   h6 {
-    @apply font-semibold text-foreground;
+    @apply font-semibold;
   }
 
   /*
