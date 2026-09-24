@@ -23,7 +23,7 @@ Mỗi dòng kèm lệnh tự kiểm chứng, đừng tin cột trạng thái mà
 | 5 | File env | ✅ cả ba file đã đầy đủ | `grep -rn PASTE_ .env.local backend/.env backend-python/.env` → rỗng |
 | 6 | Cài & chạy | ✅ ba tiến trình lên, health 200 | `curl localhost:8000/health`, `curl localhost:4000/api/health` |
 | 7 | Test tự động | ✅ tsc 0 lỗi, backend 239/239, vitest 7/7, python 32/32 | các lệnh ở mục 7 |
-| 7 | Smoke test tay | ❌ chưa làm — cần trình duyệt | 11 bước ở mục 7 |
+| 7 | Smoke test tay | ✅ xong 2026-09-24, tìm ra 3 bug (xem dưới) | 11 bước ở mục 7 |
 | 8 | Repo GitHub | ✅ `CheriboWest/advance-academy-merge` | `git remote -v` |
 | — | **Deploy Vercel** | ⚠️ frontend sống, backend chưa nối | bảng ngay dưới |
 | — | **Dữ liệu** | ✅ 7.527 companies, 30.549 jobs, 24 contacts | `select count(*) from companies;` |
@@ -49,12 +49,41 @@ nên proxy gọi vào `http://localhost:4000` ngay trong container của Vercel.
 không trỏ tới `/search` hay `/coach/*`. Vào thẳng bằng URL. Đây là hạng mục
 Stage 6 ("nhóm nav Find Jobs") ở cuối file, chưa làm là cố ý.
 
+### Smoke test đã tìm ra gì (2026-09-24)
+
+Cả 11 bước đã chạy, trừ bước 10 (`/coach/sponsored-companies`) trống vì cố ý
+không nạp `sponsor_licences`. Ba bug, **không bug nào bị test tự động bắt** —
+cả ba đều nằm ở ranh giới code ↔ database, nơi 239 + 7 + 32 test đều mù.
+
+1. **Nút xoá công ty từ chối chạy.** `039` bỏ sót `company_sponsorship` và
+   `company_sponsorship_checks`. Đã sửa; chi tiết trong chính file `039`.
+2. **Crawler báo `success` nhưng mọi thống kê về 0.** Không phải crawl hỏng —
+   nó nạp 100 job, chèn 43. Chỗ hỏng là ghi thống kê: code ghi
+   `error_message` và `jobs_found`, migration tạo `error` và `jobs_fetched`.
+   `042` thêm hai cột đúng tên.
+3. **Crawler chạy mà không có API key vẫn báo `success`** với `raw_jobs: 0` và
+   `error: null`. Chưa sửa — nhưng nhớ: **crawl ra 0 job thì nghi thiếu key
+   trước khi nghi hết quota.** Kiểm tra nhanh:
+   ```bash
+   curl -s "https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=$ADZUNA_APP_ID&app_key=$ADZUNA_APP_KEY&results_per_page=1&what=test"
+   ```
+
+Bài học chung cho cutover: **DB sống của career-hub trôi khỏi migration ở ít
+nhất bốn chỗ** (RLS policy, 3 bảng gốc, 17 cột thừa + kiểu `salary`, 2 cột
+`crawl_runs` sai tên). Dựng project mới thuần từ migration sẽ **không** ra đúng
+schema mà code nhắm tới. Luôn đối chiếu với DB sống trước khi tin migration.
+
 ### Còn lại, theo thứ tự
 
-1. Tạo `coach2`, `student1`, `student2` (mục 4) — cần cho smoke test phân quyền
-2. Smoke test tay, 11 bước ở mục 7, chạy trên `localhost:3000`
-3. Deploy Fastify + FastAPI, rồi set `BACKEND_URL` / `NEXT_PUBLIC_API_URL` trên Vercel
-4. Nối Career Hub vào nav (hạng mục Stage 6) — hiện phải gõ URL tay
+1. Deploy Fastify + FastAPI, rồi set `BACKEND_URL` / `NEXT_PUBLIC_API_URL` trên Vercel
+2. Nối Career Hub vào nav (hạng mục Stage 6) — hiện phải gõ URL tay
+3. Nạp sponsor register (`POST /sponsors/import`) nếu cần test
+   `/coach/sponsored-companies`
+4. Cân nhắc: `public.users` không có khoá ngoại tới `auth.users`, nên xoá user
+   bên Authentication để lại dòng mồ côi, và trigger `006` chỉ xử lý
+   `on conflict (id)` — tạo lại user cùng email sẽ gãy vì `email` là unique.
+   Gặp thật khi tạo lại `coach1`. Sửa tận gốc là thêm FK `on delete cascade`,
+   nhưng phải `not valid` vì dòng `mvp@placeholder.local` không có bên `auth`.
 
 ### Nạp dữ liệu — đã làm, ghi lại cách
 
