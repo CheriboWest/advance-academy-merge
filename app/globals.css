@@ -59,11 +59,16 @@
   --highlight-ink: oklch(0.620 0.130 66);
 
   /* One step lighter than --muted-foreground, for text that is deliberately
-     recessive: placeholders, timestamps, decorative icons. ~2.6:1 on white, so
-     it is below the threshold for anything a reader actually needs — if the
-     text carries meaning, use --muted-foreground instead. It exists because the
-     app had FOUR grays doing three jobs; this is the third job. */
-  --subtle-foreground: #9BA3AC;
+     recessive: placeholders, timestamps, captions, decorative icons. Exists
+     because the app had FOUR grays doing three jobs; this is the third job.
+
+     4.94:1 on --background and 4.69:1 on --card, so it passes AA as body text
+     on both surfaces it actually appears on. It cannot get much lighter than
+     this and stay readable, which is why it sits closer to --muted-foreground
+     than "subtle" suggests — that is the constraint, not an oversight. The
+     value it replaced (#9BA3AC, Tailwind's gray-400) measured 2.55:1, and 65 of
+     its 71 uses are real text, not icons. */
+  --subtle-foreground: #68717D;
 }
 
 @theme inline {
