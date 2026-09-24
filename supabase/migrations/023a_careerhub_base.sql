@@ -18,8 +18,12 @@ create table if not exists public.jobs (
   title         text,
   location_raw  text,
   city          text,
-  salary_min    integer,
-  salary_max    integer,
+  -- `careerhub/schema.sql` says integer and the crawler's NormalizedJob types
+  -- these as Optional[int], but career-hub's live table had drifted to numeric
+  -- and holds fractional hourly rates — 238 of them. integer would round those
+  -- away on any future import, and numeric costs nothing to accept ints.
+  salary_min    numeric,
+  salary_max    numeric,
   posted_at     timestamptz,
   is_active     boolean default true,
   source        text,
