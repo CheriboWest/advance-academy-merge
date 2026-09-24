@@ -94,6 +94,17 @@ Ba điều chỉnh so với giả định ban đầu của file này:
   `company_sponsorship_matches`, `company_sponsorship_snapshots`,
   `company_sponsorship_assessments`). Không dòng code nào đụng tới — tàn dư của
   thế hệ sponsorship trước khi `029`/`030` thay thế. **Cố ý không bê sang.**
+- **Và 17 cột trôi tương tự**, phát hiện khi nạp dữ liệu: `companies` thừa
+  `is_recruitment_agency`, `size_band`, `first_source`; `jobs` thừa 14 cột
+  (`description`, `is_remote`, `contract_type`, `salary_currency`,
+  `salary_period`, `region`, `postcode`, `role_category`, `raw_data`,
+  `expires_at`, `first_seen`, `last_seen`, `source_priority`, `updated_at`).
+  Không migration nào tạo chúng, `careerhub/schema.sql` cũng không.
+
+  Đã đối chiếu với code trước khi bỏ: crawler ghi đúng 12 cột mà `023a` tạo
+  (`pipeline.py:357-371`), `summarizer.py:102` chỉ đọc `title`. Không chỗ nào
+  đọc 17 cột kia. **Không tạo lại** — đừng thêm cột chết vào schema chỉ để chứa
+  dữ liệu không ai đọc.
 
 > **Nếu chạy lại: làm trước mọi thứ khác.** Project đã pause thì không mở SQL
 > Editor được nữa — pause trước khi dump là tự khoá mình khỏi bản duy nhất.
