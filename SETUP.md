@@ -19,10 +19,11 @@ Mỗi dòng kèm lệnh tự kiểm chứng, đừng tin cột trạng thái mà
 | 1 | Cứu RLS | ✅ `041` đã commit | `ls supabase/migrations/041_*.sql` |
 | 2 | Supabase project mới | ✅ `mfohgcwviupeklfyvzfo`, eu-west-2, ES256 | `curl -s https://mfohgcwviupeklfyvzfo.supabase.co/auth/v1/.well-known/jwks.json` |
 | 3 | Apply 43 migration | ✅ sạch, 2 câu verify đều 0 dòng | hai câu SQL ở cuối mục 3 |
-| 4 | Tài khoản test | ⚠️ **mới có `coach1`, chưa confirm** | `select email, email_confirmed_at is not null from auth.users;` |
-| 5 | File env | ❌ chưa có file nào | `ls .env.local backend/.env backend-python/.env` |
-| 6 | Cài & chạy | ⚠️ `node_modules` + `.venv` đã có, chưa chạy được vì thiếu env | `ls node_modules backend-python/.venv` |
-| 7 | Kiểm tra toàn bộ | ❌ chưa chạy | — |
+| 4 | Tài khoản test | ⚠️ `coach1` xong (admin+approved); thiếu `coach2`, `student1`, `student2` | `select email, is_admin, status from public.users;` |
+| 5 | File env | ✅ cả ba file đã đầy đủ | `grep -rn PASTE_ .env.local backend/.env backend-python/.env` → rỗng |
+| 6 | Cài & chạy | ✅ ba tiến trình lên, health 200 | `curl localhost:8000/health`, `curl localhost:4000/api/health` |
+| 7 | Test tự động | ✅ tsc 0 lỗi, backend 239/239, vitest 7/7, python 32/32 | các lệnh ở mục 7 |
+| 7 | Smoke test tay | ❌ chưa làm — cần trình duyệt | 11 bước ở mục 7 |
 | 8 | Repo GitHub | ✅ `CheriboWest/advance-academy-merge` | `git remote -v` |
 | — | **Deploy Vercel** | ⚠️ frontend sống, backend chưa nối | bảng ngay dưới |
 | — | **Dữ liệu** | ❌ project mới chỉ có schema, 0 dòng | `select count(*) from companies;` |
@@ -45,11 +46,14 @@ Stage 6 ("nhóm nav Find Jobs") ở cuối file, chưa làm là cố ý.
 
 ### Còn lại, theo thứ tự
 
-1. Confirm + phân quyền `coach1`, tạo 3 tài khoản còn lại (mục 4)
-2. Ba file env (mục 5)
-3. Chạy local + test (mục 6, 7) ← rẻ hơn debug trên production
-4. Deploy Fastify + FastAPI, rồi set nốt `BACKEND_URL` / `NEXT_PUBLIC_API_URL` trên Vercel
-5. Đổ dữ liệu crawl từ bản dump (tuỳ chọn, để smoke test có cái mà xem)
+1. Tạo `coach2`, `student1`, `student2` (mục 4) — cần cho smoke test phân quyền
+2. Đổ dữ liệu crawl từ bản dump, nếu không `/search` sẽ trống trơn
+3. Smoke test tay, 11 bước ở mục 7, chạy trên `localhost:3000`
+4. Deploy Fastify + FastAPI, rồi set `BACKEND_URL` / `NEXT_PUBLIC_API_URL` trên Vercel
+
+Chuỗi gọi local đã thông: `curl localhost:3000/api/account/me` trả **401**
+(`UNAUTHORIZED`) chứ không phải 502 — tức Next proxy tới được Fastify và Fastify
+từ chối đúng vì thiếu token. Trên Vercel vẫn 502 cho tới khi làm xong mục 4.
 
 ---
 
