@@ -142,7 +142,7 @@ export function CvLibraryScreen() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-4xl font-serif font-bold text-blue-900 mb-2">CV Library</h1>
         <p className="text-gray-600 text-lg">
@@ -417,7 +417,7 @@ function BulletResolutionStep({
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
         onClick={onBack}
         className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 mb-4"
@@ -590,7 +590,7 @@ function CvDetail({
   )
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <button
         onClick={onBack}
         className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-800 mb-4"
