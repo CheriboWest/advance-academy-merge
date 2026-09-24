@@ -40,17 +40,31 @@ async function upsertMeta(
     return { error: "You must be signed in." };
   }
 
-  const { error } = await supabase.from("coach_company_meta").upsert(
-    {
-      coach_user_id: user.id,
-      company_id: companyId,
-      ...patch,
-    },
-    { onConflict: "coach_user_id,company_id" }
-  );
+  // `.select()` is what makes a no-op distinguishable from a write. Without it
+  // PostgREST gets `Prefer: return=minimal` and an upsert that matched no row
+  // under RLS comes back indistinguishable from one that inserted.
+  const { data, error } = await supabase
+    .from("coach_company_meta")
+    .upsert(
+      {
+        coach_user_id: user.id,
+        company_id: companyId,
+        ...patch,
+      },
+      { onConflict: "coach_user_id,company_id" }
+    )
+    .select("company_id");
 
   if (error) {
     return { error: error.message };
+  }
+
+  if (!data || data.length === 0) {
+    return {
+      error:
+        "Saved nothing — the database accepted the request but changed no row. " +
+        "Usually means the session did not reach it.",
+    };
   }
 
   revalidateCoachPaths();

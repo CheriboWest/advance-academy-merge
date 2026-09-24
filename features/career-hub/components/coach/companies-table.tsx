@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { EyeOff, RotateCcw, Search, Star, Trash2, X } from "lucide-react";
+import { EyeOff, RotateCcw, Search, Star, TriangleAlert, Trash2, X } from "lucide-react";
 
 import { cn } from "@/shared/utils/cn";
 import type { CoachCompanyRow } from "@/features/career-hub/lib/types";
@@ -44,6 +44,7 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
   const [data, setData] = React.useState(rows);
   const [query, setQuery] = React.useState("");
   const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const [actionError, setActionError] = React.useState<string | null>(null);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [toDelete, setToDelete] = React.useState<CoachCompanyRow[] | null>(null);
   const [, startTransition] = React.useTransition();
@@ -110,44 +111,66 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
     });
   }
 
-  function toggleStar(row: CoachCompanyRow) {
-    const next = !row.starred;
-    patchRow(row.company_id, { starred: next }); // optimistic
-    setPendingId(row.company_id);
+  /**
+   * Runs an optimistic action: undo the optimistic edit and SAY SO if it fails.
+   *
+   * All three handlers below used to revert in silence, so a write the server
+   * refused looked exactly like one it accepted — the row stayed gone until a
+   * reload. The `catch` matters as much as the `result.error` branch: a thrown
+   * action (a stale Server Action id after an edit, a redirect on the POST)
+   * skipped both the revert and any sign that anything had happened.
+   */
+  function runAction(
+    action: () => Promise<{ error: string | null }>,
+    revert: () => void,
+    companyId: string
+  ) {
+    setActionError(null);
+    setPendingId(companyId);
     startTransition(async () => {
-      const result = await toggleStarAction(row.company_id, next);
-      if (result.error) {
-        patchRow(row.company_id, { starred: !next }); // revert
+      try {
+        const result = await action();
+        if (result.error) {
+          revert();
+          setActionError(result.error);
+        }
+      } catch (cause) {
+        revert();
+        setActionError(cause instanceof Error ? cause.message : String(cause));
       }
       setPendingId(null);
     });
+  }
+
+  function toggleStar(row: CoachCompanyRow) {
+    const next = !row.starred;
+    patchRow(row.company_id, { starred: next }); // optimistic
+    runAction(
+      () => toggleStarAction(row.company_id, next),
+      () => patchRow(row.company_id, { starred: !next }),
+      row.company_id
+    );
   }
 
   /** Per-coach, reversible hide — not a deletion. */
   function hideCompany(row: CoachCompanyRow) {
     const snapshot = data;
     setData((prev) => prev.filter((r) => r.company_id !== row.company_id)); // optimistic
-    setPendingId(row.company_id);
-    startTransition(async () => {
-      const result = await hideCompanyAction(row.company_id);
-      if (result.error) {
-        setData(snapshot); // revert
-      }
-      setPendingId(null);
-    });
+    runAction(
+      () => hideCompanyAction(row.company_id),
+      () => setData(snapshot),
+      row.company_id
+    );
   }
 
   function restoreCompany(row: CoachCompanyRow) {
     const snapshot = data;
     setData((prev) => prev.filter((r) => r.company_id !== row.company_id)); // optimistic
-    setPendingId(row.company_id);
-    startTransition(async () => {
-      const result = await restoreCompanyAction(row.company_id);
-      if (result.error) {
-        setData(snapshot); // revert
-      }
-      setPendingId(null);
-    });
+    runAction(
+      () => restoreCompanyAction(row.company_id),
+      () => setData(snapshot),
+      row.company_id
+    );
   }
 
   /**
@@ -165,6 +188,13 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
 
   return (
     <div className="space-y-4">
+      {actionError && (
+        <p role="alert" className="flex items-start gap-2 text-sm text-destructive">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          {actionError}
+        </p>
+      )}
+
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
