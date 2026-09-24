@@ -45,17 +45,17 @@ interface NavigationProps {
  */
 const NAV_BASE =
   'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150'
-const NAV_IDLE = 'text-muted-foreground hover:bg-blue-900/10 hover:text-blue-900'
-const NAV_ACTIVE = 'bg-blue-900 text-white hover:bg-blue-800'
+const NAV_IDLE = 'text-muted-foreground hover:bg-primary/90/10 hover:text-primary'
+const NAV_ACTIVE = 'bg-primary text-primary-foreground hover:bg-primary/90'
 
 /** Wallet balance pill. Admins spend nothing, so they see ∞ rather than a number. */
 function CreditPill({ credits, isAdmin }: { credits: number; isAdmin: boolean }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-900"
+      className="inline-flex items-center gap-1.5 rounded-full bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary"
       title={isAdmin ? 'Admins are not charged credits' : 'Credits left'}
     >
-      <Coins className="h-4 w-4 text-yellow-500" />
+      <Coins className="h-4 w-4 text-highlight-ink" />
       {isAdmin ? '∞' : credits}
     </span>
   )
@@ -84,7 +84,7 @@ function ToolsMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className={`${NAV_BASE} ${active ? NAV_ACTIVE : NAV_IDLE} cursor-pointer data-[state=open]:bg-blue-900/10 data-[state=open]:text-blue-900`}
+        className={`${NAV_BASE} ${active ? NAV_ACTIVE : NAV_IDLE} cursor-pointer data-[state=open]:bg-primary/10 data-[state=open]:text-primary`}
       >
         {TriggerIcon ? <TriggerIcon className="h-4 w-4" /> : null}
         {active ? active.label : 'Tools'}
@@ -132,13 +132,13 @@ function ToolMenuItem({
     >
       <span
         className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-          active ? 'bg-blue-900 text-white' : 'bg-yellow-500/15 text-blue-900'
+          active ? 'bg-primary text-primary-foreground' : 'bg-secondary/15 text-primary'
         }`}
       >
         <Icon className="h-4 w-4" />
       </span>
       <span className="flex min-w-0 flex-col">
-        <span className="text-sm font-medium text-blue-900">{item.label}</span>
+        <span className="text-sm font-medium text-primary">{item.label}</span>
         <span className="text-xs leading-snug text-muted-foreground whitespace-normal">
           {item.description}
         </span>
@@ -175,10 +175,10 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
             className="flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 transition-opacity duration-150 hover:opacity-80"
             aria-label="Advance Academy home"
           >
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-900">
-              <Target className="h-5 w-5 text-yellow-500" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
+              <Target className="h-5 w-5 text-highlight-ink" />
             </span>
-            <span className="font-serif text-xl font-semibold text-blue-900">Advance Academy</span>
+            <span className="font-serif text-xl font-semibold text-primary">Advance Academy</span>
           </button>
 
           {/* Desktop: tools behind one trigger, records next to them. */}
@@ -237,7 +237,7 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
 
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="ml-auto rounded-lg p-2 text-muted-foreground transition-colors duration-150 hover:bg-blue-900/10 hover:text-blue-900 md:hidden"
+            className="ml-auto rounded-lg p-2 text-muted-foreground transition-colors duration-150 hover:bg-primary/90/10 hover:text-primary md:hidden"
             aria-expanded={mobileMenuOpen}
             aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
           >

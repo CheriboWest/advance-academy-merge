@@ -79,14 +79,14 @@ export function ManualContextManager({ contexts, onUpdate }: ManualContextManage
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">
+                    <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
                       {c.title}
                     </span>
                     <a
                       href={c.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-500 hover:underline truncate max-w-[260px]"
+                      className="text-xs text-primary hover:underline truncate max-w-[260px]"
                     >
                       {c.url}
                     </a>
@@ -111,7 +111,7 @@ export function ManualContextManager({ contexts, onUpdate }: ManualContextManage
                     <textarea
                       value={c.extractedText}
                       onChange={(e) => updateExtractedText(c.id, e.target.value)}
-                      className="mt-2 w-full min-h-20 resize-y rounded-lg border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="mt-2 w-full min-h-20 resize-y rounded-lg border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   )}
                 </div>
@@ -138,13 +138,13 @@ export function ManualContextManager({ contexts, onUpdate }: ManualContextManage
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title (e.g. Job Description)"
-            className="md:w-1/3 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="md:w-1/3 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://..."
-            className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault()
@@ -156,7 +156,7 @@ export function ManualContextManager({ contexts, onUpdate }: ManualContextManage
             type="button"
             onClick={addContext}
             disabled={!title.trim() || !url.trim()}
-            className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             <Plus className="h-4 w-4" /> Add
           </button>

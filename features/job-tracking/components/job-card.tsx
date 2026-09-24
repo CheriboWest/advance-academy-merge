@@ -125,7 +125,7 @@ export function JobCard({ job, onEdit }: JobCardProps) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-blue-900">{job.title}</h3>
+            <h3 className="text-sm font-semibold text-primary">{job.title}</h3>
             <JobStatusBadge status={job.status} />
           </div>
           <p className="mt-0.5 text-sm text-foreground">
@@ -144,7 +144,7 @@ export function JobCard({ job, onEdit }: JobCardProps) {
                 href={job.jobUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-blue-700 hover:underline"
+                className="inline-flex items-center gap-1 text-primary hover:underline"
               >
                 <ExternalLink className="h-3 w-3" />
                 {hostOf(job.jobUrl)}

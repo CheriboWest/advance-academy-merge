@@ -396,7 +396,7 @@ export function CoachingScreen() {
         ) : null}
 
         {outOfQuota ? (
-          <div className="flex gap-2 rounded-md border border-yellow-500/40 bg-yellow-50 p-4 text-sm text-yellow-900">
+          <div className="flex gap-2 rounded-md border border-secondary/40 bg-secondary/10 p-4 text-sm text-highlight-ink">
             <Info className="mt-0.5 h-4 w-4 shrink-0" />
             <span>
               You have used the coaching session included with your Mentorship. Ask your coach if

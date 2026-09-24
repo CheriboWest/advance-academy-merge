@@ -284,7 +284,7 @@ export function LeadsTable() {
                         */}
                         <button
                           onClick={() => setOpenPersonId(r.id)}
-                          className="text-left text-blue-900 transition-colors duration-150 hover:underline"
+                          className="text-left text-primary transition-colors duration-150 hover:underline"
                         >
                           {r.email}
                         </button>

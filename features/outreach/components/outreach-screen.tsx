@@ -19,7 +19,7 @@ import { EnrichmentPanel } from './enrichment-panel'
 import { ManualContextManager } from './manual-context-manager'
 
 const inputClass =
-  'w-full px-4 py-2.5 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm'
+  'w-full px-4 py-2.5 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-ring text-sm'
 const textareaClass = `${inputClass} min-h-24 resize-y`
 
 function Field({
@@ -33,7 +33,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-semibold text-blue-900 mb-1.5 flex justify-between items-center">
+      <label className="block text-sm font-semibold text-primary mb-1.5 flex justify-between items-center">
         <span>
           {label} {required && <span className="text-red-500 ml-0.5">*</span>}
         </span>
@@ -56,7 +56,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="px-4 py-2 bg-yellow-500 text-blue-900 rounded-lg font-medium hover:bg-yellow-400 transition-colors flex items-center gap-2 text-sm shadow-sm"
+      className="px-4 py-2 bg-secondary text-primary rounded-lg font-medium hover:bg-secondary/90 transition-colors flex items-center gap-2 text-sm shadow-sm"
     >
       {copied ? (
         <>
@@ -101,7 +101,7 @@ function FileExtractor({
   return (
     <div className="mb-2">
       <div className="flex items-center gap-3">
-        <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-semibold hover:bg-blue-100 transition-colors">
+        <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-primary/5 text-primary rounded-lg text-sm font-semibold hover:bg-primary/10 transition-colors">
           <Upload className="w-4 h-4" />
           {loading ? 'Extracting...' : 'Upload File'}
           <input type="file" accept=".pdf,.docx" className="hidden" onChange={handleFile} disabled={loading} />
@@ -147,7 +147,7 @@ function UrlExtractor({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder={placeholder}
-          className="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-ring text-sm"
         />
         <button
           onClick={handleExtract}
@@ -216,7 +216,7 @@ function JdInput({
           onClick={() => setActiveTab('url')}
           className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
             activeTab === 'url'
-              ? 'bg-blue-600 text-white'
+              ? 'bg-primary text-primary-foreground'
               : 'bg-card text-muted-foreground hover:bg-muted'
           }`}
         >
@@ -227,7 +227,7 @@ function JdInput({
           onClick={() => setActiveTab('paste')}
           className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
             activeTab === 'paste'
-              ? 'bg-blue-600 text-white'
+              ? 'bg-primary text-primary-foreground'
               : 'bg-card text-muted-foreground hover:bg-muted'
           }`}
         >
@@ -244,13 +244,13 @@ function JdInput({
               onChange={(e) => onJdUrlChange(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleValidate()}
               placeholder="https://company.com/jobs/role or LinkedIn job URL"
-              className="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-ring text-sm"
             />
             <button
               type="button"
               onClick={handleValidate}
               disabled={jdValidating || !jdUrl.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
             >
               {jdValidating ? (
                 <><Loader className="w-4 h-4 animate-spin" /> Validating…</>
@@ -285,7 +285,7 @@ function JdInput({
 
       {activeTab === 'url' && jdText && (
         <details className="mt-3">
-          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-blue-600 font-semibold">
+          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-primary font-semibold">
             View / edit extracted JD text
           </summary>
           <textarea
@@ -345,8 +345,8 @@ function OutreachForm({
     <div className="space-y-8">
       {/* Section 1 — Identity */}
       <div className="p-8 bg-background border rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
-          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">1</span>
+        <h3 className="text-xl font-serif font-bold text-primary mb-6 flex items-center gap-2">
+          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm">1</span>
           Who are you? (Identity Context)
         </h3>
 
@@ -357,7 +357,7 @@ function OutreachForm({
               value={form.cvText}
               onChange={(e) => updateForm({ cvText: e.target.value })}
               placeholder="Review or paste your resume content here..."
-              className={`${textareaClass} h-40 focus:ring-blue-500`}
+              className={`${textareaClass} h-40 focus:ring-ring`}
             />
           </Field>
 
@@ -380,7 +380,7 @@ function OutreachForm({
                   value={form.portfolioText}
                   onChange={(e) => updateForm({ portfolioText: e.target.value })}
                   placeholder="Extracted portfolio text…"
-                  className={`${textareaClass} h-24 focus:ring-blue-500 text-xs`}
+                  className={`${textareaClass} h-24 focus:ring-ring text-xs`}
                 />
               )}
             </Field>
@@ -390,8 +390,8 @@ function OutreachForm({
 
       {/* Section 2 — Target + JD */}
       <div className="p-8 bg-background border rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
-          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">2</span>
+        <h3 className="text-xl font-serif font-bold text-primary mb-6 flex items-center gap-2">
+          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm">2</span>
           The Role & Target
         </h3>
         <div className="space-y-6">
@@ -508,8 +508,8 @@ function OutreachForm({
 
       {/* Section 4 — Output preferences */}
       <div className="p-8 bg-background border rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <h3 className="text-xl font-serif font-bold text-blue-900 mb-4 flex items-center gap-2">
-          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 text-sm">4</span>
+        <h3 className="text-xl font-serif font-bold text-primary mb-4 flex items-center gap-2">
+          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-sm">4</span>
           What to generate
         </h3>
         <p className="ml-10 mb-4 text-sm text-muted-foreground">
@@ -525,7 +525,7 @@ function OutreachForm({
                 })
               }
             />
-            <span className="text-sm font-semibold text-blue-900">📧 Email</span>
+            <span className="text-sm font-semibold text-primary">📧 Email</span>
           </label>
           <label className="flex items-center gap-3 cursor-pointer">
             <Checkbox
@@ -536,7 +536,7 @@ function OutreachForm({
                 })
               }
             />
-            <span className="text-sm font-semibold text-blue-900">💼 LinkedIn message</span>
+            <span className="text-sm font-semibold text-primary">💼 LinkedIn message</span>
           </label>
         </div>
         {!atLeastOneOutput && (
@@ -554,7 +554,7 @@ function OutreachForm({
       <button
         onClick={onGenerate}
         disabled={!canSubmit}
-        className="w-full px-6 py-5 bg-gradient-to-r from-yellow-500 to-yellow-400 text-blue-900 rounded-2xl text-lg font-bold hover:from-yellow-400 hover:to-yellow-300 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:-translate-y-0.5"
+        className="w-full px-6 py-5 bg-gradient-to-r from-secondary to-secondary text-primary rounded-2xl text-lg font-bold hover:from-secondary hover:to-secondary transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 transform hover:-translate-y-0.5"
       >
         {loading ? (
           <>
@@ -597,7 +597,7 @@ export function OutreachScreen() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="text-center mb-12">
-        <h1 className="text-4xl sm:text-5xl font-serif font-extrabold text-blue-900 mb-4 tracking-tight">
+        <h1 className="text-4xl sm:text-5xl font-serif font-extrabold text-primary mb-4 tracking-tight">
           Recruitment Outreach Generator
         </h1>
         <p className="text-muted-foreground text-lg sm:text-xl max-w-2xl mx-auto">
@@ -622,11 +622,11 @@ export function OutreachScreen() {
           <div className="mb-8 flex items-center justify-between bg-background p-4 rounded-xl border border-border shadow-sm">
             <button
               onClick={() => setResults(null)}
-              className="px-4 py-2 text-yellow-600 font-semibold hover:bg-yellow-50 rounded-lg flex items-center gap-2 transition-colors"
+              className="px-4 py-2 text-highlight-ink font-semibold hover:bg-secondary/10 rounded-lg flex items-center gap-2 transition-colors"
             >
               &larr; Create Another
             </button>
-            <div className="flex items-center gap-2 text-sm font-semibold text-white bg-gradient-to-r from-blue-900 to-blue-800 px-4 py-1.5 rounded-full shadow-inner">
+            <div className="flex items-center gap-2 text-sm font-semibold text-primary-foreground bg-gradient-to-r from-primary to-primary px-4 py-1.5 rounded-full shadow-inner">
               <CheckCircle2 className="h-4 w-4" />
               {results.intent
                 .split('_')
@@ -638,8 +638,8 @@ export function OutreachScreen() {
           <div className="space-y-8">
             {results.linkedInMessage !== undefined && (
               <div className="bg-background rounded-2xl p-8 border shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
-                <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
+                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+                <h3 className="text-xl font-serif font-bold text-primary mb-6 flex items-center gap-2">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="24"
@@ -650,7 +650,7 @@ export function OutreachScreen() {
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="text-blue-500"
+                    className="text-primary"
                   >
                     <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
                     <rect x="2" y="9" width="4" height="12"></rect>
@@ -678,8 +678,8 @@ export function OutreachScreen() {
 
             {results.email && (
               <div className="bg-background rounded-2xl p-8 border shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-yellow-500" />
-                <h3 className="text-xl font-serif font-bold text-blue-900 mb-6 flex items-center gap-2">
+                <div className="absolute top-0 left-0 w-1 h-full bg-secondary" />
+                <h3 className="text-xl font-serif font-bold text-primary mb-6 flex items-center gap-2">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="24"
@@ -690,7 +690,7 @@ export function OutreachScreen() {
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="text-yellow-500"
+                    className="text-highlight-ink"
                   >
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
                     <polyline points="22,6 12,13 2,6"></polyline>

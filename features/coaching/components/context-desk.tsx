@@ -24,7 +24,7 @@ import { useCoachingAction, useUpdateCoachingSession } from '../hooks/use-coachi
 
 const SEVERITY_STYLE: Record<ContextGap['severity'], string> = {
   blocking: 'border-red-300 bg-red-50 text-red-900',
-  important: 'border-yellow-300 bg-yellow-50 text-yellow-900',
+  important: 'border-secondary/40 bg-secondary/10 text-highlight-ink',
   nice_to_have: 'bg-card text-foreground',
 }
 
@@ -94,11 +94,11 @@ export function ContextDesk({ session }: { session: CoachingSession }) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4">
-        <h2 className="text-base font-semibold text-yellow-900">
+      <div className="rounded-lg border border-secondary/40 bg-secondary/10 p-4">
+        <h2 className="text-base font-semibold text-highlight-ink">
           Not enough to build a pack from yet
         </h2>
-        <p className="mt-1 text-sm text-yellow-900/80">
+        <p className="mt-1 text-sm text-highlight-ink/80">
           Generation stopped before the expensive steps. Add what you can below, then generate.
         </p>
       </div>

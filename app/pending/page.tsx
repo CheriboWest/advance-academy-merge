@@ -18,8 +18,8 @@ export default function PendingPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-card px-4">
       <div className="w-full max-w-md bg-background rounded-2xl shadow-xl p-8 text-center">
-        <div className="w-16 h-16 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg className="w-8 h-8 text-blue-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -33,7 +33,7 @@ export default function PendingPage() {
           </svg>
         </div>
 
-        <h1 className="text-xl font-serif font-bold text-blue-900 mb-2">
+        <h1 className="text-xl font-serif font-bold text-primary mb-2">
           {loading ? 'Checking your account…' : rejected ? 'Access not approved' : 'Awaiting approval'}
         </h1>
 
@@ -42,7 +42,7 @@ export default function PendingPage() {
             <>Your account request was not approved. Please speak to your programme coach if you think this is a mistake.</>
           ) : (
             <>
-              Thanks for signing up{user?.email ? <> as <strong className="text-blue-900">{user.email}</strong></> : null}.
+              Thanks for signing up{user?.email ? <> as <strong className="text-primary">{user.email}</strong></> : null}.
               A coach needs to approve your account before you can use the tools — this is usually done within one working day.
               You&apos;ll be able to sign in and start straight away once it&apos;s approved.
             </>
@@ -52,13 +52,13 @@ export default function PendingPage() {
         <div className="flex flex-col gap-2">
           <button
             onClick={() => window.location.reload()}
-            className="w-full rounded-lg bg-yellow-500 text-blue-900 text-sm font-semibold py-3 hover:bg-yellow-400 transition"
+            className="w-full rounded-lg bg-secondary text-primary text-sm font-semibold py-3 hover:bg-secondary/90 transition"
           >
             Check again
           </button>
           <button
             onClick={() => void signOut()}
-            className="w-full text-sm font-semibold text-blue-900 hover:text-yellow-600 py-2 transition-colors"
+            className="w-full text-sm font-semibold text-primary hover:text-highlight-ink py-2 transition-colors"
           >
             Sign out
           </button>

@@ -120,7 +120,7 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-4xl font-serif font-bold text-blue-900 mb-2">
+        <h1 className="text-4xl font-serif font-bold text-primary mb-2">
           Interview Preparation
         </h1>
         <p className="text-muted-foreground text-lg">
@@ -136,12 +136,12 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
       )}
 
       {coachingLoad.state === 'ready' && (
-        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-          <p className="text-sm font-medium text-blue-900">
+        <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4">
+          <p className="text-sm font-medium text-primary">
             Practising the questions your coach approved
             {coachingLoad.companyName ? ` for ${coachingLoad.companyName}` : ''}
           </p>
-          <p className="mt-0.5 text-sm text-blue-900/80">
+          <p className="mt-0.5 text-sm text-primary/80">
             {coachingLoad.questionCount} question
             {coachingLoad.questionCount === 1 ? '' : 's'} loaded, starred ones first. Your CV, the
             job description and the company are already filled in — pick an interviewer and start.
@@ -150,7 +150,7 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
       )}
 
       {coachingLoad.state === 'error' && (
-        <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-900">
+        <div className="mb-6 rounded-lg border border-secondary/40 bg-secondary/10 p-4 text-sm text-highlight-ink">
           {coachingLoad.message} You can still set a mock up by hand below.
         </div>
       )}
@@ -231,7 +231,7 @@ function StepIndicator({ currentStep }: { currentStep: InterviewStep }) {
           <div
             className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
               i === currentIndex
-                ? 'bg-blue-900 text-white'
+                ? 'bg-primary text-primary-foreground'
                 : i < currentIndex
                   ? 'bg-emerald-100 text-emerald-700'
                   : 'bg-card text-subtle-foreground'
@@ -410,8 +410,8 @@ function SetupStep({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div className="lg:col-span-2">
-        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4">
-          <label className="block text-sm font-semibold text-blue-900 mb-2">
+        <div className="rounded-xl border border-primary/20 bg-primary/5/60 p-4">
+          <label className="block text-sm font-semibold text-primary mb-2">
             Paste a job posting URL to auto-fill
           </label>
           <p className="text-xs text-muted-foreground mb-3">
@@ -424,13 +424,13 @@ function SetupStep({
               onChange={(e) => setJobUrl(e.target.value)}
               placeholder="https://www.linkedin.com/jobs/view/..."
               disabled={extracting}
-              className="flex-1 p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:opacity-50"
+              className="flex-1 p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring disabled:opacity-50"
             />
             <button
               type="button"
               onClick={handleExtractFromUrl}
               disabled={extracting || !jobUrl.trim()}
-              className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-900 text-white rounded-xl text-sm font-semibold hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {extracting ? (
                 <>
@@ -459,7 +459,7 @@ function SetupStep({
 
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-semibold text-blue-900 mb-2">
+          <label className="block text-sm font-semibold text-primary mb-2">
             CV from your library *
           </label>
           {cvLoading ? (
@@ -467,16 +467,16 @@ function SetupStep({
               <Loader2 className="w-4 h-4 animate-spin" /> Loading your CVs…
             </div>
           ) : cvVersions.length === 0 ? (
-            <div className="p-4 border border-yellow-200 bg-yellow-50 rounded-xl text-sm">
-              <p className="text-yellow-900 font-medium mb-1 flex items-center gap-1.5">
+            <div className="p-4 border border-secondary/40 bg-secondary/10 rounded-xl text-sm">
+              <p className="text-highlight-ink font-medium mb-1 flex items-center gap-1.5">
                 <AlertCircle className="w-4 h-4" /> No CVs in your library yet
               </p>
-              <p className="text-yellow-800 text-xs mb-2">
+              <p className="text-highlight-ink text-xs mb-2">
                 Upload one in the CV Library so we can ground your interview answers in real evidence.
               </p>
               <Link
                 href="/cv-library"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-900 hover:text-blue-700"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary"
               >
                 <FileText className="w-3.5 h-3.5" /> Go to CV Library →
               </Link>
@@ -488,7 +488,7 @@ function SetupStep({
                   value={selectedCvId}
                   onChange={(e) => handleSelectCv(e.target.value)}
                   disabled={loadingRawText}
-                  className="w-full p-3 pr-10 border rounded-xl text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:opacity-50 appearance-none"
+                  className="w-full p-3 pr-10 border rounded-xl text-sm text-foreground bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring disabled:opacity-50 appearance-none"
                 >
                   {cvVersions.map((cv) => (
                     <option key={cv.id} value={cv.id}>
@@ -512,7 +512,7 @@ function SetupStep({
                 </p>
                 <Link
                   href="/cv-library"
-                  className="text-xs text-blue-700 hover:text-blue-900 font-medium"
+                  className="text-xs text-primary hover:text-primary font-medium"
                 >
                   Manage library →
                 </Link>
@@ -527,41 +527,41 @@ function SetupStep({
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-blue-900 mb-2">Job Title *</label>
+          <label className="block text-sm font-semibold text-primary mb-2">Job Title *</label>
           <input
             type="text"
             value={context.jobTitle}
             onChange={(e) => updateContext({ jobTitle: e.target.value })}
             placeholder="e.g., Senior Frontend Engineer"
-            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
           />
         </div>
       </div>
 
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-semibold text-blue-900 mb-2">Job Description *</label>
+          <label className="block text-sm font-semibold text-primary mb-2">Job Description *</label>
           <textarea
             value={context.jobDescription}
             onChange={(e) => updateContext({ jobDescription: e.target.value })}
             placeholder="Paste the full job description here..."
-            className="w-full h-32 p-4 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 resize-none"
+            className="w-full h-32 p-4 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring resize-none"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-blue-900 mb-2">Company Name *</label>
+          <label className="block text-sm font-semibold text-primary mb-2">Company Name *</label>
           <input
             type="text"
             value={context.companyName}
             onChange={(e) => updateContext({ companyName: e.target.value })}
             placeholder="e.g., Google"
-            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-blue-900 mb-2">
+          <label className="block text-sm font-semibold text-primary mb-2">
             Company URL <span className="text-subtle-foreground font-normal">(optional)</span>
           </label>
           <input
@@ -569,7 +569,7 @@ function SetupStep({
             value={context.companyUrl}
             onChange={(e) => updateContext({ companyUrl: e.target.value })}
             placeholder="e.g., https://google.com"
-            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
           />
         </div>
 
@@ -579,7 +579,7 @@ function SetupStep({
         />
 
         <div>
-          <label className="block text-sm font-semibold text-blue-900 mb-2">
+          <label className="block text-sm font-semibold text-primary mb-2">
             Preferred questions <span className="text-subtle-foreground font-normal">(optional)</span>
           </label>
           <textarea
@@ -596,7 +596,7 @@ function SetupStep({
               })
             }
             placeholder={'One question per line, e.g.\nWalk me through the payments migration you led.\nHow do you decide what not to build?'}
-            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400"
+            className="w-full p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
           />
           <p className="mt-1 text-xs text-muted-foreground">
             The interviewer asks these first, rephrased in their own voice, while still
@@ -609,7 +609,7 @@ function SetupStep({
         <button
           onClick={onNext}
           disabled={!isValid}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-900 text-white rounded-xl font-semibold hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Choose Interviewer <ArrowRight className="w-4 h-4" />
         </button>
@@ -673,7 +673,7 @@ function AdditionalLinksField({
 
   return (
     <div>
-      <label className="block text-sm font-semibold text-blue-900 mb-2">
+      <label className="block text-sm font-semibold text-primary mb-2">
         Additional Links{' '}
         <span className="text-subtle-foreground font-normal">
           (optional · max {ADDITIONAL_LINKS_MAX})
@@ -691,7 +691,7 @@ function AdditionalLinksField({
                   onChange={(e) => handleChange(idx, e.target.value)}
                   maxLength={ADDITIONAL_LINK_MAX_LENGTH}
                   placeholder="https://linkedin.com/in/..."
-                  className={`flex-1 p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 ${
+                  className={`flex-1 p-3 border rounded-xl text-sm text-foreground placeholder:text-subtle-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring ${
                     err ? 'border-red-300' : 'border-border'
                   }`}
                 />
@@ -719,7 +719,7 @@ function AdditionalLinksField({
         type="button"
         onClick={handleAdd}
         disabled={rows.length >= ADDITIONAL_LINKS_MAX}
-        className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700 hover:text-blue-900 disabled:opacity-40 disabled:cursor-not-allowed"
+        className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed"
       >
         <Plus className="w-4 h-4" /> Add link
       </button>
@@ -757,14 +757,14 @@ function PersonaStep({
             onClick={() => onSelect(persona.id)}
             className={`p-5 rounded-xl border-2 text-left transition-all ${
               selectedPersona === persona.id
-                ? 'border-blue-900 bg-blue-50 shadow-md'
+                ? 'border-primary bg-primary/5 shadow-md'
                 : 'hover:border-border hover:shadow-sm'
             }`}
           >
             <div className="flex items-center gap-3 mb-3">
               <span className="text-3xl">{persona.avatar}</span>
               <div>
-                <h3 className="font-semibold text-blue-900">{persona.name}</h3>
+                <h3 className="font-semibold text-primary">{persona.name}</h3>
                 <p className="text-xs text-muted-foreground">{persona.title}</p>
               </div>
             </div>
@@ -780,14 +780,14 @@ function PersonaStep({
         ))}
       </div>
 
-      <div className="bg-blue-50 rounded-xl p-4 mb-8 flex items-center gap-4">
+      <div className="bg-primary/5 rounded-xl p-4 mb-8 flex items-center gap-4">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => onSelectMode('text')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               mode === 'text'
-                ? 'bg-blue-900 text-white'
+                ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-foreground hover:bg-muted'
             }`}
           >
@@ -798,7 +798,7 @@ function PersonaStep({
             onClick={() => onSelectMode('voice')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
               mode === 'voice'
-                ? 'bg-blue-900 text-white'
+                ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-foreground hover:bg-muted'
             }`}
           >
@@ -822,7 +822,7 @@ function PersonaStep({
         <button
           onClick={onStart}
           disabled={!selectedPersona || loading}
-          className="flex items-center gap-2 px-6 py-3 bg-yellow-500 text-blue-900 rounded-xl font-semibold hover:bg-yellow-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-6 py-3 bg-secondary text-primary rounded-xl font-semibold hover:bg-secondary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {loading ? (
             <>
@@ -893,10 +893,10 @@ function InterviewStepView({
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 flex flex-col">
         {persona && (
-          <div className="flex items-center gap-3 mb-4 p-3 bg-blue-50 rounded-xl">
+          <div className="flex items-center gap-3 mb-4 p-3 bg-primary/5 rounded-xl">
             <span className="text-2xl">{persona.avatar}</span>
             <div>
-              <h3 className="font-semibold text-blue-900 text-sm">{persona.name}</h3>
+              <h3 className="font-semibold text-primary text-sm">{persona.name}</h3>
               <p className="text-xs text-muted-foreground">{persona.title}</p>
             </div>
             <div className="flex gap-1.5 ml-auto">
@@ -915,12 +915,12 @@ function InterviewStepView({
               <div className={`flex ${msg.role === 'candidate' ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    msg.role === 'candidate' ? 'bg-blue-900 text-white' : 'bg-card text-foreground'
+                    msg.role === 'candidate' ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'
                   }`}
                 >
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                   {msg.irsScore && (
-                    <div className="mt-2 pt-2 border-t border-blue-800/30">
+                    <div className="mt-2 pt-2 border-t border-primary/30">
                       <IRSMeter score={msg.irsScore} compact />
                     </div>
                   )}
@@ -991,7 +991,7 @@ function InterviewStepView({
                 <button
                   onClick={onSend}
                   disabled={!input.trim() || loading || transcribing}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Send className="w-3.5 h-3.5" /> Send
                 </button>
@@ -1004,13 +1004,13 @@ function InterviewStepView({
       <div className="space-y-4">
         {lastScore && (
           <div className="bg-background border rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-blue-900 mb-3">Last Answer Score</h3>
+            <h3 className="text-sm font-semibold text-primary mb-3">Last Answer Score</h3>
             <IRSMeter score={lastScore} />
           </div>
         )}
 
         <div className="bg-background border rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-blue-900 mb-3">Session Progress</h3>
+          <h3 className="text-sm font-semibold text-primary mb-3">Session Progress</h3>
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Answers given</span>
@@ -1020,17 +1020,17 @@ function InterviewStepView({
           </div>
         </div>
 
-        <div className="bg-blue-50 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-blue-900 mb-3">IRS Rubric</h3>
+        <div className="bg-primary/5 rounded-xl p-4">
+          <h3 className="text-sm font-semibold text-primary mb-3">IRS Rubric</h3>
           <div className="space-y-2 text-xs text-muted-foreground">
             <p>
-              <span className="font-semibold text-blue-900">I - Integrity (30%):</span> Authenticity, honesty, internal consistency
+              <span className="font-semibold text-primary">I - Integrity (30%):</span> Authenticity, honesty, internal consistency
             </p>
             <p>
-              <span className="font-semibold text-blue-900">R - Relevance (30%):</span> Addresses the question and target role
+              <span className="font-semibold text-primary">R - Relevance (30%):</span> Addresses the question and target role
             </p>
             <p>
-              <span className="font-semibold text-blue-900">S - Substance (40%):</span> Depth, specifics, examples, metrics
+              <span className="font-semibold text-primary">S - Substance (40%):</span> Depth, specifics, examples, metrics
             </p>
           </div>
         </div>
@@ -1203,7 +1203,7 @@ function CoachPanel({
         <button
           onClick={handleToggleOpen}
           disabled={previewBusy}
-          className="flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 font-medium ml-auto"
+          className="flex items-center gap-1.5 text-xs text-primary hover:text-primary font-medium ml-auto"
         >
           {previewBusy ? (
             <>
@@ -1226,11 +1226,11 @@ function CoachPanel({
         </button>
 
         {open && preview && (
-          <div className="mt-2 border border-blue-200 bg-blue-50/60 rounded-xl p-4 space-y-3">
+          <div className="mt-2 border border-primary/20 bg-primary/5/60 rounded-xl p-4 space-y-3">
             {!coach && (
               <>
                 <div>
-                  <p className="text-xs font-semibold text-blue-900 mb-0.5">
+                  <p className="text-xs font-semibold text-primary mb-0.5">
                     Evidence the AI coach will use
                   </p>
                   <p className="text-[11px] text-muted-foreground">
@@ -1243,7 +1243,7 @@ function CoachPanel({
                 </div>
 
                 {selectedBullets.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-blue-200 p-3 text-xs text-muted-foreground italic">
+                  <div className="rounded-lg border border-dashed border-primary/20 p-3 text-xs text-muted-foreground italic">
                     No bullets selected. Add at least one from your CV pool below — or click
                     Generate anyway to let the coach work from your answer alone (expect more
                     placeholders).
@@ -1272,14 +1272,14 @@ function CoachPanel({
                   ) : (
                     <button
                       onClick={() => setPickerOpen(true)}
-                      className="flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900 font-medium"
+                      className="flex items-center gap-1 text-xs text-primary hover:text-primary font-medium"
                     >
                       <Plus className="w-3 h-3" /> Add a CV bullet
                     </button>
                   )}
                 </div>
 
-                <div className="pt-2 border-t border-blue-200 flex items-center justify-between">
+                <div className="pt-2 border-t border-primary/20 flex items-center justify-between">
                   <span className="text-[11px] text-muted-foreground">
                     {selectedBullets.length} bullet
                     {selectedBullets.length === 1 ? '' : 's'} will be sent to the coach
@@ -1287,7 +1287,7 @@ function CoachPanel({
                   <button
                     onClick={handleGenerate}
                     disabled={generateBusy}
-                    className="px-3 py-1.5 bg-blue-900 text-white rounded-lg text-xs font-medium hover:bg-blue-800 disabled:opacity-50 flex items-center gap-1.5"
+                    className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1.5"
                   >
                     {generateBusy ? (
                       <>
@@ -1312,8 +1312,8 @@ function CoachPanel({
                   {renderImproved(coach.improvedAnswer)}
                 </div>
                 {coach.missingEvidencePrompts.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-blue-200 space-y-2">
-                    <p className="text-xs font-semibold text-blue-900">
+                  <div className="mt-3 pt-3 border-t border-primary/20 space-y-2">
+                    <p className="text-xs font-semibold text-primary">
                       Help me fill in the missing details:
                     </p>
                     {coach.missingEvidencePrompts.map((p, i) => (
@@ -1326,14 +1326,14 @@ function CoachPanel({
                     ))}
                   </div>
                 )}
-                <div className="mt-3 pt-2 border-t border-blue-200 flex items-center justify-between text-[11px] text-muted-foreground">
+                <div className="mt-3 pt-2 border-t border-primary/20 flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>
                     Used {selectedBullets.length} bullet{selectedBullets.length === 1 ? '' : 's'}
                   </span>
                   <button
                     onClick={handleGenerate}
                     disabled={generateBusy}
-                    className="text-blue-700 hover:text-blue-900 font-medium flex items-center gap-1"
+                    className="text-primary hover:text-primary font-medium flex items-center gap-1"
                     title="Regenerate with the same selection"
                   >
                     {generateBusy ? (
@@ -1415,11 +1415,11 @@ function CoachBulletRow({
   const artifactCount = bullet.gaps.reduce((s, g) => s + g.artifacts.length, 0)
 
   return (
-    <li className="border border-blue-200 bg-background rounded-lg">
+    <li className="border border-primary/20 bg-background rounded-lg">
       <div className="flex items-start gap-2 p-2.5">
         <button
           onClick={() => setExpanded((e) => !e)}
-          className="mt-0.5 text-subtle-foreground hover:text-blue-700 shrink-0"
+          className="mt-0.5 text-subtle-foreground hover:text-primary shrink-0"
           aria-label={expanded ? 'Collapse' : 'Expand'}
         >
           {expanded ? (
@@ -1452,7 +1452,7 @@ function CoachBulletRow({
         </button>
       </div>
       {expanded && (
-        <div className="px-2.5 pb-2.5 pt-1 space-y-2 border-t border-blue-100">
+        <div className="px-2.5 pb-2.5 pt-1 space-y-2 border-t border-primary/10">
           {bullet.gaps.length === 0 ? (
             <p className="text-[11px] text-subtle-foreground italic">No gaps generated for this bullet.</p>
           ) : (
@@ -1489,7 +1489,7 @@ function CoachGapBlock({
           {!adding && (
             <button
               onClick={() => setAdding(true)}
-              className="text-[11px] text-blue-700 hover:text-blue-900 font-medium flex items-center gap-1"
+              className="text-[11px] text-primary hover:text-primary font-medium flex items-center gap-1"
             >
               <Plus className="w-3 h-3" /> Add answer
             </button>
@@ -1582,7 +1582,7 @@ function CoachArtifactView({
           <button
             onClick={save}
             disabled={busy || !text.trim()}
-            className="px-2.5 py-1 text-[11px] bg-emerald-700 text-white rounded font-medium hover:bg-emerald-600 disabled:opacity-40"
+            className="px-2.5 py-1 text-[11px] bg-emerald-700 text-primary-foreground rounded font-medium hover:bg-emerald-600 disabled:opacity-40"
           >
             {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
           </button>
@@ -1672,7 +1672,7 @@ function CoachArtifactComposer({
         <button
           onClick={submit}
           disabled={busy || !text.trim()}
-          className="px-2.5 py-1 text-[11px] bg-amber-700 text-white rounded font-medium hover:bg-amber-600 disabled:opacity-40"
+          className="px-2.5 py-1 text-[11px] bg-amber-700 text-primary-foreground rounded font-medium hover:bg-amber-600 disabled:opacity-40"
         >
           {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
         </button>
@@ -1715,7 +1715,7 @@ function CoachBulletPicker({
   }, [allBullets, exclude, query])
 
   return (
-    <div className="border border-blue-200 bg-background rounded-lg p-2">
+    <div className="border border-primary/20 bg-background rounded-lg p-2">
       <div className="flex items-center gap-2 mb-2">
         <Search className="w-3 h-3 text-subtle-foreground" />
         <input
@@ -1723,7 +1723,7 @@ function CoachBulletPicker({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search your CV bullets…"
-          className="flex-1 text-xs p-1 border rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
+          className="flex-1 text-xs p-1 border rounded focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <button onClick={onClose} className="text-subtle-foreground hover:text-foreground" title="Close picker">
           <X className="w-3.5 h-3.5" />
@@ -1741,7 +1741,7 @@ function CoachBulletPicker({
             <li key={b.id}>
               <button
                 onClick={() => onPick(b.id)}
-                className="w-full text-left p-1.5 rounded border hover:border-blue-300 hover:bg-blue-50/40"
+                className="w-full text-left p-1.5 rounded border hover:border-primary/40 hover:bg-primary/10/40"
               >
                 {b.sectionPath && (
                   <p className="text-[10px] text-subtle-foreground">{b.sectionPath}</p>
@@ -1777,7 +1777,7 @@ function renderImproved(text: string) {
     ) : (
       <span
         key={i}
-        className="inline-block bg-yellow-200 text-yellow-900 px-1.5 py-0.5 rounded text-xs font-medium mx-0.5"
+        className="inline-block bg-secondary/25 text-highlight-ink px-1.5 py-0.5 rounded text-xs font-medium mx-0.5"
       >
         {p.ph.replace(/\[CANDIDATE TO FILL:\s*[^|]+\|\s*([^\]]+)\]/, '?? $1')}
       </span>
@@ -1797,7 +1797,7 @@ function JitForm({
   const [val, setVal] = useState('')
   const [busy, setBusy] = useState(false)
   return (
-    <div className="bg-background border border-yellow-200 rounded-lg p-2">
+    <div className="bg-background border border-secondary/40 rounded-lg p-2">
       <p className="text-xs font-medium text-foreground mb-0.5">{question}</p>
       {bulletText && <p className="text-[10px] text-subtle-foreground mb-1 truncate">re: {bulletText}</p>}
       <div className="flex gap-1.5">
@@ -1805,7 +1805,7 @@ function JitForm({
           value={val}
           onChange={(e) => setVal(e.target.value)}
           placeholder="Type your answer…"
-          className="flex-1 text-xs p-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-blue-300"
+          className="flex-1 text-xs p-1.5 border rounded focus:outline-none focus:ring-1 focus:ring-ring"
         />
         <button
           onClick={async () => {
@@ -1819,7 +1819,7 @@ function JitForm({
             }
           }}
           disabled={busy || !val.trim()}
-          className="px-2 py-1 text-xs bg-blue-900 text-white rounded font-medium disabled:opacity-40"
+          className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded font-medium disabled:opacity-40"
         >
           {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
         </button>
@@ -1842,7 +1842,7 @@ function ReportStep({
   return (
     <div className="max-w-3xl mx-auto">
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-serif font-bold text-blue-900 mb-2">Interview Complete</h2>
+        <h2 className="text-3xl font-serif font-bold text-primary mb-2">Interview Complete</h2>
         <p className="text-muted-foreground">{report.summary}</p>
         <div className="mt-4 flex items-center justify-center gap-2">
           <span className={`text-5xl font-bold tabular-nums ${irsScoreColor(report.overallIRS.overall)}`}>
@@ -1858,7 +1858,7 @@ function ReportStep({
       </div>
 
       <div className="bg-background border rounded-xl p-6 mb-6">
-        <h3 className="text-sm font-semibold text-blue-900 mb-4">IRS Breakdown</h3>
+        <h3 className="text-sm font-semibold text-primary mb-4">IRS Breakdown</h3>
         <IRSMeter score={report.overallIRS} />
       </div>
 
@@ -1899,7 +1899,7 @@ function ReportStep({
         </button>
         <button
           onClick={onNewInterview}
-          className="flex items-center gap-2 px-6 py-3 bg-yellow-500 text-blue-900 rounded-xl font-semibold hover:bg-yellow-400 transition-colors"
+          className="flex items-center gap-2 px-6 py-3 bg-secondary text-primary rounded-xl font-semibold hover:bg-secondary/90 transition-colors"
         >
           <RotateCcw className="w-4 h-4" /> New Interview
         </button>

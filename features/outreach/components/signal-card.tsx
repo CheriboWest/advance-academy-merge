@@ -47,12 +47,12 @@ export function SignalCard({ card, selected, onSelect, autoRecommended }: Signal
       }}
       className={cn(
         'relative cursor-pointer rounded-xl border bg-background p-4 shadow-sm transition-all',
-        'hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500',
-        selected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-border',
+        'hover:shadow-md focus:outline-none focus:ring-2 focus:ring-ring',
+        selected ? 'border-primary ring-2 ring-primary/20' : 'border-border',
       )}
     >
       {autoRecommended && (
-        <div className="mb-2 inline-flex items-center gap-1 rounded-full bg-blue-600 px-2.5 py-0.5 text-[10px] font-semibold text-white">
+        <div className="mb-2 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
           <Sparkles className="h-2.5 w-2.5" />
           AI Recommended
         </div>
@@ -72,13 +72,13 @@ export function SignalCard({ card, selected, onSelect, autoRecommended }: Signal
           </span>
         )}
         {selected && (
-          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-white">
+          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Check className="h-3 w-3" />
           </div>
         )}
       </div>
 
-      <h4 className="pr-16 text-sm font-semibold text-blue-900 leading-snug line-clamp-2">
+      <h4 className="pr-16 text-sm font-semibold text-primary leading-snug line-clamp-2">
         {card.title}
       </h4>
 
@@ -88,7 +88,7 @@ export function SignalCard({ card, selected, onSelect, autoRecommended }: Signal
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
         >
           <ExternalLink className="h-3 w-3" />
           <span className="truncate max-w-[180px]">{hostname}</span>
@@ -104,10 +104,10 @@ export function SignalCard({ card, selected, onSelect, autoRecommended }: Signal
         <div className={cn(
           'mt-2 rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed',
           autoRecommended
-            ? 'bg-blue-50 text-blue-800 border border-blue-100'
+            ? 'bg-primary/5 text-primary border border-primary/10'
             : 'text-muted-foreground italic',
         )}>
-          <Sparkles className="inline h-3 w-3 mr-1 text-blue-400" />
+          <Sparkles className="inline h-3 w-3 mr-1 text-primary/60" />
           {card.reason}
         </div>
       )}
@@ -120,7 +120,7 @@ export function SignalCard({ card, selected, onSelect, autoRecommended }: Signal
         <Collapsible open={open} onOpenChange={setOpen} className="mt-3">
           <CollapsibleTrigger
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-blue-600"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-primary"
           >
             <ChevronDown
               className={cn('h-3 w-3 transition-transform', open && 'rotate-180')}

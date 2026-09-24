@@ -71,7 +71,7 @@ const DIFFICULTIES: PackQuestion['difficulty'][] = ['easy', 'medium', 'hard']
 
 const STRENGTH_STYLE = {
   strong: { dot: 'bg-green-500', label: 'strong' },
-  partial: { dot: 'bg-yellow-500', label: 'partial' },
+  partial: { dot: 'bg-secondary', label: 'partial' },
   gap: { dot: 'bg-red-500', label: 'gap' },
 } as const
 
@@ -111,7 +111,7 @@ function QuestionCard({
           title={question.starred ? 'Unstar' : 'Star — must cover this one'}
         >
           <Star
-            className={`h-4 w-4 ${question.starred ? 'fill-yellow-400 text-yellow-500' : 'text-muted-foreground'}`}
+            className={`h-4 w-4 ${question.starred ? 'fill-secondary text-highlight-ink' : 'text-muted-foreground'}`}
           />
         </Button>
         <select
@@ -507,7 +507,7 @@ function CompanyTab({ pack }: { pack: CoachingPack }) {
   return (
     <div className="space-y-5">
       {brief.sparse ? (
-        <div className="rounded-md border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-900">
+        <div className="rounded-md border border-secondary/40 bg-secondary/10 p-3 text-sm text-highlight-ink">
           <p className="font-medium">Thin research</p>
           <ul className="mt-1 space-y-0.5">
             {brief.sparseReasons.map((r, i) => (
@@ -539,7 +539,7 @@ function CompanyTab({ pack }: { pack: CoachingPack }) {
                     href={f.sourceUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-blue-600 underline"
+                    className="text-xs text-primary underline"
                   >
                     source
                   </a>
@@ -631,9 +631,9 @@ export function CoachConsole({ sessionId }: { sessionId: string }) {
         </div>
         <StatusLine session={session} />
         {worry ? (
-          <div className="rounded-md border-l-4 border-blue-500 bg-blue-50 p-3 text-sm">
-            <p className="font-medium text-blue-900">What worries them</p>
-            <p className="mt-0.5 whitespace-pre-line text-blue-900/80">{worry}</p>
+          <div className="rounded-md border-l-4 border-primary bg-primary/5 p-3 text-sm">
+            <p className="font-medium text-primary">What worries them</p>
+            <p className="mt-0.5 whitespace-pre-line text-primary/80">{worry}</p>
           </div>
         ) : null}
       </header>
@@ -687,7 +687,7 @@ export function CoachConsole({ sessionId }: { sessionId: string }) {
                 aria-current={tab === t.id ? 'page' : undefined}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
                   tab === t.id
-                    ? 'border-b-2 border-blue-600 text-blue-700'
+                    ? 'border-b-2 border-primary text-primary'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >

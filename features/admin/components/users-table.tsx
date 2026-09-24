@@ -260,7 +260,7 @@ export function UsersTable() {
                           */}
                           <button
                             onClick={() => setOpenPersonId(u.id)}
-                            className="text-left text-blue-900 transition-colors duration-150 hover:underline"
+                            className="text-left text-primary transition-colors duration-150 hover:underline"
                           >
                             {u.email ?? '(no email)'}
                           </button>

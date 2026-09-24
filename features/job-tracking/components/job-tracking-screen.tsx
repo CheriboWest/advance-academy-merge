@@ -106,7 +106,7 @@ export function JobTrackingScreen() {
             onClick={() => setFilter(filter === s ? 'open' : s)}
             aria-pressed={filter === s}
             className={`rounded-lg border px-3 py-2 text-left transition-colors ${STATUS_TONE[s]} ${
-              filter === s ? 'ring-2 ring-blue-900 ring-offset-1' : 'hover:brightness-95'
+              filter === s ? 'ring-2 ring-primary/20 ring-offset-1' : 'hover:brightness-95'
             }`}
           >
             <p className="text-xs font-medium">{SAVED_JOB_STATUS_LABELS[s]}</p>
@@ -150,7 +150,7 @@ export function JobTrackingScreen() {
             aria-current={filter === id ? 'page' : undefined}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
               filter === id
-                ? 'border-blue-900 text-blue-900'
+                ? 'border-primary text-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
@@ -158,7 +158,7 @@ export function JobTrackingScreen() {
           </button>
         ))}
         {filter !== 'open' && filter !== 'all' ? (
-          <span className="-mb-px border-b-2 border-blue-900 px-3 py-2 text-sm font-medium text-blue-900">
+          <span className="-mb-px border-b-2 border-primary px-3 py-2 text-sm font-medium text-primary">
             {SAVED_JOB_STATUS_LABELS[filter]} ({summary.counts[filter]})
           </span>
         ) : null}

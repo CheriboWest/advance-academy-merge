@@ -21,7 +21,7 @@ import { useCoachingSession, useSessionPractice } from '../hooks/use-coaching'
 
 const STRENGTH_DOT = {
   strong: 'bg-green-500',
-  partial: 'bg-yellow-500',
+  partial: 'bg-secondary',
   gap: 'bg-red-500',
 } as const
 
@@ -251,7 +251,7 @@ export function StudentPack({
                           href={f.sourceUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-xs text-blue-600 underline"
+                          className="text-xs text-primary underline"
                         >
                           source
                         </a>

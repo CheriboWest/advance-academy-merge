@@ -44,7 +44,7 @@ const KEYWORD_CATEGORY_LABEL: Record<AtsKeywordCategory, string> = {
 
 const KEYWORD_CATEGORY_COLOR: Record<AtsKeywordCategory, string> = {
   job_title: 'bg-purple-100 text-purple-700 border-purple-200',
-  tool_or_technical_skill: 'bg-blue-100 text-blue-700 border-blue-200',
+  tool_or_technical_skill: 'bg-primary/10 text-primary border-primary/20',
   hard_skill: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   industry_term: 'bg-teal-100 text-teal-700 border-teal-200',
   certification: 'bg-amber-100 text-amber-700 border-amber-200',
@@ -109,13 +109,13 @@ function FileUploadZone({ label, fileName, parsing, onFile, onClear }: FileUploa
     <div>
       <p className="text-sm font-medium text-foreground mb-1">{label}</p>
       {fileName ? (
-        <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-          <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
-          <span className="text-sm text-blue-800 truncate flex-1">{fileName}</span>
+        <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+          <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+          <span className="text-sm text-primary truncate flex-1">{fileName}</span>
           {parsing ? (
-            <Loader className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
+            <Loader className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
           ) : (
-            <button onClick={onClear} className="text-blue-400 hover:text-blue-600">
+            <button onClick={onClear} className="text-primary/60 hover:text-primary">
               <X className="w-4 h-4" />
             </button>
           )}
@@ -127,11 +127,11 @@ function FileUploadZone({ label, fileName, parsing, onFile, onClear }: FileUploa
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
           className={`cursor-pointer rounded-lg border-2 border-dashed px-4 py-5 text-center transition-colors ${
-            isDragOver ? 'border-yellow-400 bg-yellow-50' : 'border-border hover:border-yellow-400'
+            isDragOver ? 'border-secondary bg-secondary/10' : 'border-border hover:border-secondary'
           }`}
         >
           <Upload className="w-6 h-6 text-subtle-foreground mx-auto mb-1" />
-          <p className="text-sm text-muted-foreground">Drop a file or <span className="text-yellow-600 font-medium">browse</span></p>
+          <p className="text-sm text-muted-foreground">Drop a file or <span className="text-highlight-ink font-medium">browse</span></p>
           <p className="text-xs text-subtle-foreground mt-0.5">PDF or DOCX</p>
         </div>
       )}
@@ -154,15 +154,15 @@ function ScoreBar({ score }: { score: number }) {
 function CvOverviewTab({ results }: { results: AnalyzeCvResult }) {
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
-        <p className="text-sm text-blue-900">
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
+        <p className="text-sm text-primary">
           <span className="font-semibold">CV Overview</span> contributes <span className="font-semibold">25%</span> of your overall score. It measures how your CV reads across four core dimensions — skills, experience, role alignment, and writing impact.
         </p>
       </div>
       {results.sections.map((section, idx) => (
         <div key={`${section.title}-${idx}`} className={`rounded-xl border p-6 ${scoreBg(section.score)}`}>
           <div className="flex items-center justify-between mb-1">
-            <h4 className="font-semibold text-blue-900">{section.title}</h4>
+            <h4 className="font-semibold text-primary">{section.title}</h4>
             <div className="flex items-center gap-2">
               <span className={`text-xs font-medium ${scoreColor(section.score)}`}>{scoreLabel(section.score)}</span>
               <span className={`text-2xl font-bold ${scoreColor(section.score)}`}>{section.score}</span>
@@ -198,8 +198,8 @@ function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
-        <p className="text-sm text-blue-900">
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
+        <p className="text-sm text-primary">
           <span className="font-semibold">ATS Compatibility</span> is <span className="font-semibold">40%</span> of your overall score — the single largest dimension. It measures how well your CV would perform against an applicant tracking system that screens for specific requirements, technologies, and qualifications extracted from the job description.
         </p>
       </div>
@@ -207,7 +207,7 @@ function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
       <div className={`rounded-xl border p-6 ${scoreBg(results.atsCheck.score)}`}>
         <div className="flex items-center justify-between mb-1">
           <div>
-            <h4 className="font-semibold text-blue-900">ATS Compatibility Score</h4>
+            <h4 className="font-semibold text-primary">ATS Compatibility Score</h4>
             <p className="text-xs text-muted-foreground mt-0.5">Recruitment-grade scoring across mandatory requirements, keyword coverage, and relevance signals</p>
           </div>
           <span className={`text-3xl font-bold ${scoreColor(results.atsCheck.score)}`}>
@@ -231,7 +231,7 @@ function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
 
       {keywords.length > 0 && (
         <div>
-          <h4 className="font-semibold text-blue-900 mb-2">Extracted Keywords</h4>
+          <h4 className="font-semibold text-primary mb-2">Extracted Keywords</h4>
           <p className="text-xs text-muted-foreground mb-3">
             Every requirement, tool, and qualification the employer is screening for — mapped against your CV. {foundCount}/{totalCount} found.
           </p>
@@ -243,12 +243,12 @@ function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
 
       {results.atsCheck.relevanceSignals.length > 0 && (
         <div>
-          <h4 className="font-semibold text-blue-900 mb-3">Relevance Signals</h4>
+          <h4 className="font-semibold text-primary mb-3">Relevance Signals</h4>
           <div className="space-y-2">
             {results.atsCheck.relevanceSignals.map((s, idx) => (
               <div key={idx} className={`rounded-lg border p-4 ${s.score >= 7 ? 'bg-green-50 border-green-200' : s.score >= 5 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}`}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-semibold text-blue-900">
+                  <span className="text-sm font-semibold text-primary">
                     {s.signal.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                   </span>
                   <span className={`text-lg font-bold ${impactColor(s.score)}`}>{s.score}<span className="text-xs text-subtle-foreground">/10</span></span>
@@ -289,7 +289,7 @@ function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
 
       {(results.jdAlignment.matchedRequirements.length > 0 || results.jdAlignment.missingRequirements.length > 0) && (
         <div>
-          <h4 className="font-semibold text-blue-900 mb-3">JD Requirement Alignment</h4>
+          <h4 className="font-semibold text-primary mb-3">JD Requirement Alignment</h4>
           {results.jdAlignment.alignmentSummary && (
             <p className="text-sm text-foreground mb-4 leading-relaxed">{results.jdAlignment.alignmentSummary}</p>
           )}
@@ -324,7 +324,7 @@ function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
 
       {(results.formatCheck.issues.length > 0 || results.formatCheck.suggestions.length > 0) && (
         <div>
-          <h4 className="font-semibold text-blue-900 mb-3">Format & Consistency Check</h4>
+          <h4 className="font-semibold text-primary mb-3">Format & Consistency Check</h4>
           <div className="space-y-2">
             {results.formatCheck.issues.map((issue, idx) => (
               <div key={idx} className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
@@ -332,8 +332,8 @@ function AtsIntelligenceTab({ results }: { results: AnalyzeCvResult }) {
               </div>
             ))}
             {results.formatCheck.suggestions.map((s, idx) => (
-              <div key={idx} className="flex items-start gap-2 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-400" /> {s}
+              <div key={idx} className="flex items-start gap-2 rounded-lg bg-primary/5 border border-primary/20 px-4 py-3 text-sm text-primary">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-primary/60" /> {s}
               </div>
             ))}
           </div>
@@ -411,16 +411,16 @@ function BulletCard({ bullet, bulletKey, targetRole, state, onAnswersChange, onR
 
           {/* OPTION 2 — Personalize with your answers */}
           {hasQuestions && (
-            <div className="rounded-lg border border-blue-200 bg-background p-4">
+            <div className="rounded-lg border border-primary/20 bg-background p-4">
               <button
                 onClick={onTogglePersonalize}
                 className="w-full flex items-center justify-between text-left"
               >
                 <div>
-                  <p className="text-xs font-semibold text-blue-900 uppercase tracking-wide">Option 2 — Personalize It</p>
+                  <p className="text-xs font-semibold text-primary uppercase tracking-wide">Option 2 — Personalize It</p>
                   <p className="text-[11px] text-muted-foreground mt-0.5">Answer a few quick questions and we&apos;ll rewrite using your real impact details.</p>
                 </div>
-                <span className="text-xs font-medium text-blue-600 flex-shrink-0">
+                <span className="text-xs font-medium text-primary flex-shrink-0">
                   {state.personalizeOpen ? 'Hide' : 'Answer questions'}
                 </span>
               </button>
@@ -439,7 +439,7 @@ function BulletCard({ bullet, bulletKey, targetRole, state, onAnswersChange, onR
                           onAnswersChange(next)
                         }}
                         placeholder="Your answer..."
-                        className="w-full rounded-md border px-3 py-2 text-sm focus:border-yellow-400 focus:outline-none"
+                        className="w-full rounded-md border px-3 py-2 text-sm focus:border-ring focus:outline-none"
                       />
                     </div>
                   ))}
@@ -447,7 +447,7 @@ function BulletCard({ bullet, bulletKey, targetRole, state, onAnswersChange, onR
                     <button
                       onClick={onRewrite}
                       disabled={state.rewriting || !targetRole}
-                      className="inline-flex items-center gap-2 rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-blue-900 hover:bg-yellow-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-primary hover:bg-secondary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {state.rewriting ? <Loader className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                       {state.rewriting ? 'Rewriting...' : 'Generate personalized rewrite'}
@@ -566,8 +566,8 @@ function BulletsTab({ results, targetRole }: { results: AnalyzeCvResult; targetR
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
-        <p className="text-sm text-blue-900">
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
+        <p className="text-sm text-primary">
           <span className="font-semibold">Bullet Impact</span> is <span className="font-semibold">35%</span> of your overall score. Bullets are grouped by project and sorted weakest first.
           {weakCount > 0 && <> {weakCount} bullet{weakCount === 1 ? '' : 's'} need{weakCount === 1 ? 's' : ''} strengthening — answer the clarifying questions below and we&apos;ll rewrite them using your real details.</>}
         </p>
@@ -575,7 +575,7 @@ function BulletsTab({ results, targetRole }: { results: AnalyzeCvResult; targetR
 
       {Array.from(groups.entries()).map(([project, group]) => (
         <div key={project} className="space-y-3">
-          <h4 className="font-semibold text-blue-900 text-base border-b pb-2">{project}</h4>
+          <h4 className="font-semibold text-primary text-base border-b pb-2">{project}</h4>
           {group.bullets.map((bullet, localIdx) => {
             const key = `${project}::${group.originalIndices[localIdx]}`
             const state = getState(key, bullet.clarifyingQuestions.length)
@@ -620,10 +620,10 @@ function RewriteTab({ results, cvFile, onDownload, downloading, downloadError, d
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
         <div>
-          <p className="text-sm font-semibold text-blue-900">Download your improved CV</p>
-          <p className="text-xs text-blue-700 mt-0.5">
+          <p className="text-sm font-semibold text-primary">Download your improved CV</p>
+          <p className="text-xs text-primary mt-0.5">
             {cvFile
               ? isDocx
                 ? `We'll apply these rewrites to ${cvFile.name}, preserving its original formatting.`
@@ -634,7 +634,7 @@ function RewriteTab({ results, cvFile, onDownload, downloading, downloadError, d
         <button
           onClick={onDownload}
           disabled={!cvFile || !isDocx || downloading}
-          className="flex-shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 bg-yellow-500 text-blue-900 rounded-lg font-semibold hover:bg-yellow-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-primary rounded-lg font-semibold hover:bg-secondary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {downloading ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           {downloading ? 'Generating...' : 'Download Rewritten CV'}
@@ -683,18 +683,18 @@ function ActionPlanSection({ title, icon, items, emptyMessage }: {
     if (!emptyMessage) return null
     return (
       <div>
-        <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">{icon}{title}</h4>
+        <h4 className="font-semibold text-primary mb-2 flex items-center gap-2">{icon}{title}</h4>
         <p className="text-sm text-muted-foreground italic">{emptyMessage}</p>
       </div>
     )
   }
   return (
     <div>
-      <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">{icon}{title}</h4>
+      <h4 className="font-semibold text-primary mb-3 flex items-center gap-2">{icon}{title}</h4>
       <div className="space-y-2">
         {items.map((item, idx) => (
           <div key={idx} className="rounded-lg border bg-background px-4 py-3">
-            <p className="text-sm font-semibold text-blue-900">{item.title}</p>
+            <p className="text-sm font-semibold text-primary">{item.title}</p>
             {item.description && <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{item.description}</p>}
           </div>
         ))}
@@ -722,27 +722,27 @@ function AnalyzingPanel({ status }: { status: 'submitting' | 'running' }) {
   }, 3000)
 
   return (
-    <div className="bg-blue-900 rounded-2xl p-12 text-center text-white">
+    <div className="bg-primary rounded-2xl p-12 text-center text-primary-foreground">
       <div className="flex justify-center mb-6">
         <div className="relative">
-          <div className="w-20 h-20 rounded-full border-4 border-blue-800 border-t-yellow-400 animate-spin" />
-          <Target className="w-8 h-8 text-yellow-400 absolute inset-0 m-auto" />
+          <div className="w-20 h-20 rounded-full border-4 border-primary border-t-secondary animate-spin" />
+          <Target className="w-8 h-8 text-highlight-ink absolute inset-0 m-auto" />
         </div>
       </div>
       <h2 className="text-2xl font-serif font-semibold mb-2">
         {status === 'submitting' ? 'Sending your CV...' : 'Analyzing your CV'}
       </h2>
-      <p className="text-blue-200 text-base mb-6 max-w-md mx-auto">
+      <p className="text-primary-foreground/70 text-base mb-6 max-w-md mx-auto">
         Our AI is running a full recruitment-grade analysis. This usually takes 20–40 seconds — hang tight.
       </p>
-      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-800 text-sm text-blue-100">
-        <Loader className="w-4 h-4 animate-spin text-yellow-400" />
+      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-sm text-primary-foreground/80">
+        <Loader className="w-4 h-4 animate-spin text-highlight-ink" />
         <span className="transition-opacity duration-300">{ANALYZING_STEPS[stepIndex]}</span>
       </div>
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-blue-200 max-w-xl mx-auto">
-        <div className="rounded-lg bg-blue-800/50 px-3 py-2"><strong className="text-yellow-400">CV Overview</strong><br />Section-by-section scoring</div>
-        <div className="rounded-lg bg-blue-800/50 px-3 py-2"><strong className="text-yellow-400">ATS Intelligence</strong><br />Keyword & requirement match</div>
-        <div className="rounded-lg bg-blue-800/50 px-3 py-2"><strong className="text-yellow-400">Action Plan</strong><br />What to do next</div>
+      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-primary-foreground/70 max-w-xl mx-auto">
+        <div className="rounded-lg bg-primary/50 px-3 py-2"><strong className="text-highlight-ink">CV Overview</strong><br />Section-by-section scoring</div>
+        <div className="rounded-lg bg-primary/50 px-3 py-2"><strong className="text-highlight-ink">ATS Intelligence</strong><br />Keyword & requirement match</div>
+        <div className="rounded-lg bg-primary/50 px-3 py-2"><strong className="text-highlight-ink">Action Plan</strong><br />What to do next</div>
       </div>
     </div>
   )
@@ -772,39 +772,39 @@ function ActionPlanTab({ plan }: { plan: ActionPlan }) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
-        <p className="text-sm text-blue-900">
+      <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
+        <p className="text-sm text-primary">
           Concrete next steps tailored to your gaps — specific projects to build, skills to acquire, certifications to pursue, and roles to target in the interim.
         </p>
       </div>
       {plan.summary && (
-        <div className="bg-blue-900 rounded-xl p-6 text-white">
-          <p className="text-xs font-semibold text-yellow-400 mb-2 uppercase tracking-wide flex items-center gap-2">
+        <div className="bg-primary rounded-xl p-6 text-primary-foreground">
+          <p className="text-xs font-semibold text-highlight-ink mb-2 uppercase tracking-wide flex items-center gap-2">
             <Target className="w-4 h-4" /> Strategic Summary
           </p>
-          <p className="text-blue-100 text-base leading-relaxed">{plan.summary}</p>
+          <p className="text-primary-foreground/80 text-base leading-relaxed">{plan.summary}</p>
         </div>
       )}
       <ActionPlanSection
         title="Projects to Build"
-        icon={<span className="text-yellow-500 font-bold">1.</span>}
+        icon={<span className="text-highlight-ink font-bold">1.</span>}
         items={plan.projectsToBuild}
         emptyMessage="No portfolio gaps identified."
       />
       <ActionPlanSection
         title="Skills to Learn"
-        icon={<span className="text-yellow-500 font-bold">2.</span>}
+        icon={<span className="text-highlight-ink font-bold">2.</span>}
         items={plan.skillsToLearn}
       />
       <ActionPlanSection
         title="Certifications"
-        icon={<span className="text-yellow-500 font-bold">3.</span>}
+        icon={<span className="text-highlight-ink font-bold">3.</span>}
         items={plan.certifications}
         emptyMessage="No certifications are strictly required for this role."
       />
       <ActionPlanSection
         title="Intermediate Roles to Target"
-        icon={<span className="text-yellow-500 font-bold">4.</span>}
+        icon={<span className="text-highlight-ink font-bold">4.</span>}
         items={plan.intermediateRoles}
         emptyMessage="No seniority gap detected — you can apply directly to the target role."
       />
@@ -944,7 +944,7 @@ export function CvOptimizerScreen() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <h1 className="text-4xl font-serif font-bold text-blue-900 mb-2">CV Optimizer</h1>
+      <h1 className="text-4xl font-serif font-bold text-primary mb-2">CV Optimizer</h1>
       <p className="text-muted-foreground mb-8">Upload your CV and a job description — our AI runs a full recruitment-grade analysis in seconds.</p>
 
       {isBusy && !results ? (
@@ -997,7 +997,7 @@ export function CvOptimizerScreen() {
             })()}
 
             <button onClick={handleSubmit} disabled={isBusy || cvParsing || jdParsing}
-              className="w-full mt-2 px-6 py-3 bg-yellow-500 text-blue-900 rounded-lg font-semibold hover:bg-yellow-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+              className="w-full mt-2 px-6 py-3 bg-secondary text-primary rounded-lg font-semibold hover:bg-secondary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
               {isBusy ? (
                 <><Loader className="w-4 h-4 animate-spin" />{state.status === 'submitting' ? 'Submitting...' : 'Analyzing...'}</>
               ) : 'Analyze My CV'}
@@ -1007,12 +1007,12 @@ export function CvOptimizerScreen() {
 
           {/* Right — description + tips */}
           <div className="space-y-6">
-            <div className="bg-blue-900 rounded-xl p-8 text-white">
+            <div className="bg-primary rounded-xl p-8 text-primary-foreground">
               <h3 className="text-xl font-serif font-semibold mb-3">What this tool does</h3>
-              <p className="text-blue-100 leading-relaxed mb-4">
+              <p className="text-primary-foreground/80 leading-relaxed mb-4">
                 Upload your CV and a job description — our AI runs a full recruitment-grade analysis in seconds.
               </p>
-              <ul className="space-y-3 text-blue-200 text-sm">
+              <ul className="space-y-3 text-primary-foreground/70 text-sm">
                 {[
                   ['CV Overview', 'Your overall match score and a breakdown of how your CV performs across every dimension. See exactly where you stand before you apply.', '25% of total score'],
                   ['ATS Compatibility', 'Every requirement, technology, and qualification the employer is screening for — mapped against your CV line by line. Know exactly what an Applicant Tracking System sees before a human ever does.', '40% of total score'],
@@ -1021,17 +1021,17 @@ export function CvOptimizerScreen() {
                   ['Action Plan', 'Concrete next steps tailored to your gaps. Specific projects to build, skills to acquire, certifications to pursue, and experiences to target — so you know exactly what to do before your next application.', 'unscored'],
                 ].map(([title, desc, weight], i) => (
                   <li key={i} className="flex gap-2">
-                    <span className="text-yellow-400 font-bold mt-0.5">{i + 1}.</span>
+                    <span className="text-highlight-ink font-bold mt-0.5">{i + 1}.</span>
                     <div className="flex-1">
-                      <strong className="text-white">{title}</strong> — {desc}
-                      <div className="text-[10px] uppercase tracking-wide text-yellow-400 mt-0.5">{weight}</div>
+                      <strong className="text-primary-foreground">{title}</strong> — {desc}
+                      <div className="text-[10px] uppercase tracking-wide text-highlight-ink mt-0.5">{weight}</div>
                     </div>
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="bg-blue-50 rounded-xl p-6">
-              <h3 className="text-lg font-semibold text-blue-900 mb-3">Optimization Tips</h3>
+            <div className="bg-primary/5 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-primary mb-3">Optimization Tips</h3>
               <ul className="space-y-2 text-sm text-foreground">
                 {[
                   'Upload both a CV and JD for the most accurate keyword and alignment analysis.',
@@ -1040,7 +1040,7 @@ export function CvOptimizerScreen() {
                   'Start each bullet with a strong action verb (built, led, reduced, delivered).',
                 ].map((tip, i) => (
                   <li key={i} className="flex gap-2">
-                    <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <AlertCircle className="w-4 h-4 text-highlight-ink flex-shrink-0 mt-0.5" />
                     <span>{tip}</span>
                   </li>
                 ))}
@@ -1051,7 +1051,7 @@ export function CvOptimizerScreen() {
       ) : (
         <div>
           <div className="mb-6">
-            <button onClick={handleReset} className="px-4 py-2 text-yellow-600 font-medium hover:bg-yellow-50 rounded-lg">
+            <button onClick={handleReset} className="px-4 py-2 text-highlight-ink font-medium hover:bg-secondary/10 rounded-lg">
               &larr; Analyze Another CV
             </button>
           </div>
@@ -1086,7 +1086,7 @@ export function CvOptimizerScreen() {
             {TABS.map(({ id, label }) => (
               <button key={id} onClick={() => setTab(id)}
                 className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  tab === id ? 'border-yellow-500 text-blue-900' : 'border-transparent text-muted-foreground hover:text-foreground'
+                  tab === id ? 'border-secondary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
                 }`}>
                 {label}
               </button>

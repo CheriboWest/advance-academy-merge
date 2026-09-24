@@ -59,10 +59,10 @@ export default function ReferralPage() {
   return (
     <div className="mx-auto max-w-lg px-4 py-12">
       <div className="rounded-2xl bg-background p-8 shadow-xl">
-        <h1 className="text-2xl font-serif font-bold text-blue-900">Invite friends, unlock more</h1>
+        <h1 className="text-2xl font-serif font-bold text-primary">Invite friends, unlock more</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Every friend who signs in through your link gives you{' '}
-          <strong className="text-blue-900">+2 Dream Company credits</strong> — up to 3 friends.
+          <strong className="text-primary">+2 Dream Company credits</strong> — up to 3 friends.
         </p>
 
         {error && <p className="mt-6 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
@@ -71,7 +71,7 @@ export default function ReferralPage() {
           <>
             {/* Invite link */}
             <div className="mt-6">
-              <label className="mb-1 block text-sm font-medium text-blue-900">Your invite link</label>
+              <label className="mb-1 block text-sm font-medium text-primary">Your invite link</label>
               <div className="flex gap-2">
                 <input
                   readOnly
@@ -80,7 +80,7 @@ export default function ReferralPage() {
                 />
                 <button
                   onClick={copyLink}
-                  className="shrink-0 rounded-lg bg-yellow-500 px-4 text-sm font-semibold text-blue-900 hover:bg-yellow-400 transition"
+                  className="shrink-0 rounded-lg bg-secondary px-4 text-sm font-semibold text-primary hover:bg-secondary/90 transition"
                 >
                   {copied ? '✓ Copied' : 'Copy'}
                 </button>
@@ -91,13 +91,13 @@ export default function ReferralPage() {
             <div className="mt-6">
               <div className="mb-1 flex justify-between text-sm">
                 <span className="text-muted-foreground">Referrals</span>
-                <span className="font-semibold text-blue-900">
+                <span className="font-semibold text-primary">
                   {status.referralCount} / {status.maxReferrals}
                 </span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-card">
                 <div
-                  className="h-full rounded-full bg-yellow-500 transition-all"
+                  className="h-full rounded-full bg-secondary transition-all"
                   style={{ width: `${(status.referralCount / status.maxReferrals) * 100}%` }}
                 />
               </div>
@@ -105,8 +105,8 @@ export default function ReferralPage() {
 
             {/* Mentorship CTA once capped */}
             {capped && (
-              <div className="mt-8 rounded-xl border border-blue-900/20 bg-blue-50 p-5 text-center">
-                <p className="text-sm font-semibold text-blue-900">
+              <div className="mt-8 rounded-xl border border-primary/20 bg-primary/5 p-5 text-center">
+                <p className="text-sm font-semibold text-primary">
                   You&apos;ve maxed out your referral rewards 🎉
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -115,7 +115,7 @@ export default function ReferralPage() {
                 </p>
                 <a
                   href={mentorshipUrl}
-                  className="mt-4 inline-block rounded-lg bg-blue-900 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-800 transition"
+                  className="mt-4 inline-block rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition"
                 >
                   Explore Mentorship →
                 </a>

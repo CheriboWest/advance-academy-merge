@@ -187,11 +187,11 @@ export function MicButton({ disabled, transcribing, onTranscribe, onTranscribed 
   } else if (isRecording) {
     label = `Stop (${mm}:${ss})`
     icon = <Square className="w-3.5 h-3.5 fill-current" />
-    buttonClass = 'bg-red-600 text-white hover:bg-red-500'
+    buttonClass = 'bg-red-600 text-primary-foreground hover:bg-red-500'
   } else {
     label = 'Record'
     icon = <Mic className="w-3.5 h-3.5" />
-    buttonClass = 'bg-blue-100 text-blue-900 hover:bg-blue-200'
+    buttonClass = 'bg-primary/10 text-primary hover:bg-primary/10'
   }
 
   return (

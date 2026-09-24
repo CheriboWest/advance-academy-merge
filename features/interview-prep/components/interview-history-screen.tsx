@@ -124,8 +124,8 @@ function ListView({
       <div className="mb-8">
         {/* h2, not h1: this screen now renders inside the History page, which
             owns the page-level heading. */}
-        <h2 className="text-4xl font-serif font-bold text-blue-900 mb-2 flex items-center gap-3">
-          <History className="w-9 h-9 text-yellow-500" />
+        <h2 className="text-4xl font-serif font-bold text-primary mb-2 flex items-center gap-3">
+          <History className="w-9 h-9 text-highlight-ink" />
           Interview History
         </h2>
         <p className="text-muted-foreground text-lg">
@@ -142,13 +142,13 @@ function ListView({
 
       {loading ? (
         <div className="bg-background rounded-xl border p-12 text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-yellow-500 mx-auto mb-3" />
+          <Loader2 className="w-8 h-8 animate-spin text-highlight-ink mx-auto mb-3" />
           <p className="text-muted-foreground">Loading sessions…</p>
         </div>
       ) : sessions.length === 0 ? (
-        <div className="bg-blue-50 rounded-xl p-12 text-center">
-          <History className="w-12 h-12 text-blue-300 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-blue-900 mb-2">
+        <div className="bg-primary/5 rounded-xl p-12 text-center">
+          <History className="w-12 h-12 text-primary/40 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-primary mb-2">
             No interviews yet
           </h2>
           <p className="text-muted-foreground">
@@ -172,7 +172,7 @@ function ListView({
               type="button"
               onClick={onLoadMore}
               disabled={loadingMore || openingId}
-              className="mx-auto flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium text-blue-900 hover:border-blue-300 disabled:opacity-50"
+              className="mx-auto flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium text-primary hover:border-primary/40 disabled:opacity-50"
             >
               {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
               {loadingMore ? 'Loading…' : 'Load more'}
@@ -201,7 +201,7 @@ function SessionCard({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-full text-left bg-background rounded-xl border shadow-sm p-5 hover:border-blue-300 hover:shadow-md transition-all disabled:opacity-50"
+      className="w-full text-left bg-background rounded-xl border shadow-sm p-5 hover:border-primary/40 hover:shadow-md transition-all disabled:opacity-50"
     >
       <div className="flex items-start gap-4">
         <div className="text-4xl">{persona?.avatar ?? '🎙️'}</div>
@@ -209,7 +209,7 @@ function SessionCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-3 mb-1">
             <div>
-              <h3 className="font-semibold text-blue-900">
+              <h3 className="font-semibold text-primary">
                 {persona?.name ?? session.persona_id}
                 {session.context_json?.jobTitle && (
                   <span className="text-muted-foreground font-normal">
@@ -262,7 +262,7 @@ function SessionCard({
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     complete: 'bg-emerald-100 text-emerald-700',
-    active: 'bg-blue-100 text-blue-700',
+    active: 'bg-primary/10 text-primary',
     evaluating: 'bg-amber-100 text-amber-700',
   }
   return (
@@ -307,7 +307,7 @@ function DetailView({
     <div className="space-y-6">
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-muted-foreground hover:text-blue-900 font-medium"
+        className="flex items-center gap-2 text-muted-foreground hover:text-primary font-medium"
       >
         <ArrowLeft className="w-4 h-4" /> Back to history
       </button>
@@ -317,7 +317,7 @@ function DetailView({
         <div className="flex items-start gap-4 mb-6">
           <div className="text-5xl">{persona?.avatar ?? '🎙️'}</div>
           <div className="flex-1">
-            <h1 className="text-2xl font-serif font-bold text-blue-900">
+            <h1 className="text-2xl font-serif font-bold text-primary">
               {persona?.name ?? session.persona_id}
             </h1>
             <p className="text-muted-foreground">{persona?.title}</p>
@@ -392,7 +392,7 @@ function DetailView({
       {/* Overall score */}
       {score && (
         <div className="bg-background rounded-xl border shadow-sm p-8">
-          <h3 className="text-sm font-semibold text-blue-900 mb-4">
+          <h3 className="text-sm font-semibold text-primary mb-4">
             Overall Session Score
           </h3>
           <div className="flex items-end gap-3 mb-6">
@@ -422,7 +422,7 @@ function DetailView({
         <>
           {report.summary && (
             <div className="bg-background rounded-xl border shadow-sm p-6">
-              <h3 className="text-sm font-semibold text-blue-900 mb-3">
+              <h3 className="text-sm font-semibold text-primary mb-3">
                 Summary
               </h3>
               <p className="text-foreground leading-relaxed">{report.summary}</p>
@@ -438,7 +438,7 @@ function DetailView({
                 <div className="space-y-4">
                   {report.strengths.map((s, i) => (
                     <div key={i}>
-                      <div className="font-semibold text-blue-900 text-sm">
+                      <div className="font-semibold text-primary text-sm">
                         {s.title}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
@@ -458,7 +458,7 @@ function DetailView({
                 <div className="space-y-4">
                   {report.improvements.map((s, i) => (
                     <div key={i}>
-                      <div className="font-semibold text-blue-900 text-sm">
+                      <div className="font-semibold text-primary text-sm">
                         {s.title}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
@@ -472,7 +472,7 @@ function DetailView({
           </div>
         </>
       ) : (
-        <div className="bg-blue-50 rounded-xl p-8 text-center text-muted-foreground">
+        <div className="bg-primary/5 rounded-xl p-8 text-center text-muted-foreground">
           No final report available for this session yet.
         </div>
       )}
@@ -507,8 +507,8 @@ function JobContextCard({
         className="w-full flex items-center justify-between p-5 text-left hover:bg-card rounded-xl transition-colors"
       >
         <div className="flex items-center gap-3">
-          <Briefcase className="w-5 h-5 text-blue-900" />
-          <h3 className="text-sm font-semibold text-blue-900">
+          <Briefcase className="w-5 h-5 text-primary" />
+          <h3 className="text-sm font-semibold text-primary">
             Job context filled in for this session
           </h3>
         </div>
@@ -568,7 +568,7 @@ function ExtraLinksField({ links }: { links: string[] }) {
                   href={url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-700 hover:underline break-all"
+                  className="text-primary hover:underline break-all"
                 >
                   {url}
                 </a>
@@ -600,7 +600,7 @@ function ContextField({
               href={value}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-700 hover:underline"
+              className="text-primary hover:underline"
             >
               {value}
             </a>
@@ -630,7 +630,7 @@ function TranscriptView({
 }) {
   return (
     <div className="bg-background rounded-xl border shadow-sm p-6">
-      <h3 className="text-sm font-semibold text-blue-900 mb-4 flex items-center gap-2">
+      <h3 className="text-sm font-semibold text-primary mb-4 flex items-center gap-2">
         <MessageSquare className="w-4 h-4" /> Conversation transcript
       </h3>
       {exchanges.length === 0 ? (
@@ -656,8 +656,8 @@ function TranscriptView({
                   onClick={() => onSelect(idx)}
                   className={`max-w-[85%] text-left rounded-2xl px-4 py-3 transition-all ${
                     selectedIdx === idx
-                      ? 'bg-blue-900 text-white ring-2 ring-yellow-400 ring-offset-2'
-                      : 'bg-blue-900 text-white opacity-80 hover:opacity-100'
+                      ? 'bg-primary text-primary-foreground ring-2 ring-secondary ring-offset-2'
+                      : 'bg-primary text-primary-foreground opacity-80 hover:opacity-100'
                   }`}
                 >
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">
@@ -665,7 +665,7 @@ function TranscriptView({
                       <span className="italic opacity-60">(no answer text)</span>
                     )}
                   </p>
-                  <div className="mt-2 pt-2 border-t border-blue-800/40 flex items-center justify-between text-xs">
+                  <div className="mt-2 pt-2 border-t border-primary/40 flex items-center justify-between text-xs">
                     <span className="opacity-80">Click for IRS breakdown</span>
                     <span className="font-bold tabular-nums">
                       IRS {ex.overall_score.toFixed(1)}/10
@@ -697,7 +697,7 @@ function SelectedAnswerPanel({
   return (
     <>
       <div className="bg-background border rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-blue-900 mb-3">
+        <h3 className="text-sm font-semibold text-primary mb-3">
           Selected Answer Score
         </h3>
         {score && exchange ? (
@@ -714,7 +714,7 @@ function SelectedAnswerPanel({
       )}
 
       <div className="bg-background border rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-blue-900 mb-3">
+        <h3 className="text-sm font-semibold text-primary mb-3">
           Session Progress
         </h3>
         <div className="flex justify-between text-sm">
@@ -723,19 +723,19 @@ function SelectedAnswerPanel({
         </div>
       </div>
 
-      <div className="bg-blue-50 rounded-xl p-4">
-        <h3 className="text-sm font-semibold text-blue-900 mb-3">IRS Rubric</h3>
+      <div className="bg-primary/5 rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-primary mb-3">IRS Rubric</h3>
         <div className="space-y-2 text-xs text-muted-foreground">
           <p>
-            <span className="font-semibold text-blue-900">I - Integrity (30%):</span>{' '}
+            <span className="font-semibold text-primary">I - Integrity (30%):</span>{' '}
             Authenticity, honesty, internal consistency
           </p>
           <p>
-            <span className="font-semibold text-blue-900">R - Relevance (30%):</span>{' '}
+            <span className="font-semibold text-primary">R - Relevance (30%):</span>{' '}
             Addresses the question and target role
           </p>
           <p>
-            <span className="font-semibold text-blue-900">S - Substance (40%):</span>{' '}
+            <span className="font-semibold text-primary">S - Substance (40%):</span>{' '}
             Depth, specifics, examples, metrics
           </p>
         </div>
@@ -752,8 +752,8 @@ function CoachHistoryPanel({ coaches }: { coaches: SessionExchangeCoach[] }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between px-1">
-        <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-yellow-500" />
+        <h3 className="text-sm font-semibold text-primary flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-highlight-ink" />
           Enhanced Responses
         </h3>
         <span className="text-xs text-muted-foreground">
@@ -784,20 +784,20 @@ function CoachCard({
   return (
     <div
       className={`rounded-xl p-4 space-y-4 border ${
-        isLatest ? 'bg-background border-yellow-300 shadow-sm' : 'bg-card'
+        isLatest ? 'bg-background border-secondary/40 shadow-sm' : 'bg-card'
       }`}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span
             className={`px-2 py-0.5 rounded-full text-xs font-semibold tabular-nums ${
-              isLatest ? 'bg-yellow-100 text-yellow-800' : 'bg-muted text-muted-foreground'
+              isLatest ? 'bg-secondary/15 text-highlight-ink' : 'bg-muted text-muted-foreground'
             }`}
           >
             {versionLabel}
           </span>
           {isLatest && (
-            <span className="text-xs font-medium text-yellow-700">Latest</span>
+            <span className="text-xs font-medium text-highlight-ink">Latest</span>
           )}
         </div>
         <span className="text-xs text-subtle-foreground" title={coach.created_at}>
@@ -818,7 +818,7 @@ function CoachCard({
         <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
           Improved Answer
         </div>
-        <div className="text-sm text-foreground leading-relaxed bg-yellow-50 rounded-lg p-3 whitespace-pre-wrap">
+        <div className="text-sm text-foreground leading-relaxed bg-secondary/10 rounded-lg p-3 whitespace-pre-wrap">
           <ImprovedAnswerWithPlaceholders text={coach.improved_answer} />
         </div>
       </div>

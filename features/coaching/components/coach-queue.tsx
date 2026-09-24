@@ -23,8 +23,8 @@ import { useCoachingSessions } from '../hooks/use-coaching'
 
 const STATUS_STYLE: Record<CoachingSessionStatus, { label: string; className: string }> = {
   draft: { label: 'Booked', className: 'bg-card text-foreground' },
-  generating: { label: 'Generating…', className: 'bg-blue-100 text-blue-800' },
-  context_needed: { label: 'Needs context', className: 'bg-yellow-100 text-yellow-900' },
+  generating: { label: 'Generating…', className: 'bg-primary/10 text-primary' },
+  context_needed: { label: 'Needs context', className: 'bg-secondary/15 text-highlight-ink' },
   ready: { label: 'Ready to review', className: 'bg-purple-100 text-purple-900' },
   failed: { label: 'Failed', className: 'bg-red-100 text-red-800' },
   approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
@@ -161,10 +161,10 @@ function MonthCalendar({ sessions }: { sessions: CoachingSessionSummary[] }) {
             <div
               key={day}
               className={`min-h-20 rounded-md border p-1 text-left ${
-                isToday ? 'border-blue-500 bg-blue-50/50' : 'border-transparent bg-muted/30'
+                isToday ? 'border-primary bg-primary/5/50' : 'border-transparent bg-muted/30'
               }`}
             >
-              <div className={`text-xs ${isToday ? 'font-bold text-blue-700' : 'text-muted-foreground'}`}>
+              <div className={`text-xs ${isToday ? 'font-bold text-primary' : 'text-muted-foreground'}`}>
                 {day}
               </div>
               <div className="mt-0.5 space-y-0.5">
@@ -177,8 +177,8 @@ function MonthCalendar({ sessions }: { sessions: CoachingSessionSummary[] }) {
                       title={`${isCoaching ? 'Coaching session' : 'Interview'} · ${s.companyName}`}
                       className={`block truncate rounded px-1 py-0.5 text-[10px] leading-tight ${
                         isCoaching
-                          ? 'bg-blue-600 text-white hover:bg-blue-700'
-                          : 'bg-yellow-200 text-yellow-950 hover:bg-yellow-300'
+                          ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                          : 'bg-secondary/25 text-highlight-ink hover:bg-secondary/90'
                       }`}
                     >
                       {s.companyName}
@@ -196,10 +196,10 @@ function MonthCalendar({ sessions }: { sessions: CoachingSessionSummary[] }) {
 
       <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-blue-600" /> coaching session
+          <span className="inline-block h-3 w-3 rounded bg-primary" /> coaching session
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-yellow-200" /> their interview
+          <span className="inline-block h-3 w-3 rounded bg-secondary/25" /> their interview
         </span>
       </div>
     </div>

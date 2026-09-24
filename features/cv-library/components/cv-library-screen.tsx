@@ -144,7 +144,7 @@ export function CvLibraryScreen() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <h1 className="text-4xl font-serif font-bold text-blue-900 mb-2">CV Library</h1>
+        <h1 className="text-4xl font-serif font-bold text-primary mb-2">CV Library</h1>
         <p className="text-muted-foreground text-lg">
           Upload a CV once. We&apos;ll extract every bullet, find the 5 most important missing details
           per bullet, and store the evidence you provide so future interviews can use it.
@@ -177,14 +177,14 @@ export function CvLibraryScreen() {
             >
               <button onClick={() => setSelectedId(v.id)} className="flex-1 text-left">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-blue-900">{v.name}</h3>
+                  <h3 className="font-semibold text-primary">{v.name}</h3>
                   {v.isActive && (
                     <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded-full font-medium">
                       Active
                     </span>
                   )}
                   {v.detectedField && (
-                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">
+                    <span className="px-2 py-0.5 bg-primary/5 text-primary text-xs rounded-full">
                       {v.detectedField}
                     </span>
                   )}
@@ -276,8 +276,8 @@ function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) 
   }
 
   return (
-    <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-5 mb-6">
-      <h2 className="text-sm font-semibold text-blue-900 mb-3">Upload a new CV</h2>
+    <div className="rounded-xl border border-primary/20 bg-primary/5/60 p-5 mb-6">
+      <h2 className="text-sm font-semibold text-primary mb-3">Upload a new CV</h2>
       <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
@@ -285,7 +285,7 @@ function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) 
           onChange={(e) => setName(e.target.value)}
           placeholder='Name this CV (e.g. "2025 SWE CV")'
           disabled={busy}
-          className="flex-1 p-3 border rounded-xl text-sm bg-background focus:outline-none focus:ring-2 focus:ring-blue-200"
+          className="flex-1 p-3 border rounded-xl text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
         />
         <input
           type="file"
@@ -297,7 +297,7 @@ function UploadCard({ onParsed }: { onParsed: (data: Phase1Response) => void }) 
         <button
           onClick={submit}
           disabled={busy || !file || !name.trim()}
-          className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-900 text-white rounded-xl text-sm font-semibold hover:bg-blue-800 disabled:opacity-40"
+          className="flex items-center justify-center gap-2 px-5 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
         >
           {busy ? (
             <>
@@ -424,7 +424,7 @@ function BulletResolutionStep({
       >
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
-      <h1 className="text-3xl font-serif font-bold text-blue-900 mb-2">Resolve bullet points</h1>
+      <h1 className="text-3xl font-serif font-bold text-primary mb-2">Resolve bullet points</h1>
       <p className="text-muted-foreground mb-6">
         For each bullet we parsed, check if it&apos;s the same as one from a previous CV. Merging
         means the new CV will share that bullet&apos;s gaps and evidence — no re-typing.
@@ -440,7 +440,7 @@ function BulletResolutionStep({
           <button
             onClick={submit}
             disabled={busy}
-            className="px-4 py-2 bg-blue-900 text-white rounded-lg text-sm font-semibold hover:bg-blue-800 disabled:opacity-40"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
           >
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Finalize'}
           </button>
@@ -502,7 +502,7 @@ function BulletResolutionCard({
         {/* "This is new" option */}
         <label
           className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border text-sm ${
-            !isMerged ? 'border-blue-300 bg-blue-50' : 'hover:bg-card'
+            !isMerged ? 'border-primary/40 bg-primary/5' : 'hover:bg-card'
           }`}
         >
           <input
@@ -510,7 +510,7 @@ function BulletResolutionCard({
             name={`resolve-${parsed.tempId}`}
             checked={!isMerged}
             onChange={() => onDecide('new')}
-            className="accent-blue-900"
+            className="accent-primary"
           />
           <span className="font-medium text-foreground">This is a new bullet (create fresh gaps)</span>
         </label>
@@ -597,10 +597,10 @@ function CvDetail({
       >
         <ArrowLeft className="w-4 h-4" /> Back to library
       </button>
-      <h1 className="text-3xl font-serif font-bold text-blue-900 mb-1">Fill in the gaps</h1>
+      <h1 className="text-3xl font-serif font-bold text-primary mb-1">Fill in the gaps</h1>
       {version && (
         <div className="mb-3">
-          <p className="text-base text-blue-900 font-medium flex items-center gap-2">
+          <p className="text-base text-primary font-medium flex items-center gap-2">
             <FileText className="w-4 h-4" />
             Working on: <span className="font-semibold">{version.name}</span>
             {version.isActive && (
@@ -682,7 +682,7 @@ function BulletCard({
 
   return (
     <div className="border rounded-xl p-5 bg-background">
-      <p className="text-xs font-bold uppercase tracking-wide text-blue-900 mb-1">
+      <p className="text-xs font-bold uppercase tracking-wide text-primary mb-1">
         CV bullet point {index}
       </p>
       {bullet.sectionPath && (
@@ -693,7 +693,7 @@ function BulletCard({
         <button
           onClick={loadSimilar}
           disabled={mergeLoading}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-blue-700 shrink-0"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary shrink-0"
           title="Merge with another bullet"
         >
           {mergeLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <GitMerge className="w-3 h-3" />}
@@ -702,8 +702,8 @@ function BulletCard({
       </div>
 
       {mergeMode && (
-        <div className="mb-4 border border-blue-200 bg-blue-50/40 rounded-lg p-3">
-          <p className="text-xs font-medium text-blue-900 mb-2">
+        <div className="mb-4 border border-primary/20 bg-primary/5/40 rounded-lg p-3">
+          <p className="text-xs font-medium text-primary mb-2">
             Merge into one of these similar bullets:
           </p>
           {candidates.length === 0 ? (
@@ -810,7 +810,7 @@ function ArtifactRow({
           <button
             onClick={save}
             disabled={busy || !text.trim()}
-            className="px-3 py-1 text-xs bg-emerald-700 text-white rounded font-medium hover:bg-emerald-600 disabled:opacity-40"
+            className="px-3 py-1 text-xs bg-emerald-700 text-primary-foreground rounded font-medium hover:bg-emerald-600 disabled:opacity-40"
           >
             {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
           </button>
@@ -911,10 +911,10 @@ function GapForm({
         <span
           className={`mt-0.5 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center ${
             isAnswered
-              ? 'bg-emerald-500 text-white'
+              ? 'bg-emerald-500 text-primary-foreground'
               : isSkipped
                 ? 'bg-muted text-muted-foreground'
-                : 'bg-yellow-400 text-blue-900'
+                : 'bg-secondary text-primary'
           }`}
         >
           {gap.ordinal}
@@ -943,14 +943,14 @@ function GapForm({
             onChange={(e) => setText(e.target.value)}
             placeholder="Type or paste your answer. Drag the corner to make this bigger."
             rows={4}
-            className="w-full p-2 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-300 resize-y min-h-20"
+            className="w-full p-2 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-ring resize-y min-h-20"
           />
           {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
           <div className="flex items-center gap-2 mt-2">
             <button
               onClick={submit}
               disabled={busy || !text.trim()}
-              className="px-3 py-1 text-xs bg-blue-900 text-white rounded font-medium hover:bg-blue-800 disabled:opacity-40"
+              className="px-3 py-1 text-xs bg-primary text-primary-foreground rounded font-medium hover:bg-primary/90 disabled:opacity-40"
             >
               {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
             </button>
@@ -1086,7 +1086,7 @@ function CoachUnderstandingSection({
       <button
         onClick={generate}
         disabled={generating || !selectedVersionId}
-        className="flex items-center gap-2 px-4 py-2.5 bg-purple-700 text-white rounded-xl text-sm font-semibold hover:bg-purple-600 disabled:opacity-40"
+        className="flex items-center gap-2 px-4 py-2.5 bg-purple-700 text-primary-foreground rounded-xl text-sm font-semibold hover:bg-purple-600 disabled:opacity-40"
       >
         {generating ? (
           <>

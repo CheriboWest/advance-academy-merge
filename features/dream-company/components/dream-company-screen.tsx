@@ -109,22 +109,22 @@ const EMPTY_FORM: DreamCompanyInput = {
 
 const MARKET_LEVEL_COLORS: Record<string, string> = {
   entry: 'bg-card text-foreground',
-  junior: 'bg-blue-100 text-blue-800',
+  junior: 'bg-primary/10 text-primary',
   mid: 'bg-green-100 text-green-800',
   senior: 'bg-purple-100 text-purple-800',
   lead: 'bg-orange-100 text-orange-800',
-  executive: 'bg-yellow-100 text-yellow-900',
+  executive: 'bg-secondary/15 text-highlight-ink',
 }
 
 const URGENCY_COLORS: Record<string, string> = {
   high: 'text-red-600 bg-red-50 border-red-200',
   medium: 'text-amber-600 bg-amber-50 border-amber-200',
-  low: 'text-blue-600 bg-blue-50 border-blue-200',
+  low: 'text-primary bg-primary/5 border-primary/20',
 }
 
 const DEMAND_COLORS: Record<string, string> = {
   high: 'bg-green-100 text-green-800',
-  medium: 'bg-yellow-100 text-yellow-800',
+  medium: 'bg-secondary/15 text-highlight-ink',
   low: 'bg-card text-foreground',
 }
 
@@ -213,7 +213,7 @@ export function DreamCompanyScreen() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Page Header */}
       <div className="mb-8">
-        <h1 className="text-4xl font-serif font-bold text-blue-900 mb-3">
+        <h1 className="text-4xl font-serif font-bold text-primary mb-3">
           Dream Company Finder
         </h1>
         <p className="text-lg text-muted-foreground">
@@ -260,7 +260,7 @@ export function DreamCompanyScreen() {
               onClick={() => fileInputRef.current?.click()}
               className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors ${
                 isDragOver
-                  ? 'border-yellow-500 bg-yellow-50'
+                  ? 'border-secondary bg-secondary/10'
                   : 'border-border hover:border-border bg-card'
               }`}
             >
@@ -276,7 +276,7 @@ export function DreamCompanyScreen() {
               />
               {cvParsing ? (
                 <div className="flex flex-col items-center gap-3">
-                  <Loader2 className="w-10 h-10 text-yellow-500 animate-spin" />
+                  <Loader2 className="w-10 h-10 text-highlight-ink animate-spin" />
                   <p className="text-sm text-muted-foreground">Parsing {uploadedFileName}...</p>
                 </div>
               ) : uploadedFileName ? (
@@ -370,7 +370,7 @@ export function DreamCompanyScreen() {
           {/* Submit / Picking / Loading / Reset */}
           {currentStep === 'done' ? (
             <div className="space-y-2">
-              <Button onClick={editRoles} className="w-full bg-yellow-500 hover:bg-yellow-400 text-blue-900 font-semibold">
+              <Button onClick={editRoles} className="w-full bg-secondary hover:bg-secondary/90 text-primary font-semibold">
                 Adjust roles &amp; regenerate
               </Button>
               <Button onClick={handleReset} variant="outline" className="w-full">
@@ -381,7 +381,7 @@ export function DreamCompanyScreen() {
             <Button
               onClick={buildRoadmap}
               disabled={loading || selectedRoles.length === 0}
-              className="w-full bg-yellow-500 hover:bg-yellow-400 text-blue-900 font-semibold h-12 text-base"
+              className="w-full bg-secondary hover:bg-secondary/90 text-primary font-semibold h-12 text-base"
             >
               Build My Roadmap ({selectedRoles.length} selected)
             </Button>
@@ -389,7 +389,7 @@ export function DreamCompanyScreen() {
             <Button
               onClick={handleSubmit}
               disabled={!canSubmit || loading}
-              className="w-full bg-yellow-500 hover:bg-yellow-400 text-blue-900 font-semibold h-12 text-base"
+              className="w-full bg-secondary hover:bg-secondary/90 text-primary font-semibold h-12 text-base"
             >
               {loading ? (
                 <span className="flex items-center gap-2">
@@ -404,9 +404,9 @@ export function DreamCompanyScreen() {
 
           {/* Live streaming progress + time expectation (M2.1 / M2.3) */}
           {loading && STEP_TIME_HINT[currentStep] && (
-            <div className="rounded-lg bg-blue-50/60 border border-blue-100 p-3">
+            <div className="rounded-lg bg-primary/5/60 border border-primary/10 p-3">
               <ProgressBar progress={progress} phase={rotatingPhase} />
-              <p className="mt-2 text-xs text-blue-900/60">{STEP_TIME_HINT[currentStep]}</p>
+              <p className="mt-2 text-xs text-primary/60">{STEP_TIME_HINT[currentStep]}</p>
             </div>
           )}
 
@@ -460,9 +460,9 @@ function StepIndicator({ step, current, label }: { step: string; current: string
       <div
         className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
           isComplete
-            ? 'bg-green-500 text-white'
+            ? 'bg-green-500 text-primary-foreground'
             : isActive
-              ? 'bg-yellow-500 text-blue-900'
+              ? 'bg-secondary text-primary'
               : 'bg-muted text-muted-foreground'
         }`}
       >
@@ -470,7 +470,7 @@ function StepIndicator({ step, current, label }: { step: string; current: string
       </div>
       <span
         className={`text-sm ${
-          isActive ? 'text-blue-900 font-medium' : isComplete ? 'text-green-700' : 'text-subtle-foreground'
+          isActive ? 'text-primary font-medium' : isComplete ? 'text-green-700' : 'text-subtle-foreground'
         }`}
       >
         {label}
@@ -563,7 +563,7 @@ function ProfileAnalysisTab({ analysis }: { analysis: ProfileAnalysis }) {
         </div>
       </div>
 
-      <div className="border-l-4 border-yellow-500 bg-yellow-50 rounded-r-lg p-4">
+      <div className="border-l-4 border-secondary bg-secondary/10 rounded-r-lg p-4">
         <p className="text-sm font-medium text-foreground mb-1">Unique Value Proposition</p>
         <p className="text-sm text-foreground italic">{analysis.uniqueValueProposition}</p>
       </div>
@@ -651,9 +651,9 @@ function RolesTab({
   return (
     <div className="space-y-6 mt-4">
       {isPicking && (
-        <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 border border-blue-200">
-          <Briefcase className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
-          <p className="text-sm text-blue-800">
+        <div className="flex items-start gap-3 p-4 rounded-lg bg-primary/5 border border-primary/20">
+          <Briefcase className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+          <p className="text-sm text-primary">
             {`Choose up to ${maxRoles} target roles - a focused set gives you a sharper roadmap and fresher live jobs. Then click "Build My Roadmap". (${selectedRoles.length}/${maxRoles} selected)`}
           </p>
         </div>
@@ -670,7 +670,7 @@ function RolesTab({
               aria-disabled={disabled}
               className={`transition-all ${
                 isPicking && !disabled ? 'cursor-pointer' : ''
-              } ${isSelected ? 'ring-2 ring-yellow-500 bg-yellow-50/50' : isPicking && !disabled ? 'hover:border-border' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${isSelected ? 'ring-2 ring-secondary bg-secondary/10/50' : isPicking && !disabled ? 'hover:border-border' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={() => isPicking && !disabled && onToggleRole(role)}
             >
               <CardHeader className="pb-2">
@@ -678,8 +678,8 @@ function RolesTab({
                   <CardTitle className="text-base">{role.title}</CardTitle>
                   <div className="flex items-center gap-2 shrink-0">
                     {isSelected && (
-                      <div className="w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center">
-                        <Check className="w-3 h-3 text-blue-900" />
+                      <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center">
+                        <Check className="w-3 h-3 text-primary" />
                       </div>
                     )}
                     <Badge variant="outline">{role.level}</Badge>
@@ -690,7 +690,7 @@ function RolesTab({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium text-foreground">Fit Score</span>
-                    <span className="text-xs font-bold text-blue-900">{role.fitScore}%</span>
+                    <span className="text-xs font-bold text-primary">{role.fitScore}%</span>
                   </div>
                   <Progress value={role.fitScore} className="h-2" />
                 </div>
@@ -714,16 +714,16 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
   return (
     <div className="space-y-8 mt-4">
       {/* Future You Card */}
-      <Card className="border-2 border-yellow-300 bg-gradient-to-br from-yellow-50 to-amber-50">
+      <Card className="border-2 border-secondary/40 bg-gradient-to-br from-secondary to-amber-50">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-yellow-600" />
-            <CardTitle className="text-lg font-serif text-blue-900">The Person You Will Become</CardTitle>
+            <Sparkles className="w-5 h-5 text-highlight-ink" />
+            <CardTitle className="text-lg font-serif text-primary">The Person You Will Become</CardTitle>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-foreground leading-relaxed">{roadmap.futureYou.personTheyWillBecome}</p>
-          <div className="border-t border-yellow-200 pt-4">
+          <div className="border-t border-secondary/40 pt-4">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">What You Will Achieve</p>
             <p className="text-sm text-foreground leading-relaxed">{roadmap.futureYou.achievementSummary}</p>
           </div>
@@ -740,17 +740,17 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
 
       {/* Benign notice (e.g. region outside live coverage) — softer than an error */}
       {jobsNotice && !jobsError && (
-        <div className="flex items-start gap-2 p-4 rounded-lg border border-blue-200 bg-blue-50">
-          <Briefcase className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-blue-800">{jobsNotice}</p>
+        <div className="flex items-start gap-2 p-4 rounded-lg border border-primary/20 bg-primary/5">
+          <Briefcase className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+          <p className="text-sm text-primary">{jobsNotice}</p>
         </div>
       )}
 
       {/* Job search covered only the first N selected roles (client bypassed the FE cap) */}
       {jobsTruncated && (
-        <div className="flex items-start gap-2 p-4 rounded-lg border border-blue-200 bg-blue-50">
-          <Briefcase className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-blue-800">
+        <div className="flex items-start gap-2 p-4 rounded-lg border border-primary/20 bg-primary/5">
+          <Briefcase className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+          <p className="text-sm text-primary">
             Job search covered your top roles. Want to explore other roles? Adjust your picks and regenerate your roadmap.
           </p>
         </div>
@@ -759,7 +759,7 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
       {/* Currently Hiring */}
       {jobs && jobs.length > 0 && (
         <div>
-          <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-primary mb-4 flex items-center gap-2">
             <Briefcase className="w-5 h-5" />
             Currently Hiring
           </h3>
@@ -769,7 +769,7 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
               // Save button, and a button inside an anchor is invalid HTML.
               <div
                 key={job.url || i}
-                className="flex items-start justify-between gap-3 p-4 rounded-lg border hover:border-blue-300 transition-colors"
+                className="flex items-start justify-between gap-3 p-4 rounded-lg border hover:border-primary/40 transition-colors"
               >
                 <a
                   href={job.url}
@@ -777,7 +777,7 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
                   rel="noopener noreferrer"
                   className="min-w-0 flex-1 group"
                 >
-                  <p className="text-sm font-medium text-blue-900 truncate group-hover:underline inline-flex items-center gap-1.5 max-w-full">
+                  <p className="text-sm font-medium text-primary truncate group-hover:underline inline-flex items-center gap-1.5 max-w-full">
                     <span className="truncate">{job.title}</span>
                     <ExternalLink className="w-3.5 h-3.5 text-subtle-foreground shrink-0" />
                   </p>
@@ -806,7 +806,7 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
 
       {/* Career Roadmap Phases */}
       <div className="relative">
-        <h3 className="text-lg font-semibold text-blue-900 mb-6 flex items-center gap-2">
+        <h3 className="text-lg font-semibold text-primary mb-6 flex items-center gap-2">
           <Target className="w-5 h-5" />
           Career Roadmap
         </h3>
@@ -816,11 +816,11 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
         <div className="space-y-8">
           {roadmap.phases.map((phase, i) => (
             <div key={i} className="relative pl-14">
-              <div className="absolute left-2.5 w-5 h-5 rounded-full bg-blue-900 border-4 border-white shadow" />
+              <div className="absolute left-2.5 w-5 h-5 rounded-full bg-primary border-4 border-white shadow" />
               <Card>
                 <CardHeader className="pb-3">
                   <div className="flex items-center gap-3 mb-1">
-                    <Badge className="bg-blue-900 text-white">Phase {phase.phase}</Badge>
+                    <Badge className="bg-primary text-primary-foreground">Phase {phase.phase}</Badge>
                     <span className="text-sm text-muted-foreground">{phase.duration}</span>
                   </div>
                   <CardTitle className="text-lg">{phase.goal}</CardTitle>
@@ -831,7 +831,7 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
                     <ul className="space-y-2">
                       {phase.actions.map((action, j) => (
                         <li key={j} className="flex items-start gap-2 text-sm text-foreground">
-                          <ChevronRight className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
+                          <ChevronRight className="w-4 h-4 text-highlight-ink mt-0.5 shrink-0" />
                           {action}
                         </li>
                       ))}
@@ -850,11 +850,11 @@ function RoadmapAndJobsTab({ roadmap, jobs, jobsError, jobsNotice, jobsTruncated
                         return (
                           <li
                             key={j}
-                            className="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 min-w-0"
+                            className="rounded-lg border border-secondary/40 bg-secondary/10 px-3 py-2 min-w-0"
                           >
-                            <p className="text-sm font-medium text-yellow-900 break-words">{title}</p>
+                            <p className="text-sm font-medium text-highlight-ink break-words">{title}</p>
                             {detail && (
-                              <p className="text-xs text-yellow-800/80 mt-0.5 break-words">{detail}</p>
+                              <p className="text-xs text-highlight-ink/80 mt-0.5 break-words">{detail}</p>
                             )}
                           </li>
                         )
