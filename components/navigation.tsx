@@ -3,7 +3,19 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Bookmark, ChevronDown, Coins, History, LogOut, Menu, Shield, Target, X } from 'lucide-react'
+import {
+  Bookmark,
+  Building2,
+  ChevronDown,
+  Coins,
+  History,
+  LogOut,
+  Menu,
+  Search,
+  Shield,
+  Target,
+  X,
+} from 'lucide-react'
 import type { NavItem, ViewName } from '@/shared/types/navigation'
 import { TOOL_GROUPS, findToolItem } from '@/shared/config/navigation'
 import { useAuth } from '@/features/auth/context/AuthContext'
@@ -189,11 +201,27 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
               <Bookmark className="h-4 w-4" />
               Jobs
             </Link>
+            {/* Career Hub's public employer directory. No `aria-current`: it
+                renders its own page without this bar, so `currentView` never
+                names it. */}
+            <Link href="/search" className={`${NAV_BASE} ${NAV_IDLE}`}>
+              <Search className="h-4 w-4" />
+              Employers
+            </Link>
           </div>
 
           {/* Account cluster, pushed right and separated from the navigation. */}
           <div className="ml-auto hidden items-center gap-2 md:flex">
             {account ? <CreditPill credits={account.credits} isAdmin={account.isAdmin} /> : null}
+            {/* One link, not the five coach pages — that workspace carries its
+                own sidebar, and listing them here would be the same menu twice.
+                Gated on `isAdmin` because coach and admin are one set. */}
+            {account?.isAdmin ? (
+              <Link href="/coach/dashboard" className={`${NAV_BASE} ${NAV_IDLE}`}>
+                <Building2 className="h-4 w-4" />
+                Coach
+              </Link>
+            ) : null}
             {account?.isAdmin ? (
               <Link href="/admin/users" className={`${NAV_BASE} ${NAV_IDLE}`}>
                 <Shield className="h-4 w-4" />
@@ -267,6 +295,24 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
                 <Bookmark className="h-4 w-4" />
                 Jobs
               </Link>
+              <Link
+                href="/search"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`${NAV_BASE} w-full justify-start ${NAV_IDLE}`}
+              >
+                <Search className="h-4 w-4" />
+                Employers
+              </Link>
+              {account?.isAdmin ? (
+                <Link
+                  href="/coach/dashboard"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`${NAV_BASE} w-full justify-start ${NAV_IDLE}`}
+                >
+                  <Building2 className="h-4 w-4" />
+                  Coach
+                </Link>
+              ) : null}
               {account?.isAdmin ? (
                 <Link
                   href="/admin/users"
