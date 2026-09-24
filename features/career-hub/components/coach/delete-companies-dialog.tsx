@@ -133,7 +133,7 @@ export function DeleteCompaniesDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-40 overflow-y-auto rounded-sm border border-border bg-muted/40 p-3 text-sm">
+        <div className="max-h-40 overflow-y-auto rounded-lg border border-border bg-muted/40 p-3 text-sm">
           <ul className="space-y-1">
             {shown.map((company) => (
               <li key={company.company_id} className="truncate font-medium">

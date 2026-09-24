@@ -216,7 +216,7 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
           <div
             role="group"
             aria-label="Bulk actions"
-            className="flex flex-wrap items-center gap-3 rounded-sm border border-destructive/40 bg-destructive/5 px-3 py-2"
+            className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2"
           >
             <span className="text-sm font-medium" aria-live="polite">
               {selectedRows.length} selected
@@ -258,7 +258,7 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
           />
         )
       ) : (
-        <div className="overflow-x-auto rounded-sm border border-border bg-card">
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">

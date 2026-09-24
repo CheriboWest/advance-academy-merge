@@ -5,7 +5,7 @@ export default function DashboardLoading() {
         {Array.from({ length: 5 }).map((_, index) => (
           <div
             key={index}
-            className="h-32 animate-pulse rounded-sm border border-border bg-card"
+            className="h-32 animate-pulse rounded-lg border border-border bg-card"
           />
         ))}
       </div>
@@ -16,7 +16,7 @@ export default function DashboardLoading() {
           {Array.from({ length: 5 }).map((_, index) => (
             <div
               key={index}
-              className="h-16 animate-pulse rounded-sm border border-border bg-card"
+              className="h-16 animate-pulse rounded-lg border border-border bg-card"
             />
           ))}
         </div>
@@ -28,7 +28,7 @@ export default function DashboardLoading() {
           {Array.from({ length: 4 }).map((_, index) => (
             <div
               key={index}
-              className="h-56 animate-pulse rounded-sm border border-border bg-card"
+              className="h-56 animate-pulse rounded-lg border border-border bg-card"
             />
           ))}
         </div>

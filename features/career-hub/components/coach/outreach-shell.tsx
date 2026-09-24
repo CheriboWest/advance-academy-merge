@@ -39,7 +39,7 @@ export function OutreachShell({ companies }: OutreachShellProps) {
   });
 
   return (
-    <section className="space-y-4 rounded-sm border border-border bg-card p-6">
+    <section className="space-y-4 rounded-lg border border-border bg-card p-6">
       <label htmlFor="outreach-company-search" className="text-sm font-medium">
         Choose a company
       </label>
@@ -62,7 +62,7 @@ export function OutreachShell({ companies }: OutreachShellProps) {
           description="Try a different search term."
         />
       ) : (
-        <ul className="max-h-96 divide-y divide-border overflow-y-auto rounded-sm border border-border">
+        <ul className="max-h-96 divide-y divide-border overflow-y-auto rounded-lg border border-border">
           {filtered.map((company) => (
             <li key={company.company_id}>
               <Button

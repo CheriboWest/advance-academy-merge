@@ -209,7 +209,7 @@ export function SponsoredCompaniesList({
             return (
               <article
                 key={company.company_id}
-                className="flex h-full flex-col justify-between gap-6 rounded-sm border border-border bg-card p-6 transition-shadow hover:shadow-md"
+                className="flex h-full flex-col justify-between gap-6 rounded-lg border border-border bg-card p-6 transition-shadow hover:shadow-md"
               >
                 <div className="flex flex-col gap-4">
                   <div className="flex items-start justify-between gap-3">

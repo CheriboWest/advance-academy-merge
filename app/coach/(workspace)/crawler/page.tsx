@@ -251,7 +251,7 @@ export default function CrawlerPage() {
       </header>
 
       {/* Form */}
-      <section className="space-y-5 rounded-sm border border-border bg-card p-6">
+      <section className="space-y-5 rounded-lg border border-border bg-card p-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label htmlFor="query" className="text-sm font-medium">
@@ -307,7 +307,7 @@ export default function CrawlerPage() {
               <label
                 key={source.key}
                 className={cn(
-                  "flex cursor-pointer items-center gap-2 rounded-sm border border-border px-3 py-2 text-sm",
+                  "flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm",
                   sources[source.key] && "border-primary/40 bg-primary/5"
                 )}
               >
@@ -331,7 +331,7 @@ export default function CrawlerPage() {
         {error && phase !== "running" && (
           <p
             role="alert"
-            className="flex items-center gap-2 rounded-sm border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
           >
             <TriangleAlert className="size-4 shrink-0" />
             {error}
@@ -357,7 +357,7 @@ export default function CrawlerPage() {
 
       {/* Cached prompt */}
       {phase === "cached" && cached && (
-        <section className="space-y-4 rounded-sm border border-border bg-card p-6">
+        <section className="space-y-4 rounded-lg border border-border bg-card p-6">
           <div className="flex items-start gap-3">
             <Clock className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
             <div>
@@ -399,7 +399,7 @@ export default function CrawlerPage() {
 
       {/* Cached accepted */}
       {phase === "cached-accepted" && cached && (
-        <section className="rounded-sm border border-primary/40 bg-primary/10 p-6 text-foreground">
+        <section className="rounded-lg border border-primary/40 bg-primary/10 p-6 text-foreground">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
               <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
@@ -422,7 +422,7 @@ export default function CrawlerPage() {
 
       {/* Running */}
       {phase === "running" && (
-        <section className="flex items-center gap-3 rounded-sm border border-border bg-card p-6">
+        <section className="flex items-center gap-3 rounded-lg border border-border bg-card p-6">
           <Loader2 className="size-5 animate-spin text-primary" />
           <div>
             <p className="font-medium">Crawling…</p>
@@ -449,7 +449,7 @@ export default function CrawlerPage() {
           </div>
 
           {run.error && (
-            <p className="flex items-center gap-2 rounded-sm border border-highlight/40 bg-highlight/10 px-3 py-2 text-sm text-foreground">
+            <p className="flex items-center gap-2 rounded-lg border border-highlight/40 bg-highlight/10 px-3 py-2 text-sm text-foreground">
               <TriangleAlert className="size-4 shrink-0" />
               Some sources reported issues: {run.error}
             </p>
@@ -483,11 +483,11 @@ export default function CrawlerPage() {
       <section className="space-y-4">
         <h3 className="text-lg">Recent crawls</h3>
         {history.length === 0 ? (
-          <p className="rounded-sm border border-dashed border-border bg-card/50 px-6 py-8 text-center text-sm text-muted-foreground">
+          <p className="rounded-lg border border-dashed border-border bg-card/50 px-6 py-8 text-center text-sm text-muted-foreground">
             No crawls yet. Run one above to get started.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-sm border border-border bg-card">
+          <div className="overflow-x-auto rounded-lg border border-border bg-card">
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">

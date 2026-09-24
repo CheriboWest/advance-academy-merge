@@ -59,7 +59,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
       {state.error && (
         <p
           role="alert"
-          className="flex items-center gap-2 rounded-sm border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           <TriangleAlert className="size-4 shrink-0" />
           {state.error}

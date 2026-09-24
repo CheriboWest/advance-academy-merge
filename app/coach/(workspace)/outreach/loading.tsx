@@ -5,7 +5,7 @@ export default function OutreachLoading() {
       {Array.from({ length: 3 }).map((_, index) => (
         <div
           key={index}
-          className="h-24 animate-pulse rounded-sm border border-border bg-card"
+          className="h-24 animate-pulse rounded-lg border border-border bg-card"
         />
       ))}
     </div>

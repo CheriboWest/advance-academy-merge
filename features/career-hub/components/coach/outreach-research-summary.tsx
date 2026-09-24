@@ -27,7 +27,7 @@ export function OutreachResearchSummary({
   const match = sponsorshipStatus?.match;
 
   return (
-    <section className="space-y-3 rounded-sm border border-border bg-card p-6">
+    <section className="space-y-3 rounded-lg border border-border bg-card p-6">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-lg">Visa sponsorship</h3>
         <SponsorshipBadge

@@ -98,7 +98,7 @@ export function ContactsSection({
   }
 
   return (
-    <section className="space-y-4 rounded-sm border border-border bg-card p-6">
+    <section className="space-y-4 rounded-lg border border-border bg-card p-6">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-lg">Contacts</h3>
@@ -113,7 +113,7 @@ export function ContactsSection({
       </div>
 
       {contacts.length === 0 ? (
-        <p className="rounded-sm border border-dashed border-border bg-card/50 px-6 py-8 text-center text-sm text-muted-foreground">
+        <p className="rounded-lg border border-dashed border-border bg-card/50 px-6 py-8 text-center text-sm text-muted-foreground">
           No contacts yet. Add one to reach out directly.
         </p>
       ) : (
@@ -121,7 +121,7 @@ export function ContactsSection({
           {contacts.map((contact) => (
             <li
               key={contact.id}
-              className="flex flex-col gap-3 rounded-sm border border-border p-4 sm:flex-row sm:items-start sm:justify-between"
+              className="flex flex-col gap-3 rounded-lg border border-border p-4 sm:flex-row sm:items-start sm:justify-between"
             >
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">

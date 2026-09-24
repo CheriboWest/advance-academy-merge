@@ -212,7 +212,7 @@ export function OutreachComposer({
   }
 
   return (
-    <section className="space-y-5 rounded-sm border border-border bg-card p-6">
+    <section className="space-y-5 rounded-lg border border-border bg-card p-6">
       <div className="space-y-2">
         <label htmlFor="recipient-contact" className="text-sm font-medium">
           Contact
@@ -240,7 +240,7 @@ export function OutreachComposer({
         </Select>
 
         {selectedContact && (
-          <div className="flex items-start gap-2 rounded-sm bg-muted/50 p-3 text-sm text-muted-foreground">
+          <div className="flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
             <UserRound className="mt-0.5 size-4 shrink-0" />
             <div>
               <span className="text-foreground">{selectedContact.full_name}</span>
@@ -329,7 +329,7 @@ export function OutreachComposer({
         <p
           role="status"
           className={cn(
-            "flex items-center gap-2 rounded-sm border px-3 py-2 text-sm",
+            "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
             feedback.type === "success"
               ? "border-primary/40 bg-primary/10 text-foreground"
               : "border-destructive/30 bg-destructive/10 text-destructive"

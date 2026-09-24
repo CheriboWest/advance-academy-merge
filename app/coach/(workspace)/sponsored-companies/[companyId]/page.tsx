@@ -134,7 +134,7 @@ export default async function SponsoredCompanyPage({
       <ContactsSection companyId={company.company_id} initialContacts={contacts} />
 
       {/* Outreach history */}
-      <section className="space-y-4 rounded-sm border border-border bg-card p-6">
+      <section className="space-y-4 rounded-lg border border-border bg-card p-6">
         <h3 className="text-lg">Outreach history</h3>
         <OutreachActivityList activities={outreachActivities} hideCompany />
       </section>
