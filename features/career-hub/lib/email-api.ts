@@ -1,4 +1,5 @@
 import { getSupabaseBrowser } from "@/shared/auth/supabase-browser";
+import { CAREERHUB_PROXY } from "@/features/career-hub/lib/api-url";
 
 export interface SendEmailResult {
   status: string;
@@ -16,13 +17,6 @@ export async function sendEmailViaApi(
   to: string,
   signal?: AbortSignal
 ): Promise<SendEmailResult> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (!baseUrl) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_API_URL. Set it in apps/web/.env.local to your API URL."
-    );
-  }
-
   const supabase = getSupabaseBrowser();
   const {
     data: { session },
@@ -32,7 +26,7 @@ export async function sendEmailViaApi(
     throw new Error("You must be signed in to send email.");
   }
 
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/email/send`, {
+  const response = await fetch(`${CAREERHUB_PROXY}/email/send`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

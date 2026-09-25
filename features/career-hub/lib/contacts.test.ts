@@ -101,7 +101,7 @@ afterEach(() => {
 describe("contact counts for Sponsored Companies", () => {
   it("one company with 2 real contacts: batch count map has 2 for that company", async () => {
     installFakeBackend();
-    process.env.NEXT_PUBLIC_API_URL = "http://fake-api.test";
+    process.env.CAREERHUB_API_URL = "http://fake-api.test";
 
     const { getContactCounts, getContacts } = await import("@/features/career-hub/lib/contacts");
 
@@ -116,7 +116,7 @@ describe("contact counts for Sponsored Companies", () => {
       "company with contacts, instead of every company silently going to 0",
     async () => {
       installFakeBackend();
-      process.env.NEXT_PUBLIC_API_URL = "http://fake-api.test";
+      process.env.CAREERHUB_API_URL = "http://fake-api.test";
 
       const { getContactCounts, getContacts } = await import("@/features/career-hub/lib/contacts");
 

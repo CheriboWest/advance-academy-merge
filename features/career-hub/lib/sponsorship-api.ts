@@ -1,4 +1,5 @@
 import { getSupabaseBrowser } from "@/shared/auth/supabase-browser";
+import { CAREERHUB_PROXY } from "@/features/career-hub/lib/api-url";
 import type { CompanySponsorshipStatus } from "@/features/career-hub/lib/types";
 
 /**
@@ -14,13 +15,6 @@ export async function recheckSponsorshipViaApi(
   companyId: string,
   signal?: AbortSignal
 ): Promise<CompanySponsorshipStatus> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (!baseUrl) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_API_URL. Set it in apps/web/.env.local to your API URL."
-    );
-  }
-
   const supabase = getSupabaseBrowser();
   const {
     data: { session },
@@ -31,7 +25,7 @@ export async function recheckSponsorshipViaApi(
   }
 
   const response = await fetch(
-    `${baseUrl.replace(/\/$/, "")}/sponsors/companies/${companyId}/recheck`,
+    `${CAREERHUB_PROXY}/sponsors/companies/${companyId}/recheck`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${session.access_token}` },

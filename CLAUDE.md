@@ -26,6 +26,10 @@ Nothing here has been cut over.
   `middleware.ts`'s `PUBLIC_PATHS` along with `/coach/login`. `middleware.ts`'s
   matcher gates every other page route, so a new public page must be added there
   or it silently redirects to `/login`.
+- The browser reaches `backend-python` only via the same-origin rewrite
+  `/api/careerhub/*` → `CAREERHUB_API_URL` in `next.config.mjs`; server code
+  calls it directly. Both go through `features/career-hub/lib/api-url.ts` —
+  don't reintroduce a `NEXT_PUBLIC_` URL for it.
 - `/coach/*` additionally requires `users.is_admin` — checked in
   `app/coach/(workspace)/layout.tsx` and, for the Python API, in
   `backend-python/app/auth.py`. There is no separate `is_coach` column: coach

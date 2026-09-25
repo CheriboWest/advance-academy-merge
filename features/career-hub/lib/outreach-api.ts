@@ -1,4 +1,5 @@
 import { getSupabaseBrowser } from "@/shared/auth/supabase-browser";
+import { CAREERHUB_PROXY } from "@/features/career-hub/lib/api-url";
 
 export interface GeneratedOutreach {
   subject: string;
@@ -33,7 +34,7 @@ export interface OutreachContext {
  * Call the FastAPI backend to generate an outreach email with Claude.
  *
  * The backend holds the Anthropic API key; the browser only ever talks to this
- * backend (via NEXT_PUBLIC_API_URL). The key is never exposed to the frontend.
+ * backend (via the /api/careerhub rewrite). The key is never exposed to the frontend.
  * The endpoint is protected — we send the signed-in coach's Supabase access
  * token as a Bearer token.
  */
@@ -41,13 +42,6 @@ export async function generateOutreachViaApi(
   context: OutreachContext,
   signal?: AbortSignal
 ): Promise<GeneratedOutreach> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (!baseUrl) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_API_URL. Set it in apps/web/.env.local to your API URL."
-    );
-  }
-
   const supabase = getSupabaseBrowser();
   const {
     data: { session },
@@ -57,7 +51,7 @@ export async function generateOutreachViaApi(
     throw new Error("You must be signed in to generate outreach.");
   }
 
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/ai/outreach`, {
+  const response = await fetch(`${CAREERHUB_PROXY}/ai/outreach`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

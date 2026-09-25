@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/shared/auth/supabase-server";
+import { careerHubApiUrl } from "@/features/career-hub/lib/api-url";
 import type { Contact } from "@/features/career-hub/lib/types";
 
 /**
@@ -17,7 +18,7 @@ import type { Contact } from "@/features/career-hub/lib/types";
  * without contacts, rather than failing outright.
  */
 async function fetchContacts(query: string): Promise<Contact[]> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  const baseUrl = careerHubApiUrl();
   if (!baseUrl) return [];
 
   const supabase = await createSupabaseServerClient();
@@ -28,7 +29,7 @@ async function fetchContacts(query: string): Promise<Contact[]> {
 
   try {
     const response = await fetch(
-      `${baseUrl.replace(/\/$/, "")}/contacts?${query}`,
+      `${baseUrl}/contacts?${query}`,
       {
         headers: { Authorization: `Bearer ${session.access_token}` },
         cache: "no-store",

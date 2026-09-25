@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/shared/auth/supabase-server";
+import { careerHubApiUrl } from "@/features/career-hub/lib/api-url";
 import type {
   CompanySponsorshipStatus,
   CompanySponsorshipStatusCompact,
@@ -22,7 +23,7 @@ import type {
 export async function getSponsorshipStatus(
   companyId: string
 ): Promise<CompanySponsorshipStatus | null> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  const baseUrl = careerHubApiUrl();
   if (!baseUrl) return null;
 
   const supabase = await createSupabaseServerClient();
@@ -33,7 +34,7 @@ export async function getSponsorshipStatus(
 
   try {
     const response = await fetch(
-      `${baseUrl.replace(/\/$/, "")}/sponsors/companies/${companyId}`,
+      `${baseUrl}/sponsors/companies/${companyId}`,
       {
         headers: { Authorization: `Bearer ${session.access_token}` },
         cache: "no-store",
@@ -58,7 +59,7 @@ export async function getSponsorshipStatus(
  * whole dashboard over one tile.
  */
 export async function getSponsorshipStats(): Promise<SponsorshipStats | null> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  const baseUrl = careerHubApiUrl();
   if (!baseUrl) return null;
 
   const supabase = await createSupabaseServerClient();
@@ -68,7 +69,7 @@ export async function getSponsorshipStats(): Promise<SponsorshipStats | null> {
   if (!session) return null;
 
   try {
-    const response = await fetch(`${baseUrl.replace(/\/$/, "")}/sponsors/stats`, {
+    const response = await fetch(`${baseUrl}/sponsors/stats`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
       cache: "no-store",
     });
@@ -95,7 +96,7 @@ export async function getSponsorshipStatuses(
 ): Promise<Record<string, CompanySponsorshipStatusCompact>> {
   if (companyIds.length === 0) return {};
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  const baseUrl = careerHubApiUrl();
   if (!baseUrl) return {};
 
   const supabase = await createSupabaseServerClient();
@@ -116,7 +117,7 @@ export async function getSponsorshipStatuses(
   try {
     const results = await Promise.all(
       chunks.map((chunk) =>
-        fetch(`${baseUrl.replace(/\/$/, "")}/sponsors/companies/statuses`, {
+        fetch(`${baseUrl}/sponsors/companies/statuses`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

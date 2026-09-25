@@ -132,7 +132,7 @@ if CONTACTS_TS.exists():
     # (company_id= / company_ids=), rather than pinning one exact call shape that
     # a harmless internal refactor (e.g. extracting that helper) would break.
     base_call = re.search(
-        r"fetch\(\s*`\$\{baseUrl\.replace\([^)]*\)\}/contacts\?\$\{query\}`", source
+        r"fetch\(\s*`\$\{baseUrl[^}]*\}/contacts\?\$\{query\}`", source
     )
     check("contacts.ts's shared fetch helper hits exactly /contacts?<query>",
           bool(base_call), f"searched {CONTACTS_TS.name} for the fetch(...) call")

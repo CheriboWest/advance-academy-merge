@@ -1,4 +1,5 @@
 import { getSupabaseBrowser } from "@/shared/auth/supabase-browser";
+import { CAREERHUB_PROXY } from "@/features/career-hub/lib/api-url";
 import type { Contact, ContactInput } from "@/features/career-hub/lib/types";
 
 /**
@@ -48,13 +49,6 @@ function extractErrorDetail(data: unknown): string | null {
 }
 
 async function authFetch<T>(path: string, init: RequestInit): Promise<T> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (!baseUrl) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_API_URL. Set it in apps/web/.env.local to your API URL."
-    );
-  }
-
   const supabase = getSupabaseBrowser();
   const {
     data: { session },
@@ -63,7 +57,7 @@ async function authFetch<T>(path: string, init: RequestInit): Promise<T> {
     throw new Error("You must be signed in to manage contacts.");
   }
 
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}${path}`, {
+  const response = await fetch(`${CAREERHUB_PROXY}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",

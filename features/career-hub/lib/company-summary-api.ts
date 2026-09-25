@@ -1,4 +1,5 @@
 import { getSupabaseBrowser } from "@/shared/auth/supabase-browser";
+import { CAREERHUB_PROXY } from "@/features/career-hub/lib/api-url";
 
 export interface CompanySummaryRefreshResult {
   company_id: string;
@@ -19,13 +20,6 @@ export async function refreshCompanySummaryViaApi(
   companyId: string,
   signal?: AbortSignal
 ): Promise<CompanySummaryRefreshResult> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (!baseUrl) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_API_URL. Set it in apps/web/.env.local to your API URL."
-    );
-  }
-
   const supabase = getSupabaseBrowser();
   const {
     data: { session },
@@ -36,7 +30,7 @@ export async function refreshCompanySummaryViaApi(
   }
 
   const response = await fetch(
-    `${baseUrl.replace(/\/$/, "")}/companies/${companyId}/summary/refresh`,
+    `${CAREERHUB_PROXY}/companies/${companyId}/summary/refresh`,
     {
       method: "POST",
       headers: { Authorization: `Bearer ${session.access_token}` },

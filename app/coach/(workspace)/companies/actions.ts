@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createSupabaseServerClient } from "@/shared/auth/supabase-server";
+import { careerHubApiUrl } from "@/features/career-hub/lib/api-url";
 
 export interface MetaActionResult {
   error: string | null;
@@ -180,10 +181,10 @@ export async function deleteCompaniesPermanentlyAction(
     );
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  const baseUrl = careerHubApiUrl();
   if (!baseUrl) {
     return failedDelete(
-      "Missing NEXT_PUBLIC_API_URL. Set it in apps/web/.env.local to your API URL."
+      "Missing CAREERHUB_API_URL. Set it in .env.local to your API URL."
     );
   }
 
@@ -207,7 +208,7 @@ export async function deleteCompaniesPermanentlyAction(
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl.replace(/\/$/, "")}/companies/delete`, {
+    response = await fetch(`${baseUrl}/companies/delete`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
