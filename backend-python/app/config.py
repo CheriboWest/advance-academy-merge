@@ -53,11 +53,12 @@ class Settings:
         # must be verified in Resend.
         self.email_from: str = os.getenv("EMAIL_FROM", "")
         # Model used for sponsor entity resolution. Kept separate from the
-        # outreach model: resolution is a judgement task where a wrong answer is
-        # expensive, so it defaults to the most capable model rather than the
-        # cheapest one that can write an email.
+        # outreach model so it can be raised on its own; defaults to Haiku like
+        # every other call. If you raise it to a model that takes
+        # output_config.effort, the resolver can pass one again (Haiku 4.5
+        # rejects the parameter with a 400).
         self.sponsor_resolver_model: str = os.getenv(
-            "SPONSOR_RESOLVER_MODEL", "claude-opus-5"
+            "SPONSOR_RESOLVER_MODEL", "claude-haiku-4-5"
         )
         # Sponsorship resolution runs in the background after a crawl. Kept
         # small: it must never contend with crawling, and each unit of work is

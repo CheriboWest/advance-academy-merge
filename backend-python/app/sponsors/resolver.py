@@ -308,7 +308,6 @@ def resolve(
         max_tokens=2048,
         system=SYSTEM_PROMPT,
         output_config={
-            "effort": "medium",
             "format": {"type": "json_schema", "schema": RESOLUTION_SCHEMA},
         },
         messages=[

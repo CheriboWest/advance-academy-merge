@@ -1,4 +1,4 @@
-"""AI outreach generation endpoint, powered by Anthropic Claude Sonnet."""
+"""AI outreach generation endpoint, powered by Anthropic Claude Haiku."""
 
 from __future__ import annotations
 

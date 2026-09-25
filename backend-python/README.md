@@ -1,7 +1,7 @@
 # CareerHub UK — API (`apps/api`)
 
 FastAPI backend for CareerHub UK. This milestone implements **AI outreach
-generation** using Anthropic Claude Sonnet. Deploy target: **Railway**.
+generation** using Anthropic Claude Haiku. Deploy target: **Railway**.
 
 The Anthropic API key lives here, server-side only, and is **never** exposed to
 the frontend — the frontend calls this backend, which calls Anthropic.
@@ -10,7 +10,7 @@ the frontend — the frontend calls this backend, which calls Anthropic.
 
 - **Framework:** FastAPI
 - **Server:** Uvicorn
-- **AI:** Anthropic Claude Sonnet (`claude-sonnet-5`) via the official
+- **AI:** Anthropic Claude Haiku (`claude-haiku-4-5`) via the official
   `anthropic` Python SDK
 - **Language:** Python 3.11+
 
@@ -374,7 +374,7 @@ Copy `.env.example` to `.env` and fill in:
 | Variable            | Required | Default           | Notes                                   |
 | ------------------- | -------- | ----------------- | --------------------------------------- |
 | `ANTHROPIC_API_KEY` | ✅       | —                 | Server-side only; never sent to browser |
-| `ANTHROPIC_MODEL`   | ❌       | `claude-sonnet-5` | Claude Sonnet model id                  |
+| `ANTHROPIC_MODEL`   | ❌       | `claude-haiku-4-5` | Claude model id                        |
 | `ANTHROPIC_TIMEOUT` | ❌       | `30`              | Request timeout (seconds)               |
 | `ALLOWED_ORIGINS`   | ❌       | `http://localhost:3000` | Comma-separated CORS origins (your Vercel URL) |
 | `ALLOWED_ORIGIN_REGEX` | ❌    | —                 | Extra CORS origins by regex, for Vercel preview URLs. Full-matched — anchor it to your own scope |
@@ -385,7 +385,7 @@ Copy `.env.example` to `.env` and fill in:
 | `ADZUNA_APP_ID`     | ✅ (crawler) | —             | Adzuna API app id                       |
 | `ADZUNA_APP_KEY`    | ✅ (crawler) | —             | Adzuna API app key                      |
 | `REED_API_KEY`      | ✅ (crawler) | —             | Reed API key                            |
-| `SPONSOR_RESOLVER_MODEL` | ❌  | `claude-opus-5` | Model used for sponsor entity resolution |
+| `SPONSOR_RESOLVER_MODEL` | ❌  | `claude-haiku-4-5` | Model used for sponsor entity resolution |
 | `SPONSOR_RESOLVE_CONCURRENCY` | ❌ | `3` | In-flight resolution requests |
 | `SPONSOR_RESOLVE_MAX_PER_CRAWL` | ❌ | `50` | Companies resolved per crawl |
 | `SPONSOR_UPSERT_CHUNK` | ❌ | `250` | Rows per register upsert batch |
