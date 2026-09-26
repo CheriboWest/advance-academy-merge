@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 
+import { BackLink } from "@/components/back-link";
 import {
   getCompanyNotes,
   getExistingDraft,
@@ -11,7 +10,6 @@ import {
 import { getContacts } from "@/features/career-hub/lib/contacts";
 import { fetchActiveJobs } from "@/features/career-hub/lib/queries";
 import { getSponsorshipStatus } from "@/features/career-hub/lib/sponsorship";
-import { Button } from "@/components/ui/button";
 import { CompanyContextCard } from "@/features/career-hub/components/coach/company-context-card";
 import { OpenJobsSection } from "@/features/career-hub/components/coach/open-jobs-section";
 import { OutreachResearchSummary } from "@/features/career-hub/components/coach/outreach-research-summary";
@@ -61,17 +59,7 @@ export default async function OutreachCompanyPage({
 
   return (
     <div className="space-y-6">
-      <Button
-        asChild
-        variant="ghost"
-        size="sm"
-        className="-ml-2 text-muted-foreground"
-      >
-        <Link href="/coach/outreach">
-          <ArrowLeft className="size-4" />
-          Back to outreach
-        </Link>
-      </Button>
+      <BackLink href="/coach/outreach">Back to outreach</BackLink>
 
       {/* Research: company overview, hiring signals, open jobs, sponsorship, notes */}
       <CompanyContextCard company={company} />

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 
+import { BackLink } from "@/components/back-link";
 import { getSponsoredCompanyContext } from "@/features/career-hub/lib/coach";
 import { getContacts } from "@/features/career-hub/lib/contacts";
 import { fetchActiveJobs } from "@/features/career-hub/lib/queries";
@@ -14,7 +14,6 @@ import type {
   Contact,
   OutreachActivityRow,
 } from "@/features/career-hub/lib/types";
-import { Button } from "@/components/ui/button";
 import { CompanyContextCard } from "@/features/career-hub/components/coach/company-context-card";
 import { SponsorshipCard } from "@/features/career-hub/components/coach/sponsorship-card";
 import { ContactsSection } from "@/features/career-hub/components/coach/contacts-section";
@@ -62,17 +61,7 @@ export default async function SponsoredCompanyPage({
   }
 
   const backLink = (
-    <Button
-      asChild
-      variant="ghost"
-      size="sm"
-      className="-ml-2 text-muted-foreground"
-    >
-      <Link href="/coach/sponsored-companies">
-        <ArrowLeft className="size-4" />
-        Back to sponsored companies
-      </Link>
-    </Button>
+    <BackLink href="/coach/sponsored-companies">Back to sponsored companies</BackLink>
   );
 
   // Sponsorship status, jobs, contacts and outreach history are each a

@@ -1,6 +1,7 @@
 import * as React from "react";
 import type { Metadata } from "next";
 
+import { BackLink } from "@/components/back-link";
 import { parseSearchFilters } from "@/features/career-hub/lib/filters";
 import { PageContainer } from "@/features/career-hub/components/page-container";
 import { SearchFilters } from "@/features/career-hub/components/search-filters";
@@ -29,6 +30,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   return (
     <>
       <PageContainer as="header" className="py-10">
+        <BackLink href="/" className="mb-6">
+          Back to home
+        </BackLink>
         <p className="label-caps">Employer directory</p>
         <h1 className="mt-3 text-4xl sm:text-5xl">Search UK employers</h1>
         <p className="mt-3 max-w-xl text-muted-foreground">

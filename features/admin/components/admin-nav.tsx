@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ArrowLeft, Shield } from 'lucide-react'
+import { BackLink } from '@/components/back-link'
+import { Shield } from 'lucide-react'
 
 const TABS = [
   { href: '/admin/coaching', label: 'Coaching', hint: 'Booked sessions and their prep packs' },
@@ -21,17 +22,11 @@ export function AdminNav() {
   return (
     <div className="mb-8 border-b">
       <div className="mb-4 flex items-center justify-between">
+        <BackLink href="/">Back to app</BackLink>
         <span className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <Shield className="h-4 w-4" />
           Admin
         </span>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to app
-        </Link>
       </div>
 
       <nav className="flex gap-1">

@@ -1,7 +1,8 @@
 'use client'
 
-import { ArrowLeft, Lock, Mic, Printer } from 'lucide-react'
+import { Lock, Mic, Printer } from 'lucide-react'
 import type { CoachingSession, StudentCoachingPack } from '@advance-academy/contracts/coaching'
+import { BackLink } from '@/components/back-link'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCoachingSession, useSessionPractice } from '../hooks/use-coaching'
@@ -63,14 +64,7 @@ export function StudentPack({
     <div className="space-y-8">
       {/* Hidden on paper: navigation is meaningless in an exported document. */}
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          My sessions
-        </button>
+        <BackLink onClick={onBack}>My sessions</BackLink>
         {pack ? (
           <div className="flex gap-2">
             {/*
