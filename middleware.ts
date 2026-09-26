@@ -22,6 +22,8 @@ const PUBLIC_PATHS = [
   '/search',
   '/companies',
   '/coach/login',
+  // Reminder-email opt-out; the signed token in the link stands in for a login.
+  '/unsubscribe',
 ]
 
 /**
@@ -81,8 +83,11 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/login'
+    // Carry the whole destination so a deep link (Career Hub's Save →
+    // /jobs?add=…) lands where it was going after sign-in. The login page only
+    // honours same-origin paths (shared/auth/next-path.ts).
+    const redirectUrl = new URL('/login', request.url)
+    if (pathname !== '/') redirectUrl.searchParams.set('next', pathname + request.nextUrl.search)
     return NextResponse.redirect(redirectUrl)
   }
 

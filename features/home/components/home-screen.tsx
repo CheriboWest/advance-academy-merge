@@ -1,7 +1,9 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
 import { OrnamentalDivider } from '@/components/ornamental-divider'
+import { ThisWeek } from '@/features/engagement/components/this-week'
 import { TOOL_GROUPS } from '@/shared/config/navigation'
 import type { NavItem, ViewName } from '@/shared/types/navigation'
 
@@ -19,10 +21,11 @@ interface HomeScreenProps {
  * is too quiet to register as a response.
  */
 function ToolCard({ item, onNavigate }: { item: NavItem; onNavigate: (view: ViewName) => void }) {
+  const router = useRouter()
   const Icon = item.icon
   return (
     <button
-      onClick={() => onNavigate(item.view)}
+      onClick={() => (item.href ? router.push(item.href) : onNavigate(item.view))}
       className="group flex h-full w-full flex-col items-start rounded-xl border bg-background p-6 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-secondary hover:bg-secondary/5 hover:shadow-lg"
     >
       <span className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-secondary transition-colors duration-150 group-hover:bg-primary/90">
@@ -41,6 +44,11 @@ function ToolCard({ item, onNavigate }: { item: NavItem; onNavigate: (view: View
 export function HomeScreen({ onNavigate }: HomeScreenProps) {
   return (
     <>
+      {/* The dashboard part: what to do this week. The tool grid below is the map. */}
+      <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 lg:px-8">
+        <ThisWeek />
+      </div>
+
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 md:py-24 lg:px-8">
         <div className="mb-16 text-center">
           <h1 className="mb-6 text-balance font-serif text-5xl font-bold text-primary md:text-6xl">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type {
   CreateSavedJobRequest,
+  JobSource,
   SavedJob,
   UpdateSavedJobRequest,
 } from '@advance-academy/contracts/job-tracking'
@@ -19,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { HttpClientError } from '@/shared/api/http-client'
+import { CvPicker } from '@/features/cv-library/components/cv-picker'
 import { useCreateSavedJob, useUpdateSavedJob } from '../hooks/use-job-tracking'
 
 /** Values a caller can pre-fill (deep link from Career Hub, or the Save button). */
@@ -27,6 +29,9 @@ export interface JobFormPrefill {
   companyName?: string
   jobUrl?: string
   location?: string
+  salaryText?: string
+  /** Where the job came from; a hand-typed card is `manual`. */
+  source?: JobSource
 }
 
 interface FormState {
@@ -39,6 +44,7 @@ interface FormState {
   nextFollowUpAt: string
   appliedAt: string
   notes: string
+  cvVersionId: string
 }
 
 const EMPTY: FormState = {
@@ -51,6 +57,7 @@ const EMPTY: FormState = {
   nextFollowUpAt: '',
   appliedAt: '',
   notes: '',
+  cvVersionId: '',
 }
 
 /** `YYYY-MM-DD` for a date input from an ISO instant, or '' when unset. */
@@ -74,6 +81,7 @@ function fromJob(job: SavedJob): FormState {
     nextFollowUpAt: job.nextFollowUpAt ?? '',
     appliedAt: dayOf(job.appliedAt),
     notes: job.notes ?? '',
+    cvVersionId: job.cvVersionId ?? '',
   }
 }
 
@@ -84,6 +92,7 @@ function fromPrefill(prefill: JobFormPrefill | undefined): FormState {
     companyName: prefill?.companyName ?? '',
     jobUrl: prefill?.jobUrl ?? '',
     location: prefill?.location ?? '',
+    salaryText: prefill?.salaryText ?? '',
   }
 }
 
@@ -103,7 +112,8 @@ interface JobFormDialogProps {
 /**
  * Add / edit form for one card. Native date inputs on purpose: they give a
  * proper picker on phones for free, and the tracker has to work at 400px.
- * No LLM anywhere in here — pasting a URL stores the URL, nothing is fetched.
+ * No LLM anywhere in here — pasting a URL stores the URL, nothing is fetched
+ * (the Cover Letter tool fetches the JD later, when it needs one).
  */
 export function JobFormDialog({ open, onOpenChange, job, prefill, onSaved }: JobFormDialogProps) {
   const isEdit = Boolean(job)
@@ -144,6 +154,7 @@ export function JobFormDialog({ open, onOpenChange, job, prefill, onSaved }: Job
           nextFollowUpAt: orNull(form.nextFollowUpAt),
           appliedAt: form.appliedAt ? new Date(`${form.appliedAt}T12:00:00`).toISOString() : null,
           notes: orNull(form.notes),
+          cvVersionId: orNull(form.cvVersionId),
         }
         const res = await update.mutateAsync(patch)
         onSaved?.(res.job)
@@ -155,8 +166,9 @@ export function JobFormDialog({ open, onOpenChange, job, prefill, onSaved }: Job
           jobUrl: orNull(form.jobUrl),
           salaryText: orNull(form.salaryText),
           deadlineAt: orNull(form.deadlineAt),
+          nextFollowUpAt: orNull(form.nextFollowUpAt),
           notes: orNull(form.notes),
-          source: 'manual',
+          source: prefill?.source ?? 'manual',
         }
         const res = await create.mutateAsync(body)
         onSaved?.(res.job)
@@ -224,16 +236,28 @@ export function JobFormDialog({ open, onOpenChange, job, prefill, onSaved }: Job
             </div>
           </div>
 
-          {isEdit ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="job-follow-up">Next follow-up</Label>
-                <Input id="job-follow-up" type="date" value={form.nextFollowUpAt} onChange={set('nextFollowUpAt')} />
-              </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="job-follow-up">Next follow-up</Label>
+              <Input id="job-follow-up" type="date" value={form.nextFollowUpAt} onChange={set('nextFollowUpAt')} />
+            </div>
+            {isEdit ? (
               <div className="space-y-1.5">
                 <Label htmlFor="job-applied">Applied on</Label>
                 <Input id="job-applied" type="date" value={form.appliedAt} onChange={set('appliedAt')} />
               </div>
+            ) : null}
+          </div>
+
+          {isEdit ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="job-cv">CV used</Label>
+              <CvPicker
+                id="job-cv"
+                optional
+                value={form.cvVersionId}
+                onChange={(cvVersionId) => setForm((f) => ({ ...f, cvVersionId }))}
+              />
             </div>
           ) : null}
 

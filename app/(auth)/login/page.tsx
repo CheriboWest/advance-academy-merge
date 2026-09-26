@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/features/auth/context/AuthContext'
+import { rememberNextPath, safeNextPath, takeNextPath } from '@/shared/auth/next-path'
 
 export default function LoginPage() {
   const { signIn, sendMagicLink } = useAuth()
@@ -15,6 +16,15 @@ export default function LoginPage() {
   const [linkLoading, setLinkLoading] = useState(false)
   const [linkSent, setLinkSent] = useState(false)
 
+  // Park ?next= for after sign-in (the magic link comes back via /auth/callback,
+  // which has no query of its own). No ?next= means a plain visit: drop any
+  // path left over from an abandoned earlier attempt.
+  useEffect(() => {
+    const next = new URLSearchParams(window.location.search).get('next')
+    if (next) rememberNextPath(next)
+    else takeNextPath()
+  }, [])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -25,7 +35,9 @@ export default function LoginPage() {
       setError(error)
       return
     }
-    router.push('/')
+    // Storage first (clears it); the query covers browsers that block storage.
+    const next = takeNextPath() ?? safeNextPath(new URLSearchParams(window.location.search).get('next'))
+    router.push(next ?? '/')
   }
 
   // Passwordless alternative — emails a magic login link via Resend (CA-001 P2).

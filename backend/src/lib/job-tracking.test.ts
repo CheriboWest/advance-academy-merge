@@ -71,3 +71,12 @@ test('validateChangeJobStatus: only known statuses pass', () => {
   assert.equal(validateChangeJobStatus({ status: 'ghosted' }).ok, false);
   assert.equal(validateChangeJobStatus({}).ok, false);
 });
+
+test('validateUpdateSavedJob: cvVersionId must be an id, cover letter is capped', () => {
+  const id = '0b8e4f6a-1c2d-4e5f-8a9b-0c1d2e3f4a5b';
+  const ok = validateUpdateSavedJob({ cvVersionId: id, coverLetterText: ' Dear Hiring Manager ' });
+  assert.deepEqual(ok, { ok: true, value: { cvVersionId: id, coverLetterText: 'Dear Hiring Manager' } });
+  assert.equal(validateUpdateSavedJob({ cvVersionId: 'not-an-id' }).ok, false);
+  assert.equal(validateUpdateSavedJob({ coverLetterText: 'x'.repeat(10001) }).ok, false);
+  assert.deepEqual(validateUpdateSavedJob({ cvVersionId: null }), { ok: true, value: { cvVersionId: null } });
+});

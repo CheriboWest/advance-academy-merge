@@ -49,6 +49,7 @@ import type { InterviewMode } from '@/hooks/use-interview'
 import { IRSMeter } from '@/components/interview/irs-meter'
 import { MicButton } from '@/features/interview-prep/components/mic-button'
 import { irsScoreColor, irsScoreLabel } from '@/shared/utils/score-utils'
+import { getSavedJob } from '@/features/job-tracking/api/frontend-client'
 
 interface InterviewPrepScreenProps {
   onNavigate: (view: ViewName) => void
@@ -68,6 +69,33 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
   }>({ state: 'idle' })
 
   const { updateContext, setStep } = interview
+
+  // ── Prep for a tracked job (`?savedJob=<id>` from a tracker card) ──
+  // Fills title, company and whatever JD the card holds. A thin JD with a link
+  // pre-fills the "extract from URL" box instead of fetching on page load, so
+  // the student decides when to spend the extraction.
+  const savedJobId = searchParams?.get('savedJob') ?? null
+  const [savedJobUrl, setSavedJobUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!savedJobId || coachingSessionId) return
+    let cancelled = false
+    getSavedJob(savedJobId)
+      .then(({ job }) => {
+        if (cancelled) return
+        updateContext({
+          jobTitle: job.title,
+          companyName: job.companyName ?? '',
+          jobDescription: job.description ?? '',
+        })
+        if (job.jobUrl && (job.description?.trim().length ?? 0) < 400) setSavedJobUrl(job.jobUrl)
+      })
+      .catch(() => {
+        // A deleted or foreign card: fall back to the empty setup form.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [savedJobId, coachingSessionId, updateContext])
 
   useEffect(() => {
     // Runs once per session id. The whole point is that the student arrives with
@@ -169,6 +197,7 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
           context={interview.context}
           updateContext={interview.updateContext}
           onNext={() => interview.setStep('persona')}
+          initialJobUrl={savedJobUrl}
         />
       )}
 
@@ -259,10 +288,13 @@ function SetupStep({
   context,
   updateContext,
   onNext,
+  initialJobUrl,
 }: {
   context: ReturnType<typeof useInterview>['context']
   updateContext: ReturnType<typeof useInterview>['updateContext']
   onNext: () => void
+  /** A tracked job's link, when its stored JD is too thin to interview against. */
+  initialJobUrl?: string | null
 }) {
   const isValid =
     context.cvText.trim().length > 0 &&
@@ -342,6 +374,9 @@ function SetupStep({
   }
 
   const [jobUrl, setJobUrl] = useState('')
+  useEffect(() => {
+    if (initialJobUrl) setJobUrl(initialJobUrl)
+  }, [initialJobUrl])
   const [extractError, setExtractError] = useState<string | null>(null)
   const [extractInfo, setExtractInfo] = useState<string | null>(null)
   const {

@@ -29,6 +29,7 @@ import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../
 import { getSupabase, isMissingColumnError } from '../lib/supabase.js';
 import { ensureCvVersion } from '../lib/cv-version-link.js';
 import { recordToolResult } from './tool-results.service.js';
+import { changeJobStatus, updateSavedJob } from './job-tracking.service.js';
 import { getReferenceExamples, formatReferencePatterns } from './reference-cv.service.js';
 
 interface CvAnalysisJobRow {
@@ -895,6 +896,23 @@ async function linkJobToCvVersion(
 }
 
 /**
+ * Assisted Apply: a run started from a tracked job records the analysed CV as
+ * that card's "CV used" and moves a card still at `saved` to `preparing`.
+ * Best-effort like the link above — the analysis already succeeded. Scoped by
+ * user in the tracker service, so a foreign card id changes nothing.
+ */
+async function linkSavedJob(userId: string, savedJobId: string, cvVersionId: string): Promise<void> {
+  try {
+    const job = await updateSavedJob(userId, savedJobId, { cvVersionId });
+    if (job?.status === 'saved') {
+      await changeJobStatus(userId, savedJobId, { status: 'preparing', note: 'CV tailored in CV Optimizer' });
+    }
+  } catch (err) {
+    console.error(`[cv-optimizer] could not link saved job ${savedJobId}:`, err);
+  }
+}
+
+/**
  * Short label for the history list, e.g. "Data Analyst · against a JD".
  *
  * The role alone is ambiguous once a student has run the same role twice, so the
@@ -922,10 +940,16 @@ async function runCvAnalysisJob(jobId: string, body: AnalyzeCvRequest, userId: s
     // `recordToolResult` swallows its own errors for the same reason.
     // `cvText` is deliberately not in `input` — it lives in `cv_versions` and is
     // pointed at, not copied per run.
+    const cvVersionId = await linking;
     await recordToolResult(userId, 'cv', cvSummary(body), result, {
-      input: { targetRole: body.targetRole, jobDescription: body.jobDescription ?? null },
-      cvVersionId: await linking,
+      input: {
+        targetRole: body.targetRole,
+        jobDescription: body.jobDescription ?? null,
+        savedJobId: body.savedJobId ?? null,
+      },
+      cvVersionId,
     });
+    if (body.savedJobId && cvVersionId) await linkSavedJob(userId, body.savedJobId, cvVersionId);
   } catch (error) {
     await updateJob(jobId, {
       status: 'failed',

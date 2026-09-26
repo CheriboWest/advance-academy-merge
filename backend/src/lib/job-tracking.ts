@@ -16,6 +16,9 @@ const MAX_SHORT = 200;
 const MAX_URL = 2000;
 const MAX_LONG = 5000;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** A cover letter is ~400 words; this leaves room for a long one without storing an essay. */
+const MAX_LETTER = 10000;
 
 /**
  * Identity of a job link for duplicate detection (AC7): lowercase host + path,
@@ -96,6 +99,14 @@ function optionalUrl(body: Record<string, unknown>, key: string): Validation<str
   return { ok: true, value: parsed.toString() };
 }
 
+function optionalUuid(body: Record<string, unknown>, key: string): Validation<string | null | undefined> {
+  const text = optionalText(body, key, 36);
+  if (!text.ok) return text;
+  if (text.value == null) return text;
+  if (!UUID_RE.test(text.value)) return fail(`${key} must be an id.`);
+  return text;
+}
+
 function optionalBool(body: Record<string, unknown>, key: string): Validation<boolean | null | undefined> {
   if (!(key in body)) return { ok: true, value: undefined };
   const raw = body[key];
@@ -144,6 +155,7 @@ export function validateCreateSavedJob(body: unknown): Validation<ValidCreate> {
     salaryText: optionalText(body, 'salaryText', 100),
     sponsorVisa: optionalBool(body, 'sponsorVisa'),
     deadlineAt: optionalDay(body, 'deadlineAt'),
+    nextFollowUpAt: optionalDay(body, 'nextFollowUpAt'),
     notes: optionalText(body, 'notes', MAX_LONG),
     source,
   });
@@ -176,6 +188,8 @@ export function validateUpdateSavedJob(body: unknown): Validation<UpdateSavedJob
     appliedAt: optionalInstant(body, 'appliedAt'),
     deadlineAt: optionalDay(body, 'deadlineAt'),
     nextFollowUpAt: optionalDay(body, 'nextFollowUpAt'),
+    cvVersionId: optionalUuid(body, 'cvVersionId'),
+    coverLetterText: optionalText(body, 'coverLetterText', MAX_LETTER),
   });
   if (!patch.ok) return patch;
   if (Object.keys(patch.value).length === 0) return fail('Nothing to update.');

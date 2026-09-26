@@ -10,6 +10,8 @@ export type ViewName =
   | 'coaching'
   | 'history'
   | 'jobs'
+  | 'search'
+  | 'cover-letter'
 
 export interface NavItem {
   label: string
@@ -23,8 +25,8 @@ export interface NavItem {
 
 /**
  * Tools are grouped by where they sit in a job search, not by when they were
- * built. Eight flat entries in a top bar is a wall of text; three named stages
- * of six tools is something a student can scan.
+ * built: find a job, apply for it, sharpen the tools you apply with. Three
+ * named stages is something a student can scan; a flat list is not.
  */
 export interface NavGroup {
   label: string

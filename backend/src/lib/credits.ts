@@ -20,7 +20,7 @@ import { creditReferralOnActivation } from '../services/referral.service.js';
  * whichever comes first.
  */
 
-export type CreditTool = 'cv' | 'dream' | 'interview';
+export type CreditTool = 'cv' | 'dream' | 'interview' | 'coverLetter';
 export type Tier = 'trial' | 'membership';
 
 /** Credit price per run. Env overrides let the host retune without a redeploy. */
@@ -29,6 +29,7 @@ const COSTS: Record<CreditTool, { env: string; fallback: number; label: string }
   // Dream Company runs 4 sequential LLM calls — roughly 4x the spend of CV.
   dream: { env: 'CREDIT_COST_DREAM', fallback: 2, label: 'Dream Company Finder' },
   interview: { env: 'CREDIT_COST_INTERVIEW', fallback: 1, label: 'Interview Lab' },
+  coverLetter: { env: 'CREDIT_COST_COVER_LETTER', fallback: 1, label: 'Cover Letter' },
 };
 
 function envInt(name: string, fallback: number): number {

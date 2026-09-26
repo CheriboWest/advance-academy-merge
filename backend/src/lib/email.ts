@@ -20,6 +20,8 @@ export interface SendEmailInput {
   to: string;
   subject: string;
   html: string;
+  /** Extra MIME headers, e.g. List-Unsubscribe on reminder emails. */
+  headers?: Record<string, string>;
 }
 
 export interface SendEmailResult {
@@ -45,7 +47,13 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ from, to: input.to, subject: input.subject, html: input.html }),
+      body: JSON.stringify({
+        from,
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        ...(input.headers ? { headers: input.headers } : {}),
+      }),
       signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
 

@@ -45,6 +45,7 @@ function handleError(error: unknown, request: FastifyRequest, reply: FastifyRepl
     typeof error === 'object' && error !== null && 'statusCode' in error
       ? Number((error as { statusCode?: unknown }).statusCode)
       : undefined;
+  if (statusCode === 400 && error instanceof Error) return invalid(reply, error.message);
   if (statusCode === 503) {
     return reply.code(503).send({ code: 'SERVICE_UNAVAILABLE', message: 'Job tracking is not configured.' });
   }

@@ -1,7 +1,7 @@
 // Tool run history (sprint F5).
 // Mirrors the backend shapes returned by GET /api/tool-results.
 
-export type ToolName = 'cv' | 'dream' | 'interview' | 'coaching'
+export type ToolName = 'cv' | 'dream' | 'interview' | 'coaching' | 'cover_letter'
 
 export interface ToolResultSummary {
   id: string
@@ -39,4 +39,5 @@ export const TOOL_LABELS: Record<ToolName, string> = {
   dream: 'Dream Company',
   interview: 'Interview Lab',
   coaching: 'Coaching',
+  cover_letter: 'Cover Letter',
 }

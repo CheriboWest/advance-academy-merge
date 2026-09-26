@@ -137,7 +137,7 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
             <ul className="mt-5 space-y-3">
               {jobs.map((job) => (
                 <li key={job.id}>
-                  <JobItem job={job} />
+                  <JobItem job={job} companyName={company.name} />
                 </li>
               ))}
             </ul>
