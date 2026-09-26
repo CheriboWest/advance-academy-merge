@@ -157,7 +157,7 @@ export async function registerCoachingRoutes(app: FastifyInstance) {
 
       try {
         const session = await createCoachingSession({ actorId, body: request.body ?? ({} as CreateCoachingSessionRequest) });
-        // Kick the pipeline off and return immediately. Four Sonnet calls plus
+        // Kick the pipeline off and return immediately. Four LLM calls plus
         // web fetches run for minutes; the student gets their confirmation now
         // and the row carries the progress. Errors land on the row, never here.
         void generateCoachingPack(session.id).catch((err) => {
@@ -218,7 +218,7 @@ export async function registerCoachingRoutes(app: FastifyInstance) {
    *
    * Admin-only. This is the Context Desk's "generate anyway" button and the
    * retry after a failed stage; a student never regenerates their own pack,
-   * because each run is four Sonnet calls they did not pay for.
+   * because each run is four LLM calls they did not pay for.
    */
   app.post<{ Params: { id: string }; Body: { force?: boolean; sessionMinutes?: number } }>(
     '/api/coaching/sessions/:id/generate',

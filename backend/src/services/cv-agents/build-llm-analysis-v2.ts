@@ -12,7 +12,7 @@
  * fan out in PARALLEL via Promise.all (each isolated by its own fallback), then
  * computeCompositeScore (sync) and generateActionPlan run sequentially with the
  * action plan isolated to buildActionPlanFallback(). It never throws. Per-agent
- * model routing is active (lightweight agents → Haiku, bullets → Sonnet; see
+ * model routing is active (every branch → Haiku by default; see
  * models.ts), and it is wired into analyzeCv() behind the CV_OPTIMIZER_USE_V2
  * flag. Temporarily instrumented with per-branch timing logs for latency
  * diagnosis.

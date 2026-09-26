@@ -9,7 +9,7 @@
  *  2. `assessContextReadiness` — is that enough to generate a pack worth reading?
  *
  * The second is what makes the tool cheap to run. Generating a pack costs four
- * Sonnet calls; doing it on a booking with no CV and a forty-word JD produces
+ * LLM calls; doing it on a booking with no CV and a forty-word JD produces
  * something the coach throws away, having paid for it. Stage 0 spends no tokens
  * at all and decides whether the expensive part should happen yet.
  *
@@ -369,7 +369,7 @@ export function assessContextReadiness(input: ReadinessInput): ContextReport {
 
   // ── Verdict ──
   // Blocking gaps are absolute: no CV or no JD means the pack has nothing to be
-  // about, and generating would burn four Sonnet calls to produce filler.
+  // about, and generating would burn four LLM calls to produce filler.
   const hasBlocking = gaps.some((g) => g.severity === 'blocking');
   const hasImportant = gaps.some((g) => g.severity === 'important');
   const verdict: ContextReadinessVerdict = hasBlocking
