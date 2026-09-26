@@ -95,5 +95,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.*|apple-icon.*|api/).*)'],
+  // `fonts/` is the self-hosted woff2 in public/ — signed-out pages need it too,
+  // and it must not cost a Supabase round trip per file.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.*|apple-icon.*|fonts/|api/).*)'],
 }
