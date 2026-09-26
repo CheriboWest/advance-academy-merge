@@ -7,7 +7,8 @@ export type LlmFeature =
   | 'dreamCompany'
   | 'interviewPrep'
   | 'interviewScoring'
-  | 'coaching';
+  | 'coaching'
+  | 'coverLetter';
 
 export interface LlmFeatureConfig {
   enabled: boolean;
@@ -78,13 +79,12 @@ function getFeatureModels(provider: LlmProvider): Record<LlmFeature, string> {
       process.env.LLM_MODEL_INTERVIEW_SCORING,
       readRequiredString(process.env.LLM_MODEL_INTERVIEW_PREP, defaultModel),
     ),
-    // Falls back to LLM_MODEL_DEFAULT, deliberately NOT to LLM_MODEL_DREAM_COMPANY.
-    // Dream Company was moved to Haiku for cost after a quality comparison, and
-    // chaining onto it would have silently made coaching a Haiku feature too.
-    // Coaching output is read by a coach, edited, and then handed to a student
-    // before a real interview — the one place a cheaper model is a false economy.
-    // Set LLM_MODEL_COACHING to override.
+    // Falls back to LLM_MODEL_DEFAULT (Haiku, like every feature), deliberately
+    // NOT to LLM_MODEL_DREAM_COMPANY, so the two can be tuned apart. Coaching
+    // output goes to a student before a real interview; if Haiku's packs read
+    // thin, set LLM_MODEL_COACHING to a bigger model without touching the rest.
     coaching: readRequiredString(process.env.LLM_MODEL_COACHING, defaultModel),
+    coverLetter: readRequiredString(process.env.LLM_MODEL_COVER_LETTER, defaultModel),
   };
 }
 
@@ -102,7 +102,9 @@ function getFeatureApiKey(feature: LlmFeature): string {
     // (web-grounded research + synthesis) against the same quota.
     case 'coaching':
       return pick(process.env.LLM_API_KEY_OUTREACH);
+    // Cover letters are a CV-document workload, so they bill to the CV key.
     case 'cvOptimizer':
+    case 'coverLetter':
       return pick(process.env.LLM_API_KEY_CV);
     case 'interviewPrep':
     case 'interviewScoring':

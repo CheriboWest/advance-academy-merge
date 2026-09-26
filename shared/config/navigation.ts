@@ -1,4 +1,14 @@
-import { Brain, Briefcase, FileText, GraduationCap, Library, Target } from 'lucide-react'
+import {
+  Bookmark,
+  Brain,
+  Briefcase,
+  FileSignature,
+  FileText,
+  GraduationCap,
+  Library,
+  Search,
+  Target,
+} from 'lucide-react'
 import type { NavGroup, NavItem, ViewName } from '@/shared/types/navigation'
 
 /**
@@ -6,27 +16,50 @@ import type { NavGroup, NavItem, ViewName } from '@/shared/types/navigation'
  * home page both render from this, so the two can't drift into describing the
  * same tool differently — which is how the home page ended up advertising four
  * tools while the bar listed eight.
+ *
+ * Groups follow the App 1 map: Find Jobs → Applications → Career Tools. Items
+ * with `href` live on their own route; the rest are `/?view=`.
  */
 export const TOOL_GROUPS: NavGroup[] = [
   {
-    label: 'Find opportunities',
+    label: 'Find jobs',
     items: [
+      {
+        label: 'Job Search',
+        view: 'search',
+        href: '/search',
+        icon: Search,
+        description: 'UK employers that are hiring now, with their open roles.',
+      },
       {
         label: 'Dream Company',
         view: 'companies',
         icon: Briefcase,
         description: 'Companies that match your goals, industry and location.',
       },
+    ],
+  },
+  {
+    label: 'Applications',
+    items: [
       {
-        label: 'Outreach',
-        view: 'outreach',
-        icon: Target,
-        description: 'Personalised LinkedIn, email and phone scripts for recruiters.',
+        label: 'Job Tracker',
+        view: 'jobs',
+        href: '/jobs',
+        icon: Bookmark,
+        description: 'Every job you are chasing, from saved to offer.',
+      },
+      {
+        label: 'Cover Letter',
+        view: 'cover-letter',
+        href: '/cover-letter',
+        icon: FileSignature,
+        description: 'A letter tailored to one job, written from your CV.',
       },
     ],
   },
   {
-    label: 'Build your CV',
+    label: 'Career tools',
     items: [
       {
         label: 'CV Optimizer',
@@ -40,16 +73,17 @@ export const TOOL_GROUPS: NavGroup[] = [
         icon: Library,
         description: 'Your bullet points, evidence and the gaps still to fill.',
       },
-    ],
-  },
-  {
-    label: 'Prepare for interviews',
-    items: [
       {
         label: 'Interview Prep',
         view: 'interview',
         icon: Brain,
         description: 'Practise behavioural and technical questions, and get scored.',
+      },
+      {
+        label: 'Outreach',
+        view: 'outreach',
+        icon: Target,
+        description: 'Personalised LinkedIn, email and phone scripts for recruiters.',
       },
       {
         label: 'Coaching',

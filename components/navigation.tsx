@@ -156,8 +156,12 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
   const { data: account } = useAccount()
 
   const handleNavigate = (view: ViewName) => {
-    onNavigate(view)
     setMobileMenuOpen(false)
+    // Tools on their own route (Job Search, Job Tracker, Cover Letter) are
+    // routed here so no page's `onNavigate` has to know about them.
+    const href = findToolItem(view)?.href
+    if (href) return router.push(href)
+    onNavigate(view)
   }
 
   const handleSignOut = async () => {
@@ -206,7 +210,7 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
                 names it. */}
             <Link href="/search" className={`${NAV_BASE} ${NAV_IDLE}`}>
               <Search className="h-4 w-4" />
-              Employers
+              Job Search
             </Link>
           </div>
 
@@ -301,7 +305,7 @@ export function Navigation({ currentView, onNavigate }: NavigationProps) {
                 className={`${NAV_BASE} w-full justify-start ${NAV_IDLE}`}
               >
                 <Search className="h-4 w-4" />
-                Employers
+                Job Search
               </Link>
               {account?.isAdmin ? (
                 <Link

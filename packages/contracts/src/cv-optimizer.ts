@@ -4,6 +4,8 @@ export interface AnalyzeCvRequest {
   targetRole: string
   currentCvText: string
   jobDescription?: string
+  /** A tracked job this run tailors for; the analysed CV is linked onto that card as "CV used". */
+  savedJobId?: string
 }
 
 export interface AnalyzeCvSection {

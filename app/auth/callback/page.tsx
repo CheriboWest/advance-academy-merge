@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/features/auth/context/AuthContext'
+import { takeNextPath } from '@/shared/auth/next-path'
 
 // Magic-link landing (CA-001, P2/2a). Supabase redirects here with the session
 // tokens in the URL hash; the browser client (detectSessionInUrl) picks them up
@@ -28,8 +29,9 @@ export default function AuthCallbackPage() {
     if (session) {
       // Referral crediting now happens on the invitee's FIRST TOOL USE (see
       // backend lib/credits.ts), not here — logging in alone doesn't earn the
-      // inviter a credit. So just enter the app.
-      router.replace('/')
+      // inviter a credit. So just enter the app — where the login page was
+      // heading, if it parked a path.
+      router.replace(takeNextPath() ?? '/')
       return
     }
     // Fallback: no session established within a few seconds.

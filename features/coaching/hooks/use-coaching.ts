@@ -53,7 +53,7 @@ export function useCoachingSessions(scope?: 'all') {
  * One session for the console.
  *
  * Polls while the pipeline is running, and stops as soon as it settles. Four
- * Sonnet stages take minutes; without this the coach would sit on a stale
+ * LLM stages take minutes; without this the coach would sit on a stale
  * "generating…" until they thought to reload.
  */
 export function useCoachingSession(id: string | null) {

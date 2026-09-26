@@ -17,7 +17,9 @@ export default function JobsPage() {
   const { session, loading } = useAuth()
 
   useEffect(() => {
-    if (!loading && !session) router.replace('/login')
+    if (!loading && !session) {
+      router.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)
+    }
   }, [loading, session, router])
 
   const handleNavigate = useCallback(

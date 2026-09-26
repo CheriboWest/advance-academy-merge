@@ -85,7 +85,7 @@ export function ContextDesk({ session }: { session: CoachingSession }) {
 
   // Save before generating: the notes and URLs the coach just typed are the
   // whole reason to regenerate, and losing them to a click ordering bug would
-  // burn four Sonnet calls producing the same thin pack again.
+  // burn four LLM calls producing the same thin pack again.
   const saveAndGenerate = () =>
     update.mutate(
       { coachNotes: notes, extraUrls: urls },

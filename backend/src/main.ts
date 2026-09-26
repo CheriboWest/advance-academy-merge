@@ -29,6 +29,9 @@ import { registerAccountRoutes } from './routes/account.js';
 import { registerToolResultsRoutes } from './routes/tool-results.js';
 import { registerCoachingRoutes } from './routes/coaching.js';
 import { registerJobTrackingRoutes } from './routes/job-tracking.js';
+import { registerCoverLetterRoutes } from './routes/cover-letter.js';
+import { registerEngagementRoutes } from './routes/engagement.js';
+import { startEngagementReminders } from './lib/engagement-reminder.js';
 
 function loadBackendEnvFile() {
   const candidates = [
@@ -82,6 +85,8 @@ async function bootstrap() {
       '/api/leads/confirm',
       '/api/leads/unsubscribe',
       '/api/auth/passwordless',
+      // Reminder-email opt-out: the HMAC token in the link is the credential.
+      '/api/engagement/unsubscribe',
     ];
     if (skipPaths.some((p) => request.url.startsWith(p))) return;
 
@@ -124,6 +129,8 @@ async function bootstrap() {
   await registerToolResultsRoutes(app);
   await registerCoachingRoutes(app);
   await registerJobTrackingRoutes(app);
+  await registerCoverLetterRoutes(app);
+  await registerEngagementRoutes(app);
 
   await app.listen({
     port,
@@ -131,6 +138,7 @@ async function bootstrap() {
   });
 
   startCvAnalysisReaper();
+  startEngagementReminders();
 
   console.log(`Backend running at http://localhost:${port}/api`);
   console.log(`Health check: http://localhost:${port}/api/health`);

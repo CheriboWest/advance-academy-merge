@@ -2,7 +2,7 @@
  * Company research (sprint Coaching Tool, ticket T3).
  *
  * Replaces the half hour a coach spends googling a company before a session.
- * Reads the web, then has Sonnet write a brief in which **every claim cites the
+ * Reads the web, then has the model write a brief in which **every claim cites the
  * page it came from**.
  *
  * The whole design is shaped by one failure: a brief that reads authoritatively

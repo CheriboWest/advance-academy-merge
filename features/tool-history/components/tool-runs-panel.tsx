@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Download, FileJson } from 'lucide-react'
 
-const TOOL_FILTERS = ['', 'dream', 'interview', 'cv'] as const
+const TOOL_FILTERS = ['', 'dream', 'interview', 'cv', 'cover_letter'] as const
 
 const selectClass =
   'h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring'

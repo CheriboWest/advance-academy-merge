@@ -4,7 +4,7 @@ import type { ContextItem, StudentContextInventory } from '@advance-academy/cont
 import { assessContextReadiness } from './coaching-context.service.js';
 
 /**
- * Stage 0 is the gate in front of four Sonnet calls. Two ways it can be wrong:
+ * Stage 0 is the gate in front of four LLM calls. Two ways it can be wrong:
  *
  *  - too lenient: a booking with no CV sails through, the pack is generated from
  *    nothing, and the coach throws away work they paid for;

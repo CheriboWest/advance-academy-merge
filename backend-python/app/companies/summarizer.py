@@ -216,7 +216,6 @@ def generate_ai_summary(context: CompanySummaryContext, *, api_key: str, model: 
         max_tokens=1024,
         system=SYSTEM_PROMPT,
         output_config={
-            "effort": "low",
             "format": {"type": "json_schema", "schema": SUMMARY_SCHEMA},
         },
         messages=[{"role": "user", "content": build_prompt(context)}],

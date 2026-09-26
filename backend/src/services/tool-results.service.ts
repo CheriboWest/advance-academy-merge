@@ -18,7 +18,7 @@ import { getSupabase, isMissingColumnError } from '../lib/supabase.js';
  * but only the stored `ProfileAnalysis` says where the student actually stands.
  */
 
-export type ToolName = 'cv' | 'dream' | 'interview' | 'coaching';
+export type ToolName = 'cv' | 'dream' | 'interview' | 'coaching' | 'cover_letter';
 
 /** Row shape for the list view — deliberately without the heavy `result` blob. */
 export interface ToolResultSummary {

@@ -192,6 +192,7 @@ export async function createSavedJob(userId: string, input: ValidCreate): Promis
       salary_text: input.salaryText ?? null,
       sponsor_visa: input.sponsorVisa ?? null,
       deadline_at: input.deadlineAt ?? null,
+      next_follow_up_at: input.nextFollowUpAt ?? null,
       notes: input.notes ?? null,
     })
     .select(JOB_COLUMNS)
@@ -209,6 +210,17 @@ export async function createSavedJob(userId: string, input: ValidCreate): Promis
   const job = toJob(data as unknown as SavedJobRow);
   await appendEvent(userId, job.id, null, job.status, null);
   return job;
+}
+
+async function ownsCvVersion(userId: string, cvVersionId: string): Promise<boolean> {
+  const { data, error } = await getSupabase()
+    .from('cv_versions')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('id', cvVersionId)
+    .maybeSingle();
+  if (error) throw dbError('check CV', error);
+  return Boolean(data);
 }
 
 export async function updateSavedJob(
@@ -231,6 +243,14 @@ export async function updateSavedJob(
   if (patch.appliedAt !== undefined) update.applied_at = patch.appliedAt;
   if (patch.deadlineAt !== undefined) update.deadline_at = patch.deadlineAt;
   if (patch.nextFollowUpAt !== undefined) update.next_follow_up_at = patch.nextFollowUpAt;
+  if (patch.cvVersionId !== undefined) {
+    // The FK alone would accept another user's CV id; only link the caller's own.
+    if (patch.cvVersionId !== null && !(await ownsCvVersion(userId, patch.cvVersionId))) {
+      throw Object.assign(new Error('That CV is not in your CV Library.'), { statusCode: 400 });
+    }
+    update.cv_version_id = patch.cvVersionId;
+  }
+  if (patch.coverLetterText !== undefined) update.cover_letter_text = patch.coverLetterText;
 
   const { data, error } = await getSupabase()
     .from('saved_jobs')

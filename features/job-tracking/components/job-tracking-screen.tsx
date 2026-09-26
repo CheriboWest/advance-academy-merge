@@ -6,6 +6,8 @@ import { Plus } from 'lucide-react'
 import {
   SAVED_JOB_STATUSES,
   SAVED_JOB_STATUS_LABELS,
+  isJobSource,
+  type JobSource,
   type SavedJob,
   type SavedJobStatus,
 } from '@advance-academy/contracts/job-tracking'
@@ -19,10 +21,11 @@ import { STATUS_TONE } from './job-status-badge'
 type Filter = 'all' | 'open' | SavedJobStatus
 
 /**
- * Deep-link contract for the sister app (Career Hub) and anything else that
- * wants to hand a job over: `/jobs?add=<url>&title=…&company=…&location=…`.
+ * Deep-link contract for Career Hub and anything else that wants to hand a job
+ * over: `/jobs?add=<url>&title=…&company=…&location=…&salary=…&source=career_hub`.
  * Opens the add form pre-filled; nothing is saved until the user confirms.
- * An unauthenticated visitor is sent to /login by middleware first.
+ * An unauthenticated visitor goes through /login first and comes back here
+ * (middleware passes `next`).
  */
 function prefillFromSearch(params: URLSearchParams | null): JobFormPrefill | null {
   if (!params) return null
@@ -34,6 +37,8 @@ function prefillFromSearch(params: URLSearchParams | null): JobFormPrefill | nul
     title: title ?? undefined,
     companyName: params.get('company') ?? undefined,
     location: params.get('location') ?? undefined,
+    salaryText: params.get('salary') ?? undefined,
+    source: isJobSource(params.get('source')) ? (params.get('source') as JobSource) : undefined,
   }
 }
 
@@ -87,8 +92,8 @@ export function JobTrackingScreen() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">My jobs</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every role you are chasing, in one place. Save from Dream Company or add a link by hand, then move each
-            card as things progress.
+            Every role you are chasing, in one place. Save from Job Search or Dream Company, or add a link by hand,
+            then move each card as things progress.
           </p>
         </div>
         <Button onClick={openAdd}>

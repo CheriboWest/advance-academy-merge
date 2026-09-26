@@ -2,7 +2,7 @@
  * Coaching pack generation (sprint Coaching Tool, ticket T4).
  *
  * Turns a booking into the document a coach walks into the session with. Four
- * Sonnet calls behind a Stage 0 gate:
+ * LLM calls behind a Stage 0 gate:
  *
  *    load context  (DB only, no tokens)
  *      └─ Stage 0 readiness — not ready? stop here, cost so far: nothing

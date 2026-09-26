@@ -132,7 +132,6 @@ def generate_outreach(
             max_tokens=2048,
             system=SYSTEM_PROMPT,
             output_config={
-                "effort": "low",
                 "format": {"type": "json_schema", "schema": OUTREACH_SCHEMA},
             },
             messages=[{"role": "user", "content": _build_user_prompt(req)}],

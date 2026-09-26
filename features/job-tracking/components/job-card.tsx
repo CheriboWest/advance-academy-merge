@@ -1,7 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarClock, ExternalLink, History, MapPin, Pencil, Trash2 } from 'lucide-react'
+import Link from 'next/link'
+import {
+  Brain,
+  CalendarClock,
+  Check,
+  ClipboardList,
+  Copy,
+  ExternalLink,
+  FileSignature,
+  History,
+  MapPin,
+  Pencil,
+  Trash2,
+} from 'lucide-react'
 import {
   SAVED_JOB_STATUSES,
   SAVED_JOB_STATUS_LABELS,
@@ -46,6 +59,33 @@ function hostOf(url: string): string {
   } catch {
     return url
   }
+}
+
+/** The letter written for this job, folded away until asked for. */
+function CoverLetterPanel({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard blocked: the text is on screen to select by hand.
+    }
+  }
+  return (
+    <details className="mt-3 rounded-md bg-card p-3 text-sm">
+      <summary className="cursor-pointer font-medium">
+        <FileSignature className="mr-1.5 inline h-3.5 w-3.5" />
+        Cover letter
+      </summary>
+      <p className="mt-2 whitespace-pre-wrap font-serif leading-relaxed">{text}</p>
+      <Button variant="outline" size="sm" className="mt-2" onClick={copy}>
+        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+        {copied ? 'Copied' : 'Copy'}
+      </Button>
+    </details>
+  )
 }
 
 /** Status changes and the creation event, newest first. Fetched only when opened. */
@@ -198,6 +238,8 @@ export function JobCard({ job, onEdit }: JobCardProps) {
 
       {job.notes ? <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{job.notes}</p> : null}
 
+      {job.coverLetterText ? <CoverLetterPanel text={job.coverLetterText} /> : null}
+
       {error ? (
         <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
           {error}
@@ -205,6 +247,26 @@ export function JobCard({ job, onEdit }: JobCardProps) {
       ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-border pt-3">
+        {open ? (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/jobs/${job.id}/apply`}>
+              <ClipboardList className="h-3.5 w-3.5" />
+              Prepare application
+            </Link>
+          </Button>
+        ) : null}
+        <Button variant="ghost" size="sm" asChild>
+          <Link href={`/cover-letter?savedJob=${job.id}`}>
+            <FileSignature className="h-3.5 w-3.5" />
+            Cover letter
+          </Link>
+        </Button>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href={`/?view=interview&savedJob=${job.id}`}>
+            <Brain className="h-3.5 w-3.5" />
+            Interview prep
+          </Link>
+        </Button>
         <Button variant="ghost" size="sm" onClick={() => onEdit(job)}>
           <Pencil className="h-3.5 w-3.5" />
           Edit

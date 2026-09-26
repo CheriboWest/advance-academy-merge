@@ -63,8 +63,9 @@ export interface SavedJob {
   deadlineAt: string | null
   /** Calendar day, `YYYY-MM-DD`. */
   nextFollowUpAt: string | null
-  /** Reserved for AI Apply / Cover Letter. */
+  /** The CV Library version used for this application (Cover Letter / Assisted Apply write it). */
   cvVersionId: string | null
+  /** The cover letter used for this application. */
   coverLetterText: string | null
   createdAt: string
   updatedAt: string
@@ -90,6 +91,7 @@ export interface CreateSavedJobRequest {
   salaryText?: string | null
   sponsorVisa?: boolean | null
   deadlineAt?: string | null
+  nextFollowUpAt?: string | null
   notes?: string | null
   source?: JobSource
 }
@@ -107,6 +109,8 @@ export interface UpdateSavedJobRequest {
   appliedAt?: string | null
   deadlineAt?: string | null
   nextFollowUpAt?: string | null
+  cvVersionId?: string | null
+  coverLetterText?: string | null
 }
 
 /** POST /api/job-tracking/:id/status */

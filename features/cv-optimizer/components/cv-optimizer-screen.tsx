@@ -15,6 +15,7 @@ import type {
 import { type CvOptimizerTab, useCvOptimizer } from '@/features/cv-optimizer/hooks/use-cv-analysis'
 import { generateRewrittenCv, parseFileForCvOptimizer, rewriteBullet } from '@/features/cv-optimizer/api/frontend-client'
 import { HttpClientError } from '@/shared/api/http-client'
+import { getSavedJob } from '@/features/job-tracking/api/frontend-client'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -826,6 +827,29 @@ export function CvOptimizerScreen() {
   const [downloadingRewrite, setDownloadingRewrite] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null)
+  const [tailoringFor, setTailoringFor] = useState<string | null>(null)
+
+  // Assisted Apply hands a tracked job over as `?savedJob=<id>`: pre-fill the
+  // role and JD, and send the id so the analysed CV is linked onto that card.
+  // Read from window.location, not useSearchParams, so /cv-optimizer needs no
+  // Suspense boundary.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('savedJob')
+    if (!id) return
+    getSavedJob(id)
+      .then(({ job }) => {
+        setForm((f) => ({
+          ...f,
+          targetRole: f.targetRole || job.title,
+          jobDescription: f.jobDescription || job.description || '',
+          savedJobId: job.id,
+        }))
+        setTailoringFor(job.companyName ? `${job.title} at ${job.companyName}` : job.title)
+      })
+      .catch(() => {
+        // Deleted or foreign card: carry on as a normal run.
+      })
+  }, [])
 
   function validateForm(values: AnalyzeCvRequest): string[] {
     const errors: string[] = []
@@ -946,6 +970,12 @@ export function CvOptimizerScreen() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-4xl font-serif font-bold text-primary mb-2">CV Optimizer</h1>
       <p className="text-muted-foreground mb-8">Upload your CV and a job description — our AI runs a full recruitment-grade analysis in seconds.</p>
+      {tailoringFor && form.savedJobId ? (
+        <p className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-primary">
+          Tailoring for <strong>{tailoringFor}</strong>. The CV you analyse is saved to this job in your tracker.
+          {form.jobDescription ? '' : ' Paste the job description below for a sharper score.'}
+        </p>
+      ) : null}
 
       {isBusy && !results ? (
         <AnalyzingPanel status={state.status === 'submitting' ? 'submitting' : 'running'} />
