@@ -1,23 +1,16 @@
 import type { Metadata } from 'next'
-import { Playfair_Display, Inter } from 'next/font/google'
+import { preload } from 'react-dom'
 import { Analytics } from '@vercel/analytics/next'
 import { AppProviders } from '@/app/providers'
 import './globals.css'
 
 /*
- * Both fonts expose a CSS variable and both variables are put on <body> below,
- * because `--font-sans` / `--font-serif` in globals.css resolve through them.
- * The serif previously had no variable at all and globals.css named the family
- * literally ("Playfair Display") — that happens to match what next/font emits
- * today, but it is an implementation detail of the loader, not a contract, and
- * it silently degrades every heading to Times if it ever changes.
+ * Inter and Playfair Display are self-hosted — the @font-face rules at the top
+ * of globals.css say why next/font/google had to go. Preload the latin files
+ * every page renders, as next/font used to, so text doesn't flash in the
+ * fallback face first.
  */
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  weight: ['400', '600', '700'],
-  variable: '--font-playfair',
-})
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const LATIN_FONTS = ['/fonts/inter-latin.woff2', '/fonts/playfair-display-latin.woff2']
 
 export const metadata: Metadata = {
   title: 'Advance Academy | Career Acceleration Platform',
@@ -47,9 +40,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  for (const href of LATIN_FONTS) preload(href, { as: 'font', type: 'font/woff2', crossOrigin: 'anonymous' })
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${playfair.variable} ${inter.className} antialiased`}>
+      <body className="font-sans antialiased">
         <AppProviders>{children}</AppProviders>
         <Analytics />
       </body>
