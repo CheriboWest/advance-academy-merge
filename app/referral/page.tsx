@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { BackLink } from '@/components/back-link'
 import { getAuthHeaders } from '@/shared/auth/get-auth-headers'
 import { HttpClientError } from '@/shared/api/http-client'
 
@@ -58,6 +59,9 @@ export default function ReferralPage() {
 
   return (
     <div className="mx-auto max-w-lg px-4 py-12">
+      <BackLink href="/" className="mb-6">
+        Back to home
+      </BackLink>
       <div className="rounded-2xl bg-background p-8 shadow-xl">
         <h1 className="text-2xl font-serif font-bold text-primary">Invite friends, unlock more</h1>
         <p className="mt-1 text-sm text-muted-foreground">

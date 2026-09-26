@@ -1,9 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import {
-  ArrowLeft,
   Check,
   Loader2,
   Lock,
@@ -19,6 +17,7 @@ import type {
   PackQuestion,
   QuestionCategory,
 } from '@advance-academy/contracts/coaching'
+import { BackLink } from '@/components/back-link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -618,13 +617,7 @@ export function CoachConsole({ sessionId }: { sessionId: string }) {
   return (
     <div className="space-y-6">
       <header className="space-y-2">
-        <Link
-          href="/admin/coaching"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          All sessions
-        </Link>
+        <BackLink href="/admin/coaching">All sessions</BackLink>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold">{session.companyName}</h1>
           <Badge variant={locked ? 'default' : 'secondary'}>{session.status}</Badge>

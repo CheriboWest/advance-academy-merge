@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { BackLink } from '@/components/back-link'
 import { authedFetch } from '@/shared/auth/authed-fetch'
 import {
-  ArrowLeft,
   Loader2,
   AlertCircle,
   CheckCircle,
@@ -305,12 +305,7 @@ function DetailView({
 
   return (
     <div className="space-y-6">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-muted-foreground hover:text-primary font-medium"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to history
-      </button>
+      <BackLink onClick={onBack}>Back to history</BackLink>
 
       {/* Header card */}
       <div className="bg-background rounded-xl border shadow-sm p-8">

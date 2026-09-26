@@ -91,7 +91,7 @@ export function SearchFilters({
     chips.push({ label: sector, clear: () => commit({ sector: ALL }) });
 
   return (
-    <div className="sticky top-16 z-30 border-b border-border bg-card">
+    <div className="sticky top-0 z-30 border-b border-border bg-card">
       {/* Navigation is a transition, not a spinner — show it as a hairline. */}
       <div
         aria-hidden

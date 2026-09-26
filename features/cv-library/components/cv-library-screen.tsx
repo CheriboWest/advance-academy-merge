@@ -2,6 +2,7 @@
 
 // React 19 dropped the global JSX namespace; it's imported from 'react' now.
 import { useCallback, useEffect, useState, type JSX } from 'react'
+import { BackLink } from '@/components/back-link'
 import { authedFetch } from '@/shared/auth/authed-fetch'
 import { useFakeProgress } from '@/shared/hooks/use-fake-progress'
 import { ProgressBar } from '@/shared/hooks/progress-bar'
@@ -10,7 +11,6 @@ import {
   Upload,
   Trash2,
   CheckCircle,
-  ArrowLeft,
   AlertCircle,
   GitMerge,
   Brain,
@@ -418,12 +418,9 @@ function BulletResolutionStep({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back
-      </button>
+      <BackLink onClick={onBack} className="mb-4">
+        Back
+      </BackLink>
       <h1 className="text-3xl font-serif font-bold text-primary mb-2">Resolve bullet points</h1>
       <p className="text-muted-foreground mb-6">
         For each bullet we parsed, check if it&apos;s the same as one from a previous CV. Merging
@@ -591,12 +588,9 @@ function CvDetail({
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to library
-      </button>
+      <BackLink onClick={onBack} className="mb-4">
+        Back to library
+      </BackLink>
       <h1 className="text-3xl font-serif font-bold text-primary mb-1">Fill in the gaps</h1>
       {version && (
         <div className="mb-3">
@@ -1164,12 +1158,9 @@ function ReportViewer({ reportId, onBack }: { reportId: string; onBack: () => vo
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to CV Library
-      </button>
+      <BackLink onClick={onBack} className="mb-4">
+        Back to CV Library
+      </BackLink>
 
       {loading ? (
         <div className="flex items-center gap-2 text-muted-foreground">

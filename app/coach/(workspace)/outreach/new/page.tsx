@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 
+import { BackLink } from "@/components/back-link";
 import { getSponsoredCompanies } from "@/features/career-hub/lib/coach";
 import type { SponsoredCompanyRow } from "@/features/career-hub/lib/types";
-import { Button } from "@/components/ui/button";
 import { OutreachShell } from "@/features/career-hub/components/coach/outreach-shell";
 import { EmptyState } from "@/features/career-hub/components/empty-state";
 
@@ -39,17 +38,7 @@ export default async function NewOutreachPage() {
 
   return (
     <div className="space-y-4">
-      <Button
-        asChild
-        variant="ghost"
-        size="sm"
-        className="-ml-2 text-muted-foreground"
-      >
-        <Link href="/coach/outreach">
-          <ArrowLeft className="size-4" />
-          Back to outreach
-        </Link>
-      </Button>
+      <BackLink href="/coach/outreach">Back to outreach</BackLink>
       <header className="space-y-1">
         <p className="text-sm text-muted-foreground">
           Choose a company to start building personalised outreach — research,

@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ArrowLeft,
   Briefcase,
   Building2,
   ExternalLink,
@@ -10,6 +8,7 @@ import {
   MapPin,
 } from "lucide-react";
 
+import { BackLink } from "@/components/back-link";
 import { fetchActiveJobs, fetchCompanyBySlug } from "@/features/career-hub/lib/queries";
 import { PageContainer } from "@/features/career-hub/components/page-container";
 import { Button } from "@/components/ui/button";
@@ -56,12 +55,7 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
   return (
     <>
       <PageContainer width="prose" className="py-10">
-        <Button asChild variant="ghost" size="sm" className="-ml-3">
-          <Link href="/search">
-            <ArrowLeft className="size-4" />
-            Back to search
-          </Link>
-        </Button>
+        <BackLink href="/search">Back to search</BackLink>
 
         {/* Company masthead */}
         <header className="card-surface mt-6 p-6 sm:p-8">
