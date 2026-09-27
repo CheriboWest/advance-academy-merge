@@ -28,8 +28,15 @@ export async function registerCoachUnderstandingRoutes(app: FastifyInstance) {
         error && typeof error === 'object' && 'statusCode' in error
           ? Number((error as { statusCode?: number }).statusCode) || 500
           : 500;
-      const message = error instanceof Error ? error.message : 'Failed';
       request.log.error(error);
+      // Our own 4xx messages are written for the student. Anything else — an
+      // Anthropic SDK error (it carries `status`, not `statusCode`, so it lands
+      // here as 500) or a DB failure — would show raw provider JSON; keep that
+      // in the log only.
+      const message =
+        code < 500 && error instanceof Error
+          ? error.message
+          : 'The AI coach is unavailable right now. Please try again later.';
       return reply.code(code).send({ error: message });
     }
   });
