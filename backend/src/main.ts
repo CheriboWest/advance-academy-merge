@@ -31,6 +31,7 @@ import { registerCoachingRoutes } from './routes/coaching.js';
 import { registerJobTrackingRoutes } from './routes/job-tracking.js';
 import { registerCoverLetterRoutes } from './routes/cover-letter.js';
 import { registerEngagementRoutes } from './routes/engagement.js';
+import { registerCompanyContactsRoutes } from './routes/company-contacts.js';
 import { startEngagementReminders } from './lib/engagement-reminder.js';
 
 function loadBackendEnvFile() {
@@ -87,6 +88,8 @@ async function bootstrap() {
       '/api/auth/passwordless',
       // Reminder-email opt-out: the HMAC token in the link is the credential.
       '/api/engagement/unsubscribe',
+      // Counts only, no personal data — the gated details live at /api/company-contacts.
+      '/api/public/',
     ];
     if (skipPaths.some((p) => request.url.startsWith(p))) return;
 
@@ -131,6 +134,7 @@ async function bootstrap() {
   await registerJobTrackingRoutes(app);
   await registerCoverLetterRoutes(app);
   await registerEngagementRoutes(app);
+  await registerCompanyContactsRoutes(app);
 
   await app.listen({
     port,

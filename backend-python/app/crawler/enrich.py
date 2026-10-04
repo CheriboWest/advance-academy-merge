@@ -25,31 +25,11 @@ _CAREERS_RE = re.compile(
     r"<a[^>]+href=[\"']([^\"']+)[\"'][^>]*>([^<]*)</a>", re.IGNORECASE
 )
 
-_SECTOR_KEYWORDS = {
-    "Technology": ("software", "developer", "engineer", "saas", "platform", "data", "ai"),
-    "Finance": ("bank", "fintech", "payment", "invest", "trading", "insurance"),
-    "Education": ("education", "learning", "school", "university", "student", "edtech"),
-    "Healthcare": ("health", "clinic", "medical", "patient", "care", "nhs"),
-    "Retail": ("retail", "store", "shop", "ecommerce", "commerce", "consumer"),
-}
-
-
 def _summarise(text: str, max_sentences: int = 3) -> str:
     cleaned = strip_html(text)
     sentences = re.split(r"(?<=[.!?])\s+", cleaned)
     summary = " ".join(sentences[:max_sentences]).strip()
     return summary[:600]
-
-
-def _guess_sector(text: str) -> Optional[str]:
-    lowered = text.lower()
-    best: Optional[str] = None
-    best_hits = 0
-    for sector, keywords in _SECTOR_KEYWORDS.items():
-        hits = sum(1 for keyword in keywords if keyword in lowered)
-        if hits > best_hits:
-            best, best_hits = sector, hits
-    return best if best_hits > 0 else None
 
 
 def _find_careers_url(html: str, base_url: str) -> Optional[str]:
@@ -65,7 +45,9 @@ def _find_careers_url(html: str, base_url: str) -> Optional[str]:
 async def enrich_company(
     client: httpx.AsyncClient, website: Optional[str]
 ) -> dict[str, str]:
-    """Return best-effort {description, sector, careers_url}. Never raises."""
+    """Return best-effort {description, careers_url}. Never raises.
+
+    Sector is no longer guessed here — see app/companies/sector.py."""
     if not website:
         return {}
     try:
@@ -92,10 +74,6 @@ async def enrich_company(
                 break
     if description:
         result["description"] = _summarise(description)
-
-    sector = _guess_sector(html)
-    if sector:
-        result["sector"] = sector
 
     careers_url = _find_careers_url(html, website)
     if careers_url:

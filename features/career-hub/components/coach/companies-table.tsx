@@ -308,7 +308,7 @@ export function CompaniesTable({ rows, view = "all" }: CompaniesTableProps) {
                     </td>
                     <td className="px-4 py-3">
                       <Link
-                        href={`/companies/${row.slug}`}
+                        href={`/coach/sponsored-companies/${row.company_id}`}
                         className="font-medium underline-offset-4 hover:text-primary hover:underline"
                       >
                         {row.name}

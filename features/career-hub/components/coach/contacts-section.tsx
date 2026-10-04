@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   Linkedin,
   Loader2,
   Mail,
   Pencil,
+  Send,
   Phone,
   Plus,
   Trash2,
@@ -13,6 +15,11 @@ import {
   UserRound,
 } from "lucide-react";
 
+import {
+  CONTACT_CATEGORY_LABELS,
+  CONTACT_CATEGORY_ORDER,
+  contactCategory,
+} from "@advance-academy/contracts/contacts";
 import type { Contact } from "@/features/career-hub/lib/types";
 import { deleteContactViaApi } from "@/features/career-hub/lib/contacts-api";
 import { revalidateContactPaths } from "@/app/coach/(workspace)/sponsored-companies/actions";
@@ -56,6 +63,18 @@ export function ContactsSection({
   const [pendingDelete, setPendingDelete] = React.useState<Contact | null>(null);
   const [deleting, setDeleting] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState<string | null>(null);
+
+  // HR and recruiters first, then hiring managers, heads, leadership — stable
+  // sort, so newest-first still holds within a category.
+  const sorted = React.useMemo(
+    () =>
+      [...contacts].sort(
+        (a, b) =>
+          CONTACT_CATEGORY_ORDER.indexOf(contactCategory(a.job_title)) -
+          CONTACT_CATEGORY_ORDER.indexOf(contactCategory(b.job_title))
+      ),
+    [contacts]
+  );
 
   function openAddForm() {
     setEditing(null);
@@ -103,7 +122,7 @@ export function ContactsSection({
         <div>
           <h3 className="text-lg">Contacts</h3>
           <p className="text-sm text-muted-foreground">
-            Recruiters and hiring managers at this company.
+            HR, recruiters, hiring managers and decision-makers at this company.
           </p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={openAddForm}>
@@ -118,7 +137,7 @@ export function ContactsSection({
         </p>
       ) : (
         <ul className="space-y-3">
-          {contacts.map((contact) => (
+          {sorted.map((contact) => (
             <li
               key={contact.id}
               className="flex flex-col gap-3 rounded-lg border border-border p-4 sm:flex-row sm:items-start sm:justify-between"
@@ -134,6 +153,9 @@ export function ContactsSection({
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="secondary">
+                    {CONTACT_CATEGORY_LABELS[contactCategory(contact.job_title)]}
+                  </Badge>
                   {contact.email && (
                     <Badge variant="outline" title={contact.email}>
                       <Mail className="size-3" />
@@ -161,6 +183,12 @@ export function ContactsSection({
               </div>
 
               <div className="flex shrink-0 gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/coach/outreach/${companyId}?contact=${contact.id}`}>
+                    <Send className="size-4" />
+                    Draft outreach
+                  </Link>
+                </Button>
                 <Button
                   type="button"
                   variant="ghost"

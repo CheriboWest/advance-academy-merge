@@ -79,7 +79,7 @@ export default async function CoachDashboardPage() {
             {data.topHiringCompanies.map((company, index) => (
               <li key={company.id}>
                 <Link
-                  href={`/companies/${company.slug}`}
+                  href={`/coach/sponsored-companies/${company.id}`}
                   className="card-interactive group flex items-center gap-4 p-4"
                 >
                   <span className="font-display text-xl tabular-nums text-highlight-ink">

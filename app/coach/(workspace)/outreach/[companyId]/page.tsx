@@ -17,6 +17,7 @@ import { OutreachComposer } from "@/features/career-hub/components/coach/outreac
 
 interface OutreachCompanyPageProps {
   params: Promise<{ companyId: string }>;
+  searchParams?: Promise<{ contact?: string | string[] }>;
 }
 
 export async function generateMetadata({
@@ -40,8 +41,10 @@ export async function generateMetadata({
  */
 export default async function OutreachCompanyPage({
   params,
+  searchParams,
 }: OutreachCompanyPageProps) {
   const { companyId } = await params;
+  const { contact } = (await searchParams) ?? {};
 
   const company = await getSponsoredCompanyContext(companyId);
   if (!company) {
@@ -78,6 +81,7 @@ export default async function OutreachCompanyPage({
         openJobTitles={jobs.slice(0, 10).map((job) => job.title)}
         companyNotes={companyNotes}
         contacts={contacts}
+        initialContactId={typeof contact === "string" ? contact : undefined}
         initialSubject={draft?.subject ?? ""}
         initialBody={draft?.body ?? ""}
         hasExistingDraft={Boolean(draft)}

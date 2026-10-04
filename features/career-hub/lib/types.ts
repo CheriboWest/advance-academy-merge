@@ -230,6 +230,11 @@ export interface Contact {
   updated_at: string | null;
 }
 
+/** One row of the coach Contact Directory — see DirectoryContact in schemas.py. */
+export interface DirectoryContact extends Contact {
+  company: { id: string; name: string; slug: string } | null;
+}
+
 /** Body for creating/editing a contact — see ContactWrite in schemas.py. */
 export interface ContactInput {
   full_name: string;

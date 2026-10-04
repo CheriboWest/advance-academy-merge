@@ -6,22 +6,71 @@
  * search page can render on the server for the initial load.
  */
 
+// Major cities first, then the big university / international-student towns.
+// Matched as a substring of the company's hq_location/region (queries.ts), so a
+// city only returns companies once the crawler has been run for it.
 export const LOCATION_OPTIONS = [
   "London",
   "Manchester",
   "Birmingham",
   "Leeds",
-  "Bristol",
+  "Glasgow",
   "Edinburgh",
+  "Liverpool",
+  "Bristol",
+  "Sheffield",
+  "Newcastle",
+  "Nottingham",
+  "Leicester",
+  "Coventry",
+  "Cardiff",
+  "Belfast",
+  "Southampton",
+  "Cambridge",
+  "Oxford",
+  "Reading",
+  "Brighton",
+  "York",
+  "Bath",
+  "Exeter",
+  "Lancaster",
+  "Durham",
+  "Aberdeen",
+  "Dundee",
+  "Swansea",
+  "Norwich",
+  "Portsmouth",
+  "Plymouth",
+  "Loughborough",
+  "Guildford",
+  "Canterbury",
+  "Milton Keynes",
   "Remote",
 ] as const;
 
+// Keep in sync with SECTORS in backend-python/app/companies/sector.py — that
+// classifier is the only writer of companies.sector, and the filter is an exact match.
 export const SECTOR_OPTIONS = [
   "Technology",
-  "Finance",
-  "Education",
-  "Retail",
+  "Finance & Banking",
+  "Insurance",
+  "Accounting & Professional Services",
+  "Consulting",
+  "Legal",
   "Healthcare",
+  "Pharma & Life Sciences",
+  "Education",
+  "Retail & E-commerce",
+  "Hospitality & Leisure",
+  "Media, Marketing & Advertising",
+  "Engineering & Manufacturing",
+  "Construction & Property",
+  "Energy & Utilities",
+  "Logistics & Transport",
+  "Public Sector",
+  "Charity & Non-profit",
+  "Telecoms",
+  "Recruitment & HR",
 ] as const;
 
 /** Whether the text query searches company names or job roles/titles. */
@@ -33,7 +82,8 @@ export type SortOption = "score_desc" | "jobs_desc" | "name_asc";
 
 export const SORT_OPTIONS: ReadonlyArray<{ value: SortOption; label: string }> =
   [
-    { value: "score_desc", label: "Lead score (high to low)" },
+    // Ordered by lead score, which stays a coach-only number (see company-card.tsx).
+    { value: "score_desc", label: "Most actively hiring" },
     { value: "jobs_desc", label: "Most open jobs" },
     { value: "name_asc", label: "Company name (A–Z)" },
   ];
@@ -51,6 +101,7 @@ export interface SearchFiltersState {
   sector: string; // a SECTOR_OPTIONS value or ALL
   sort: SortOption;
   mode: SearchMode; // "company" (name search) or "role" (job-title search)
+  page: number; // 1-based, company mode only
 }
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
@@ -62,8 +113,12 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 /** Parse Next.js `searchParams` into a normalised, validated filter state. */
 export function parseSearchFilters(params: RawSearchParams): SearchFiltersState {
   const q = (firstValue(params.q) ?? "").toString();
-  const location = (firstValue(params.location) ?? ALL).toString();
-  const sector = (firstValue(params.sector) ?? ALL).toString();
+  // Only known options: location is interpolated into a PostgREST or() filter,
+  // so a free-form value could add filters of its own.
+  const rawLocation = firstValue(params.location) ?? ALL;
+  const location = (LOCATION_OPTIONS as readonly string[]).includes(rawLocation) ? rawLocation : ALL;
+  const rawSector = firstValue(params.sector) ?? ALL;
+  const sector = (SECTOR_OPTIONS as readonly string[]).includes(rawSector) ? rawSector : ALL;
 
   const rawSort = (firstValue(params.sort) ?? DEFAULT_SORT).toString();
   const sort = (
@@ -73,7 +128,9 @@ export function parseSearchFilters(params: RawSearchParams): SearchFiltersState 
   const mode: SearchMode =
     firstValue(params.mode) === "role" ? "role" : DEFAULT_MODE;
 
-  return { q, location, sector, sort, mode };
+  const page = Math.max(1, Math.floor(Number(firstValue(params.page))) || 1);
+
+  return { q, location, sector, sort, mode, page };
 }
 
 /**

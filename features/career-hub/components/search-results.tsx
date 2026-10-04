@@ -1,10 +1,10 @@
 import * as React from "react";
 import Link from "next/link";
-import { Search, TriangleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, TriangleAlert } from "lucide-react";
 
-import { fetchCompanies } from "@/features/career-hub/lib/queries";
+import { fetchCompanies, SEARCH_PAGE_SIZE } from "@/features/career-hub/lib/queries";
 import { fetchCompaniesByRole } from "@/features/career-hub/lib/role-search";
-import type { SearchFiltersState } from "@/features/career-hub/lib/filters";
+import { ALL, DEFAULT_SORT, type SearchFiltersState } from "@/features/career-hub/lib/filters";
 import type { CompanyRoleResult, CompanySummary } from "@/features/career-hub/lib/types";
 import { CompanyCard } from "@/features/career-hub/components/company-card";
 import { EmptyState } from "@/features/career-hub/components/empty-state";
@@ -32,9 +32,11 @@ function ErrorState({ message }: { message: string }) {
 function ResultsList({
   count,
   children,
+  footer,
 }: {
   count: number;
   children: React.ReactNode;
+  footer?: React.ReactNode;
 }) {
   return (
     <div>
@@ -42,10 +44,56 @@ function ResultsList({
         className="label-caps border-b border-border pb-3"
         aria-live="polite"
       >
-        {count} {count === 1 ? "company" : "companies"} found
+        {count.toLocaleString("en-GB")} {count === 1 ? "company" : "companies"} found
       </p>
       <ul className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{children}</ul>
+      {footer}
     </div>
+  );
+}
+
+/** Company-mode URL for another page, keeping the active filters. */
+function pageHref(filters: SearchFiltersState, page: number): string {
+  const params = new URLSearchParams();
+  if (filters.q.trim()) params.set("q", filters.q.trim());
+  if (filters.location !== ALL) params.set("location", filters.location);
+  if (filters.sector !== ALL) params.set("sector", filters.sector);
+  if (filters.sort !== DEFAULT_SORT) params.set("sort", filters.sort);
+  if (page > 1) params.set("page", String(page));
+  const qs = params.toString();
+  return qs ? `/search?${qs}` : "/search";
+}
+
+function Pagination({ filters, total }: { filters: SearchFiltersState; total: number }) {
+  const pages = Math.ceil(total / SEARCH_PAGE_SIZE);
+  if (pages <= 1) return null;
+  const { page } = filters;
+  return (
+    <nav aria-label="Pagination" className="mt-8 flex items-center justify-between gap-3">
+      {page > 1 ? (
+        <Button asChild variant="outline">
+          <Link href={pageHref(filters, page - 1)}>
+            <ChevronLeft className="size-4" />
+            Previous
+          </Link>
+        </Button>
+      ) : (
+        <span />
+      )}
+      <span className="label-caps tabular-nums">
+        Page {page} of {pages.toLocaleString("en-GB")}
+      </span>
+      {page < pages ? (
+        <Button asChild variant="outline">
+          <Link href={pageHref(filters, page + 1)}>
+            Next
+            <ChevronRight className="size-4" />
+          </Link>
+        </Button>
+      ) : (
+        <span />
+      )}
+    </nav>
   );
 }
 
@@ -103,8 +151,9 @@ async function RoleResults({ filters }: SearchResultsProps) {
 /** Company-name search — unchanged existing behaviour. */
 async function CompanyResults({ filters }: SearchResultsProps) {
   let companies: CompanySummary[];
+  let total: number;
   try {
-    companies = await fetchCompanies(filters);
+    ({ companies, total } = await fetchCompanies(filters));
   } catch (error) {
     return (
       <ErrorState
@@ -130,7 +179,7 @@ async function CompanyResults({ filters }: SearchResultsProps) {
   }
 
   return (
-    <ResultsList count={companies.length}>
+    <ResultsList count={total} footer={<Pagination filters={filters} total={total} />}>
       {companies.map((company) => (
         <li key={company.id}>
           <CompanyCard company={company} />

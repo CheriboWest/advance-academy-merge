@@ -6,18 +6,22 @@ import type { CompanySummary, Job } from "@/features/career-hub/lib/types";
 const COMPANY_COLUMNS =
   "id, slug, name, website, careers_url, sector, region, hq_location, lead_score, open_jobs, ai_summary, ai_summary_generated_at";
 
+export const SEARCH_PAGE_SIZE = 30;
+
 /**
- * Fetch companies from the `public_company_summary` view, applying the public
- * search filters (name search, location, sector) and sort order in the query.
+ * One page of companies from the `public_company_summary` view, applying the
+ * public search filters (name search, location, sector) and sort order in the
+ * query, plus the exact total. Paged rather than fetched whole: PostgREST caps
+ * an unranged select at 1,000 rows, which silently hid most of the directory.
  */
 export async function fetchCompanies(
   filters: SearchFiltersState
-): Promise<CompanySummary[]> {
+): Promise<{ companies: CompanySummary[]; total: number }> {
   const supabase = getSupabaseClient();
 
   let query = supabase
     .from("public_company_summary")
-    .select(COMPANY_COLUMNS);
+    .select(COMPANY_COLUMNS, { count: "exact" });
 
   const q = filters.q.trim();
   if (q) {
@@ -54,12 +58,18 @@ export async function fetchCompanies(
       break;
   }
 
-  const { data, error } = await query;
+  // Tie-breaker so ties don't shuffle between pages.
+  const from = (filters.page - 1) * SEARCH_PAGE_SIZE;
+  query = query.order("id").range(from, from + SEARCH_PAGE_SIZE - 1);
+
+  const { data, error, count } = await query;
   if (error) {
+    // Asking past the last page is a 416 from PostgREST — treat it as empty.
+    if (error.code === "PGRST103") return { companies: [], total: count ?? 0 };
     throw new Error(error.message);
   }
 
-  return (data ?? []) as CompanySummary[];
+  return { companies: (data ?? []) as CompanySummary[], total: count ?? 0 };
 }
 
 /** Fetch a single company by its slug, or `null` if none matches. */

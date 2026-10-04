@@ -344,7 +344,27 @@ response = http_client.post("/contacts", json={
 check("a check-constraint violation from the database is surfaced as 422",
       response.status_code == 422, f"got {response.status_code}")
 
+# ---------------------------------------------------------------------------
+# Directory: every contact with its company, sorted by company then name.
+# ---------------------------------------------------------------------------
+_fixture["rest"] = FakeRest(contacts=[
+    {"id": "c1", "company_id": "x", "full_name": "zoe", "email": "z@x.com",
+     "company": {"id": "x", "name": "Beta", "slug": "beta"}},
+    {"id": "c2", "company_id": "y", "full_name": "Amy", "email": "a@y.com",
+     "company": {"id": "y", "name": "alpha", "slug": "alpha"}},
+    {"id": "c3", "company_id": "x", "full_name": "Ben", "email": "b@x.com",
+     "company": {"id": "x", "name": "Beta", "slug": "beta"}},
+])
+response = http_client.get("/contacts/directory")
+rows = response.json() if response.status_code == 200 else []
+check("directory sorts by company, then name",
+      [r["full_name"] for r in rows] == ["Amy", "Ben", "zoe"], f"{response.status_code} {rows}")
+check("directory rows carry their company",
+      bool(rows) and rows[0]["company"]["slug"] == "alpha")
+
 _anonymous()
+check("directory is coach-only",
+      http_client.get("/contacts/directory").status_code == 401)
 
 print()
 if _failures:

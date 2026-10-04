@@ -126,19 +126,20 @@ else:
 
 if CONTACTS_TS.exists():
     source = CONTACTS_TS.read_text()
-    # getContacts/getContactCounts both go through one shared fetchContacts(query)
-    # helper — check that helper hits exactly /contacts?<query>, and that the two
+    # getContacts/getContactCounts/getContactDirectory all go through one shared
+    # fetchContacts(pathAndQuery) helper — check that helper hits exactly
+    # /contacts<pathAndQuery>, and that the
     # callers build a query starting with the param name the backend expects
     # (company_id= / company_ids=), rather than pinning one exact call shape that
     # a harmless internal refactor (e.g. extracting that helper) would break.
     base_call = re.search(
-        r"fetch\(\s*`\$\{baseUrl[^}]*\}/contacts\?\$\{query\}`", source
+        r"fetch\(\s*`\$\{baseUrl[^}]*\}/contacts\$\{pathAndQuery\}`", source
     )
-    check("contacts.ts's shared fetch helper hits exactly /contacts?<query>",
+    check("contacts.ts's shared fetch helper hits exactly /contacts<pathAndQuery>",
           bool(base_call), f"searched {CONTACTS_TS.name} for the fetch(...) call")
 
     get_contacts_query = re.search(
-        r"function getContacts\([^)]*\)[^{]*\{\s*return fetchContacts\(\s*`([^$]+)\$\{",
+        r"function getContacts\([^)]*\)[^{]*\{\s*return fetchContacts\(\s*`\?([^$]+)\$\{",
         source,
     )
     check("getContacts() queries by company_id=",
@@ -166,8 +167,12 @@ if CONTACTS_TS.exists():
     check("getContactsForCompanies() exists", bool(get_for_companies_fn))
     check("getContactsForCompanies() queries by company_ids=",
           bool(get_for_companies_fn)
-          and bool(re.search(r"fetchContacts\(\s*`company_ids=\$\{", get_for_companies_fn.group(0))),
-          f"searched the function body for a fetchContacts(`company_ids=${{...`) call")
+          and bool(re.search(r"fetchContacts\(\s*`\?company_ids=\$\{", get_for_companies_fn.group(0))),
+          f"searched the function body for a fetchContacts(`?company_ids=${{...`) call")
+
+    check("getContactDirectory() hits /contacts/directory, which the router exposes",
+          bool(re.search(r'fetchContacts<DirectoryContact>\(\s*"/directory"\s*\)', source))
+          and any(getattr(r, "path", None) == "/contacts/directory" for r in contacts.router.routes))
     check("getContactsForCompanies() chunks rather than sending every id in "
           "one request (the actual fix for the batch-cap 422)",
           bool(get_for_companies_fn)

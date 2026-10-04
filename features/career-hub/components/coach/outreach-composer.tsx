@@ -38,6 +38,8 @@ interface OutreachComposerProps {
   openJobTitles: string[];
   companyNotes: string | null;
   contacts: Contact[];
+  /** Preselected from a contact's "Draft outreach" link (`?contact=`). */
+  initialContactId?: string;
   initialSubject: string;
   initialBody: string;
   hasExistingDraft: boolean;
@@ -65,15 +67,18 @@ export function OutreachComposer({
   openJobTitles,
   companyNotes,
   contacts,
+  initialContactId,
   initialSubject,
   initialBody,
   hasExistingDraft,
 }: OutreachComposerProps) {
   const [subject, setSubject] = React.useState(initialSubject);
   const [body, setBody] = React.useState(initialBody);
-  const [recipient, setRecipient] = React.useState("");
-  const [selectedContactId, setSelectedContactId] =
-    React.useState<string>(MANUAL_RECIPIENT);
+  const initialContact = contacts.find((c) => c.id === initialContactId);
+  const [recipient, setRecipient] = React.useState(initialContact?.email ?? "");
+  const [selectedContactId, setSelectedContactId] = React.useState<string>(
+    initialContact?.id ?? MANUAL_RECIPIENT
+  );
   const [generating, setGenerating] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [feedback, setFeedback] = React.useState<Feedback>(null);
