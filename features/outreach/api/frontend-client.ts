@@ -13,7 +13,7 @@ export async function submitOutreachGeneration(request: OutreachRequest): Promis
     method: 'POST',
     body: JSON.stringify(request),
     headers: await getAuthHeaders(),
-    timeoutMs: 90000,
+    timeoutMs: 100000,
   })
 }
 
@@ -31,6 +31,8 @@ export async function validateJdUrl(url: string): Promise<JdValidationResult> {
     method: 'POST',
     body: JSON.stringify({ url }),
     headers: await getAuthHeaders(),
+    // Jina alone can take ~48s (3 attempts × 15s + backoff) before the LLM check runs.
+    timeoutMs: 70000,
   })
 }
 
@@ -64,6 +66,7 @@ export async function extractOutreachSource(source: File | string): Promise<{ te
       method: 'POST',
       body: JSON.stringify({ url: source }),
       headers: authHeaders,
+      timeoutMs: 70000,
     })
   }
 }

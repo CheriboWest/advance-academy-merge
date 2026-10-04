@@ -1,6 +1,7 @@
 import {
   BadgeCheck,
   Building2,
+  Contact,
   LayoutDashboard,
   Mail,
   Radar,
@@ -22,6 +23,8 @@ export const coachNavItems: CoachNavItem[] = [
   // Sponsorship status, licence/routes, open jobs and contacts for a company
   // — the same "licensed" badge icon used throughout the sponsorship UI.
   { href: "/coach/sponsored-companies", label: "Sponsored Companies", icon: BadgeCheck },
+  // Every contact across companies, filterable by role — see GET /contacts/directory.
+  { href: "/coach/contacts", label: "Contacts", icon: Contact },
   // Placeholder shell for the future personalised-outreach workflow — see
   // app/coach/(workspace)/outreach/page.tsx.
   { href: "/coach/outreach", label: "Outreach", icon: Mail },

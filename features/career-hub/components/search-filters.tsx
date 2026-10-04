@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type SearchFiltersProps = SearchFiltersState;
+type SearchFiltersProps = Omit<SearchFiltersState, "page">;
 
 /**
  * Small client component that reflects the current filters and writes changes
@@ -57,6 +57,7 @@ export function SearchFilters({
   const commit = React.useCallback(
     (patch: Partial<SearchFiltersState>) => {
       const params = new URLSearchParams(searchParams.toString());
+      params.delete("page"); // a new filter starts from the first page
 
       const setOrDelete = (key: string, value: string, isDefault: boolean) => {
         if (!value || isDefault) params.delete(key);

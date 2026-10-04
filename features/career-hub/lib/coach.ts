@@ -103,6 +103,28 @@ export const isCoach = cache(async (): Promise<boolean> => {
   }
 });
 
+const PAGE_ROWS = 1000;
+
+/**
+ * Every row of a query. PostgREST caps one response at 1,000 rows, so an
+ * unranged select silently drops the rest; `page` must build a fresh, stably
+ * ordered query for each range.
+ *
+ * ponytail: sequential pages, fine for ~10k rows of an internal tool; move to
+ * server-side paging in the UI if the company set grows well past that.
+ */
+async function selectAll<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_ROWS) {
+    const { data, error } = await page(from, from + PAGE_ROWS - 1);
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if ((data?.length ?? 0) < PAGE_ROWS) return rows;
+  }
+}
+
 /** Aggregate all data shown on the coach dashboard. */
 export async function getDashboardData(): Promise<CoachDashboardData> {
   const supabase = await createSupabaseServerClient();
@@ -119,7 +141,6 @@ export async function getDashboardData(): Promise<CoachDashboardData> {
     .from("public_company_summary")
     .select("*", { count: "exact", head: true })
     .gte("lead_score", HIGH_SCORE_THRESHOLD);
-  let jobsQuery = supabase.from("public_company_summary").select("id, open_jobs");
   // The view exposes no timestamp column, so we approximate "recent" by id.
   let recentQuery = supabase
     .from("public_company_summary")
@@ -136,21 +157,30 @@ export async function getDashboardData(): Promise<CoachDashboardData> {
     const notIn = inList(hiddenIds);
     totalQuery = totalQuery.not("id", "in", notIn);
     highScoreQuery = highScoreQuery.not("id", "in", notIn);
-    jobsQuery = jobsQuery.not("id", "in", notIn);
     recentQuery = recentQuery.not("id", "in", notIn);
     topHiringQuery = topHiringQuery.not("id", "in", notIn);
   }
 
+  const jobsPage = (from: number, to: number) => {
+    let query = supabase
+      .from("public_company_summary")
+      .select("id, open_jobs")
+      .order("id")
+      .range(from, to);
+    if (hiddenIds.length) query = query.not("id", "in", inList(hiddenIds));
+    return query;
+  };
+
   const [
     totalResult,
     highScoreResult,
-    jobsResult,
+    jobRows,
     recentResult,
     topHiringResult,
   ] = await Promise.all([
     totalQuery,
     highScoreQuery,
-    jobsQuery,
+    selectAll(jobsPage),
     recentQuery,
     topHiringQuery,
   ]);
@@ -158,14 +188,13 @@ export async function getDashboardData(): Promise<CoachDashboardData> {
   const firstError =
     totalResult.error ||
     highScoreResult.error ||
-    jobsResult.error ||
     recentResult.error ||
     topHiringResult.error;
   if (firstError) {
     throw new Error(firstError.message);
   }
 
-  const totalActiveJobs = (jobsResult.data ?? []).reduce(
+  const totalActiveJobs = jobRows.reduce(
     (sum, row) => sum + ((row.open_jobs as number | null) ?? 0),
     0
   );
@@ -214,21 +243,23 @@ export async function getCoachCompanies(
   // so skip the companies query entirely.
   if (hidden && hiddenIds.length === 0) return [];
 
-  let companiesQuery = supabase
-    .from("public_company_summary")
-    .select("id, slug, name, region, hq_location, open_jobs, lead_score")
-    .order("name", { ascending: true });
+  const companiesData = await selectAll((from, to) => {
+    let companiesQuery = supabase
+      .from("public_company_summary")
+      .select("id, slug, name, region, hq_location, open_jobs, lead_score")
+      .order("name", { ascending: true })
+      .order("id")
+      .range(from, to);
 
-  if (hidden) {
-    companiesQuery = companiesQuery.in("id", hiddenIds);
-  } else if (hiddenIds.length) {
-    companiesQuery = companiesQuery.not("id", "in", inList(hiddenIds));
-  }
+    if (hidden) {
+      companiesQuery = companiesQuery.in("id", hiddenIds);
+    } else if (hiddenIds.length) {
+      companiesQuery = companiesQuery.not("id", "in", inList(hiddenIds));
+    }
+    return companiesQuery;
+  });
 
-  const { data: companiesData, error: companiesError } = await companiesQuery;
-  if (companiesError) throw new Error(companiesError.message);
-
-  return (companiesData ?? []).map((company) => {
+  return companiesData.map((company) => {
     const meta = metaByCompany.get(company.id as string);
     return {
       company_id: company.id as string,
@@ -273,21 +304,23 @@ export async function getSponsoredCompanies(): Promise<SponsoredCompanyRow[]> {
   // lets the two overlap.
   //
   // ponytail: this fetches the coach's hidden companies only to drop them,
-  // so the row count crossing the wire is the *unfiltered* company set. Fine
-  // at this size; if the company set ever approaches PostgREST's 1000-row cap,
-  // go back to narrowing in-query (and paginate) rather than growing this.
-  const [hiddenIds, { data, error }] = await Promise.all([
+  // so the row count crossing the wire is the *unfiltered* company set,
+  // paged past PostgREST's 1000-row cap by selectAll.
+  const [hiddenIds, data] = await Promise.all([
     getHiddenCompanyIds(supabase),
-    supabase
-      .from("public_company_summary")
-      .select(SPONSORED_COMPANY_LIST_COLUMNS)
-      .order("name", { ascending: true }),
+    selectAll((from, to) =>
+      supabase
+        .from("public_company_summary")
+        .select(SPONSORED_COMPANY_LIST_COLUMNS)
+        .order("name", { ascending: true })
+        .order("id")
+        .range(from, to)
+    ),
   ]);
-  if (error) throw new Error(error.message);
 
   const hidden = new Set(hiddenIds);
 
-  return (data ?? [])
+  return data
     .filter((company) => !hidden.has(company.id as string))
     .map((company) => ({
       company_id: company.id as string,

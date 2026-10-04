@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./admin-person": "./src/admin-person.ts",
     "./coaching": "./src/coaching.ts",
+    "./contacts": "./src/contacts.ts",
     "./cover-letter": "./src/cover-letter.ts",
     "./cv-optimizer": "./src/cv-optimizer.ts",
     "./engagement": "./src/engagement.ts",

@@ -61,15 +61,8 @@ export function CompanyCard({
               {openJobs}
             </span>
           </span>
-          <span
-            className="block leading-none"
-            title={`Hiring signal score: ${company.lead_score ?? 0}`}
-          >
-            <span className="label-caps">Score</span>
-            <span className="mt-1 block font-display text-2xl tabular-nums text-foreground">
-              {company.lead_score ?? 0}
-            </span>
-          </span>
+          {/* No lead score here: it's a coach prioritisation number that read as
+              a rating to students. Coach pages still show it. */}
         </span>
 
         <span className="flex items-center gap-1 text-sm font-medium text-highlight-ink">

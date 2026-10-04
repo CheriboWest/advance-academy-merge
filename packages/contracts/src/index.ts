@@ -12,6 +12,7 @@
  */
 export * from './admin-person.js'
 export * from './coaching.js'
+export * from './contacts.js'
 export * from './cover-letter.js'
 export * from './cv-optimizer.js'
 export * from './engagement.js'

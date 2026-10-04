@@ -52,6 +52,8 @@ SPONSORSHIP_TIMEOUT_SECONDS = 240.0
 # also runs after the crawl is finalized, so this only bounds that background
 # sweep — a slow or failing summary call can never make a crawl fail.
 SUMMARY_TIMEOUT_SECONDS = 240.0
+# Same again for sector classification (one Claude call per 50 companies).
+SECTOR_TIMEOUT_SECONDS = 120.0
 
 
 def _now_iso() -> str:
@@ -276,8 +278,7 @@ async def _ingest(
             group_jobs: list[NormalizedJob] = group["jobs"]
             prior = existing_by_slug.get(slug)
             enrichment = enrichment_by_slug.get(slug, {})
-            sector = enrichment.get("sector") or (prior or {}).get("sector")
-            score = compute_lead_score(group_jobs, sector=sector)
+            score = compute_lead_score(group_jobs)
             hq = normalize_city(group_jobs[0].city) if group_jobs else None
 
             row: dict[str, Any] = {
@@ -289,8 +290,8 @@ async def _ingest(
             }
             if enrichment.get("description"):
                 row["description"] = enrichment["description"]
-            if sector:
-                row["sector"] = sector
+            # No sector here: the post-crawl _classify_sectors sweep owns it,
+            # and leaving the key out keeps an existing value on upsert.
             if enrichment.get("careers_url"):
                 row["careers_url"] = enrichment["careers_url"]
 
@@ -705,6 +706,44 @@ async def _generate_company_summaries(company_ids: list[str]) -> None:
         )
 
 
+async def _classify_sectors(company_ids: list[str]) -> None:
+    """Give a sector to companies this crawl touched that have none yet.
+
+    Isolated like `_generate_company_summaries`: after the crawl is
+    finalized, own timeout, never raises."""
+    settings = get_settings()
+    if not company_ids or not settings.anthropic_api_key:
+        return
+
+    started = time.perf_counter()
+    try:
+        from app.companies.sector import classify_and_store, unclassified
+        from app.crawler.supabase_rest import SupabaseRest as _Rest
+
+        rest = _Rest(settings.supabase_url, settings.supabase_service_role_key)
+
+        async def _classify_all() -> int:
+            async with httpx.AsyncClient() as client:
+                companies = await unclassified(client, rest, company_ids)
+                return await classify_and_store(
+                    client,
+                    rest,
+                    companies,
+                    api_key=settings.anthropic_api_key,
+                    model=settings.anthropic_model,
+                    timeout=settings.request_timeout,
+                )
+
+        stored = await asyncio.wait_for(_classify_all(), timeout=SECTOR_TIMEOUT_SECONDS)
+        log_stage("sectors_total", time.perf_counter() - started, f"classified={stored}")
+    except Exception as exc:  # noqa: BLE001 — never fails the crawl (incl. timeout)
+        log_stage(
+            "sectors_total",
+            time.perf_counter() - started,
+            f"[failed: {type(exc).__name__} — crawl unaffected]",
+        )
+
+
 async def run_crawl(
     run_id: str,
     query: str,
@@ -796,5 +835,7 @@ async def run_crawl(
     # terminal state is already written, so it can only add summaries for
     # companies that need them, never affect what the crawl itself recorded.
     await _generate_company_summaries(stats.companies_needing_summary)
+
+    await _classify_sectors(stats.affected_company_ids)
 
     log_stage("crawl_total", time.perf_counter() - started, f"[{status}]")

@@ -13,10 +13,11 @@ import { fetchActiveJobs, fetchCompanyBySlug } from "@/features/career-hub/lib/q
 import { PageContainer } from "@/features/career-hub/components/page-container";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LeadScoreBadge } from "@/features/career-hub/components/lead-score-badge";
 import { JobItem } from "@/features/career-hub/components/job-item";
 import { EmptyState } from "@/features/career-hub/components/empty-state";
 import { CompanySummary } from "@/features/career-hub/components/company-summary";
+import { CompanyContacts } from "@/features/career-hub/components/company-contacts";
+import { fetchContactSummary } from "@/features/career-hub/lib/company-contacts";
 
 // Company and job data are fetched per request from Supabase.
 export const dynamic = "force-dynamic";
@@ -49,7 +50,10 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
     notFound();
   }
 
-  const jobs = await fetchActiveJobs(company.id);
+  const [jobs, contactSummary] = await Promise.all([
+    fetchActiveJobs(company.id),
+    fetchContactSummary(company.id),
+  ]);
   const location = company.hq_location ?? company.region ?? "—";
 
   return (
@@ -84,7 +88,6 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
               </div>
               <CompanySummary summary={company.ai_summary} className="mt-4" />
             </div>
-            <LeadScoreBadge score={company.lead_score ?? 0} className="shrink-0" />
           </div>
 
           {(company.website || company.careers_url) && (
@@ -149,6 +152,15 @@ export default async function CompanyPage({ params }: CompanyPageProps) {
             />
           )}
         </section>
+
+        {contactSummary && (
+          <CompanyContacts
+            companyId={company.id}
+            companyName={company.name}
+            slug={company.slug}
+            summary={contactSummary}
+          />
+        )}
       </PageContainer>
 
       {/* The money action, pinned within thumb reach on mobile. */}

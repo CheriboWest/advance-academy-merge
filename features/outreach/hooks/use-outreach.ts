@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { useSearchParams } from 'next/navigation'
 import type {
   EnrichmentCard,
   EnrichmentRequest,
@@ -84,7 +85,13 @@ function buildEnrichRequest(form: OutreachFormData): EnrichmentRequest {
 }
 
 export function useOutreach() {
-  const [form, setForm] = useState<OutreachFormData>(INITIAL_FORM)
+  // `?company=&person=` comes from a contact's "Write outreach" on /companies/[slug].
+  const params = useSearchParams()
+  const [form, setForm] = useState<OutreachFormData>(() => ({
+    ...INITIAL_FORM,
+    targetCompany: params?.get('company') ?? '',
+    targetPersonName: params?.get('person') ?? '',
+  }))
   const [results, setResults] = useState<OutreachResult | null>(null)
 
   const generateMutation = useMutation<OutreachResult, HttpClientError, OutreachRequest>({

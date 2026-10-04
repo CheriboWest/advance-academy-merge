@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from "@/shared/auth/supabase-server";
 import { careerHubApiUrl } from "@/features/career-hub/lib/api-url";
-import type { Contact } from "@/features/career-hub/lib/types";
+import type { Contact, DirectoryContact } from "@/features/career-hub/lib/types";
 
 /**
  * A company's contacts, or a batch across several, from the FastAPI backend
@@ -17,7 +17,7 @@ import type { Contact } from "@/features/career-hub/lib/types";
  * all resolve to an empty list — a page using this still renders, just
  * without contacts, rather than failing outright.
  */
-async function fetchContacts(query: string): Promise<Contact[]> {
+async function fetchContacts<T = Contact>(pathAndQuery: string): Promise<T[]> {
   const baseUrl = careerHubApiUrl();
   if (!baseUrl) return [];
 
@@ -29,21 +29,26 @@ async function fetchContacts(query: string): Promise<Contact[]> {
 
   try {
     const response = await fetch(
-      `${baseUrl}/contacts?${query}`,
+      `${baseUrl}/contacts${pathAndQuery}`,
       {
         headers: { Authorization: `Bearer ${session.access_token}` },
         cache: "no-store",
       }
     );
     if (!response.ok) return [];
-    return (await response.json()) as Contact[];
+    return (await response.json()) as T[];
   } catch {
     return [];
   }
 }
 
 export async function getContacts(companyId: string): Promise<Contact[]> {
-  return fetchContacts(`company_id=${encodeURIComponent(companyId)}`);
+  return fetchContacts(`?company_id=${encodeURIComponent(companyId)}`);
+}
+
+/** Every contact with its company — the coach Contact Directory. */
+export async function getContactDirectory(): Promise<DirectoryContact[]> {
+  return fetchContacts<DirectoryContact>("/directory");
 }
 
 // Matches MAX_COMPANY_IDS_PER_LIST in app/routers/contacts.py — a single
@@ -77,7 +82,7 @@ export async function getContactsForCompanies(
 
   const results = await Promise.all(
     chunks.map((chunk) =>
-      fetchContacts(`company_ids=${encodeURIComponent(chunk.join(","))}`)
+      fetchContacts(`?company_ids=${encodeURIComponent(chunk.join(","))}`)
     )
   );
   return results.flat();

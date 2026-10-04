@@ -397,3 +397,15 @@ class Contact(BaseModel):
     notes: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+
+class ContactCompany(BaseModel):
+    id: str
+    name: str
+    slug: str
+
+
+class DirectoryContact(Contact):
+    """A contact plus its company — one row of the coach Contact Directory."""
+
+    company: Optional[ContactCompany] = None

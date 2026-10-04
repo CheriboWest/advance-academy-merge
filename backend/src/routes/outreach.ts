@@ -4,6 +4,9 @@ import { runEnrichment } from '../services/outreach-enrichment.service.js';
 import { validateJdUrl } from '../services/outreach-jd-validator.service.js';
 import type { EnrichmentRequest, OutreachRequest } from '../types/outreach.js';
 import { perUserDaily } from '../lib/rate-limit.js';
+import { publicErrorMessage } from '../lib/public-error.js';
+
+const UNAVAILABLE = 'The outreach tool is unavailable right now. Please try again in a few minutes.';
 
 const RATE_1MIN = (max: number) => ({ config: { rateLimit: { max, timeWindow: '1 minute' } } });
 
@@ -28,13 +31,8 @@ export async function registerOutreachRoutes(app: FastifyInstance) {
       return await generateOutreach(body);
     } catch (error) {
       const statusCode = error && typeof error === 'object' && 'statusCode' in error ? Number((error as { statusCode?: number }).statusCode) : 500;
-      if (statusCode === 503) {
-        return reply.code(503).send({
-          error: error instanceof Error ? error.message : 'LLM is not configured.',
-        });
-      }
       request.log.error(error);
-      return reply.code(statusCode).send({ error: error instanceof Error ? error.message : 'Outreach generation failed' });
+      return reply.code(statusCode).send({ error: publicErrorMessage(error, UNAVAILABLE) });
     }
   });
 
@@ -53,7 +51,7 @@ export async function registerOutreachRoutes(app: FastifyInstance) {
       const statusCode = error && typeof error === 'object' && 'statusCode' in error ? Number((error as { statusCode?: number }).statusCode) : 500;
       request.log.error(error);
       return reply.code(statusCode).send({
-        error: error instanceof Error ? error.message : 'Enrichment failed',
+        error: publicErrorMessage(error, UNAVAILABLE),
       });
     }
   });
@@ -71,7 +69,7 @@ export async function registerOutreachRoutes(app: FastifyInstance) {
       const statusCode = error && typeof error === 'object' && 'statusCode' in error ? Number((error as { statusCode?: number }).statusCode) : 500;
       request.log.error(error);
       return reply.code(statusCode).send({
-        error: error instanceof Error ? error.message : 'JD validation failed',
+        error: publicErrorMessage(error, UNAVAILABLE),
       });
     }
   });
@@ -99,8 +97,9 @@ export async function registerOutreachRoutes(app: FastifyInstance) {
              const text = await extService.extractTextFromUrl(body.url);
              return { text };
            } catch (error: any) {
+             request.log.error(error);
              const code = error.statusCode || 500;
-             return reply.code(code).send({ error: error.message });
+             return reply.code(code).send({ error: publicErrorMessage(error, UNAVAILABLE) });
            }
         }
         return reply.code(400).send({ error: 'No File or URL provided' });
@@ -113,8 +112,9 @@ export async function registerOutreachRoutes(app: FastifyInstance) {
         const text = await extService.extractTextFromFile(buffer, fileName);
         return { text };
       } catch (error: any) {
+        request.log.error(error);
         const code = error.statusCode || 400;
-        return reply.code(code).send({ error: error.message });
+        return reply.code(code).send({ error: publicErrorMessage(error, 'Could not read that file. Try a PDF or DOCX.') });
       }
     });
   });

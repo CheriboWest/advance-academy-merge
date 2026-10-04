@@ -22,6 +22,7 @@ Nothing here has been cut over.
 - career-hub's web app has been folded in: its routes are `app/{search,companies,coach}`
   and its non-route code is `features/career-hub/`. The `careerhub/` directory
   is gone.
+- **Contacts** live in one table, `contacts` (migration 034, service-role only). Coaches manage them through backend-python (`/contacts`, `/contacts/directory` → `/coach/contacts`); students on Membership read a reduced shape (no phone/notes) through Fastify `routes/company-contacts.ts` on `/companies/[slug]`. The category (HR / recruiter / …) is derived from `job_title` by `contactCategory` in `packages/contracts/src/contacts.ts` — not stored. `companies.sector` is written only by `backend-python/app/companies/sector.py` (backfill: `scripts/classify_sectors.py`); its list must match `SECTOR_OPTIONS` in `features/career-hub/lib/filters.ts` (`test_sector.py` checks).
 - `/search` and `/companies/*` are **public** (top of the funnel) and live in
   `middleware.ts`'s `PUBLIC_PATHS` along with `/coach/login`. `middleware.ts`'s
   matcher gates every other page route, so a new public page must be added there
@@ -142,7 +143,7 @@ Earlier versions kept interview-prep LLM + DB calls inside Next.js route handler
 
 ### Authentication
 
-Supabase-based bearer-token auth is enforced on the backend. A Fastify `preHandler` hook in `backend/src/main.ts` rejects any request without an `Authorization: Bearer <token>` header, validates the token via `getUserIdFromToken()` in `backend/src/lib/supabase.ts` (which calls `supabase.auth.getUser()`), and attaches `request.userId` for routes/services to use. Fully public (no token): `/api/health`, `/api/system`, `/api/leads/capture`, `/api/leads/confirm`, `/api/leads/unsubscribe`, `/api/auth/passwordless`, `/api/engagement/unsubscribe` (HMAC token in the link is the credential) — matched with `startsWith`, so `GET /api/leads` (admin) stays gated.
+Supabase-based bearer-token auth is enforced on the backend. A Fastify `preHandler` hook in `backend/src/main.ts` rejects any request without an `Authorization: Bearer <token>` header, validates the token via `getUserIdFromToken()` in `backend/src/lib/supabase.ts` (which calls `supabase.auth.getUser()`), and attaches `request.userId` for routes/services to use. Fully public (no token): `/api/health`, `/api/system`, `/api/leads/capture`, `/api/leads/confirm`, `/api/leads/unsubscribe`, `/api/auth/passwordless`, `/api/engagement/unsubscribe` (HMAC token in the link is the credential), anything under `/api/public/` (counts only, no personal data — e.g. the company-contacts summary) — matched with `startsWith`, so `GET /api/leads` (admin) stays gated.
 
 **Sign-up is passwordless.** `POST /api/auth/passwordless` (`services/passwordless.service.ts`) mints a trial account server-side with a throwaway password and emails a Supabase magic link; `app/(auth)/register/page.tsx` and the login page's "email me a link" fallback both go through it. There is no password-signup path.
 
@@ -174,6 +175,7 @@ A second auth layer lives at the Next.js edge: `middleware.ts` in the repo root 
 - **Extract job from URL** (`POST /api/interview-prep/extract-job-from-url`): **5 / 10 minutes, keyed by user** (`backend/src/routes/interview-prep.ts`)
 - **Passwordless sign-up** (`POST /api/auth/passwordless`): **5 / minute, keyed by IP** — public route, so IP is the only key available (`backend/src/routes/auth.ts`)
 - **Cover letter** (`POST /api/cover-letter/generate`): **10 / day, keyed by user** (`DAILY_LIMIT_COVER_LETTER`), plus 1 credit (`backend/src/routes/cover-letter.ts`)
+- **Company contacts** (`GET /api/company-contacts/:companyId`): **30 / minute, keyed by user**, Membership only (`requireMembership`) — no LLM, the cap stops scraping. The public `/api/public/company-contacts/:id/summary` is 60 / minute by IP (`backend/src/routes/company-contacts.ts`)
 
 `/api/admin/*` and `GET /api/account/me` are deliberately **not** rate-limited: admin-only or single-row reads, no LLM spend. `/api/admin/*` has no `preHandler` either — each handler calls `isAdminUser(request.userId)` inline and 403s.
 

@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.auth import get_current_user
 from app.config import Settings, get_settings
 from app.crawler.supabase_rest import SupabaseRest
-from app.schemas import Contact, ContactCreate, ContactWrite
+from app.schemas import Contact, ContactCreate, ContactWrite, DirectoryContact
 
 router = APIRouter(prefix="/contacts", tags=["contacts"])
 
@@ -110,6 +110,43 @@ async def list_contacts(
         )
 
     return [Contact(**row) for row in rows]
+
+
+# PostgREST's per-response row cap; the directory pages through it.
+DIRECTORY_PAGE = 1000
+
+
+@router.get("/directory", response_model=list[DirectoryContact])
+async def contact_directory(
+    _user_id: str = Depends(get_current_user),
+) -> list[DirectoryContact]:
+    """Every contact with its company, sorted by company then name — the
+    coach Contact Directory. Search and category filtering happen in the
+    page: contacts are hand-entered, so the whole set is small.
+
+    ponytail: returns everything; add server-side search/paging when the
+    set reaches the tens of thousands.
+    """
+    rest = _require_supabase(get_settings())
+    rows: list[dict] = []
+    async with httpx.AsyncClient() as client:
+        while True:
+            page = await rest.select(
+                client,
+                "contacts",
+                {
+                    "select": f"{CONTACT_COLUMNS},company:companies(id,name,slug)",
+                    "order": "id",
+                    "limit": str(DIRECTORY_PAGE),
+                    "offset": str(len(rows)),
+                },
+            )
+            rows.extend(page)
+            if len(page) < DIRECTORY_PAGE:
+                break
+
+    rows.sort(key=lambda r: ((r.get("company") or {}).get("name", "").lower(), r["full_name"].lower()))
+    return [DirectoryContact(**row) for row in rows]
 
 
 @router.post("", response_model=Contact, status_code=201)
