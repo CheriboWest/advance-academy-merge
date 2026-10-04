@@ -3,6 +3,7 @@ import type {
   GenerateCoverLetterResponse,
 } from '@advance-academy/contracts/cover-letter';
 import type { SavedJobStatus } from '@advance-academy/contracts/job-tracking';
+import { AuthenticationError } from '@anthropic-ai/sdk';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel, withRetry } from '../lib/llm-anthropic.js';
 import { newCostBucket } from '../lib/cost-tracker.js';
 import {
@@ -79,6 +80,8 @@ async function resolveJob(userId: string, req: GenerateCoverLetterRequest): Prom
         }
       }
     } catch (error) {
+      // A rejected key would otherwise surface below as "couldn't read that link".
+      if (error instanceof AuthenticationError) throw error;
       // Plenty of job boards block bots (Adzuna redirects do); carry on with what we have.
       console.warn('[cover-letter] JD fetch failed', job.url, error instanceof Error ? error.message : error);
     }

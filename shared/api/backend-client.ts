@@ -133,7 +133,7 @@ export function generateOutreachWithBackend(payload: OutreachRequest, authToken?
     method: 'POST',
     body: JSON.stringify(payload),
     headers: authHeaders(authToken),
-    timeoutMs: 60000,
+    timeoutMs: 90000,
   })
 }
 
@@ -539,7 +539,7 @@ export function validateJdWithBackend(payload: { url: string }, authToken?: stri
     method: 'POST',
     body: JSON.stringify(payload),
     headers: authHeaders(authToken),
-    timeoutMs: 30000,
+    timeoutMs: 60000,
   })
 }
 

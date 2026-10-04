@@ -184,8 +184,10 @@ function handleServiceError(error: unknown, request: { log: { error: (e: unknown
   }
   const http = anthropicHttpStatus(error);
   if (http === 401) {
-    return reply.code(401).send({
-      error: 'Anthropic API rejected the key (401). Check LLM_API_KEY in backend/.env.',
+    // A bad key is ours to fix, not the student's — and 401 would read as "sign in again".
+    request.log.error(error);
+    return reply.code(503).send({
+      error: 'Dream Company is unavailable right now. Please try again later.',
     });
   }
   if (http === 404) {

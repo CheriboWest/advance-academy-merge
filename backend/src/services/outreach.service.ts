@@ -17,7 +17,8 @@ function firstTextContent(response: { content: Array<{ type: string; text?: stri
 
 export async function generateOutreach(request: OutreachRequest): Promise<OutreachResult> {
   assertLlmConfigured('outreach');
-  const anthropic = createAnthropicClient('outreach');
+  // Under the 90s proxy budget, which also has to cover the Jina fetches below.
+  const anthropic = createAnthropicClient('outreach', { timeoutMs: 60_000 });
   const model = getFeatureModel('outreach');
   const cost = newCostBucket('outreach.generate');
 
