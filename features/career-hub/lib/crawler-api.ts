@@ -82,7 +82,12 @@ async function authFetch<T>(path: string, init: RequestInit): Promise<T> {
       const data = (await response.json()) as { detail?: unknown };
       if (data?.detail) detail = String(data.detail);
     } catch {
-      // keep default
+      // No JSON body: not backend-python's own error, so name the likely setup gap.
+      if (response.status === 404) {
+        detail = "Career Hub API not reachable — CAREERHUB_API_URL isn't set on the frontend (rebuild after setting it).";
+      } else if (response.status >= 500) {
+        detail = `Career Hub API error (${response.status}) — check backend-python's logs and that the crawl_runs / discovery_queries migrations are applied.`;
+      }
     }
     throw new Error(detail);
   }

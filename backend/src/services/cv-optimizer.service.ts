@@ -26,6 +26,7 @@ import type { ApiErrorResponse, JobStatus, JobStatusResponse } from '@advance-ac
 import { getLlmConfig } from '../config/llm.js';
 import { getCvOptimizerFeatures } from '../config/features.js';
 import { assertLlmConfigured, createAnthropicClient, getFeatureModel } from '../lib/llm-anthropic.js';
+import { CV_LLM_CLIENT_OPTIONS } from './cv-agents/models.js';
 import { getSupabase, isMissingColumnError } from '../lib/supabase.js';
 import { ensureCvVersion } from '../lib/cv-version-link.js';
 import { recordToolResult } from './tool-results.service.js';
@@ -243,7 +244,7 @@ async function extractAtsKeywords(
   if (!jdText) return [];
 
   assertLlmConfigured('cvOptimizer');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('cvOptimizer', CV_LLM_CLIENT_OPTIONS);
   const model = modelOverride ?? getFeatureModel('cvOptimizer');
 
   const response = await anthropic.messages.create({
@@ -321,7 +322,7 @@ async function scoreAtsRelevance(
   }
 
   assertLlmConfigured('cvOptimizer');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('cvOptimizer', CV_LLM_CLIENT_OPTIONS);
   const model = modelOverride ?? getFeatureModel('cvOptimizer');
 
   const keywordList = keywords.map((k) =>
@@ -500,7 +501,8 @@ interface ActionPlanEvaluationContext {
   jobDescription?: string;
   sections: AnalyzeCvResult['sections'];
   atsCheck: AtsCheck;
-  bulletEvaluations: BulletEvaluation[];
+  /** Optional: V2 starts the plan before the (slow) bullets branch finishes. */
+  bulletEvaluations?: BulletEvaluation[];
   jdAlignment: JdAlignment;
   keywordHighlights: KeywordHighlight[];
 }
@@ -528,8 +530,9 @@ function normalizeActionPlanItems(raw: unknown): ActionPlanItem[] {
 
 export async function generateActionPlan(context: ActionPlanEvaluationContext): Promise<ActionPlan> {
   assertLlmConfigured('cvOptimizer');
-  const anthropic = createAnthropicClient();
+  const anthropic = createAnthropicClient('cvOptimizer', CV_LLM_CLIENT_OPTIONS);
   const model = getFeatureModel('cvOptimizer');
+  const bullets = context.bulletEvaluations;
 
   const evaluationSummary = {
     targetRole: context.targetRole,
@@ -545,11 +548,11 @@ export async function generateActionPlan(context: ActionPlanEvaluationContext): 
       foundInCv: k.foundInCv,
     })),
     relevanceSignals: context.atsCheck.relevanceSignals,
-    bulletImpact: {
-      total: context.bulletEvaluations.length,
-      weak: context.bulletEvaluations.filter((b) => b.impactScore <= 4).length,
-      averageScore: context.bulletEvaluations.length > 0
-        ? Math.round((context.bulletEvaluations.reduce((s, b) => s + b.impactScore, 0) / context.bulletEvaluations.length) * 10) / 10
+    bulletImpact: bullets && {
+      total: bullets.length,
+      weak: bullets.filter((b) => b.impactScore <= 4).length,
+      averageScore: bullets.length > 0
+        ? Math.round((bullets.reduce((s, b) => s + b.impactScore, 0) / bullets.length) * 10) / 10
         : 0,
     },
     jdAlignment: context.jdAlignment,

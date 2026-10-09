@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useMemo, useState } from 'react'
+import { useRef, useEffect, useMemo, useState, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { authedFetch } from '@/shared/auth/authed-fetch'
 import { useFakeProgress } from '@/shared/hooks/use-fake-progress'
@@ -50,6 +50,8 @@ import { IRSMeter } from '@/components/interview/irs-meter'
 import { MicButton } from '@/features/interview-prep/components/mic-button'
 import { irsScoreColor, irsScoreLabel } from '@/shared/utils/score-utils'
 import { getSavedJob } from '@/features/job-tracking/api/frontend-client'
+import { useSavedJobs } from '@/features/job-tracking/hooks/use-job-tracking'
+import { TERMINAL_SAVED_JOB_STATUSES, type SavedJob } from '@advance-academy/contracts/job-tracking'
 
 interface InterviewPrepScreenProps {
   onNavigate: (view: ViewName) => void
@@ -70,24 +72,32 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
 
   const { updateContext, setStep } = interview
 
-  // ── Prep for a tracked job (`?savedJob=<id>` from a tracker card) ──
+  // ── Prep for a tracked job (`?savedJob=<id>` from a tracker card, or the
+  // setup step's tracker picker) ──
   // Fills title, company and whatever JD the card holds. A thin JD with a link
   // pre-fills the "extract from URL" box instead of fetching on page load, so
   // the student decides when to spend the extraction.
   const savedJobId = searchParams?.get('savedJob') ?? null
+  const [pickedJobId, setPickedJobId] = useState(savedJobId ?? '')
   const [savedJobUrl, setSavedJobUrl] = useState<string | null>(null)
+  const applySavedJob = useCallback(
+    (job: SavedJob) => {
+      setPickedJobId(job.id)
+      updateContext({
+        jobTitle: job.title,
+        companyName: job.companyName ?? '',
+        jobDescription: job.description ?? '',
+      })
+      setSavedJobUrl(job.jobUrl && (job.description?.trim().length ?? 0) < 400 ? job.jobUrl : null)
+    },
+    [updateContext],
+  )
   useEffect(() => {
     if (!savedJobId || coachingSessionId) return
     let cancelled = false
     getSavedJob(savedJobId)
       .then(({ job }) => {
-        if (cancelled) return
-        updateContext({
-          jobTitle: job.title,
-          companyName: job.companyName ?? '',
-          jobDescription: job.description ?? '',
-        })
-        if (job.jobUrl && (job.description?.trim().length ?? 0) < 400) setSavedJobUrl(job.jobUrl)
+        if (!cancelled) applySavedJob(job)
       })
       .catch(() => {
         // A deleted or foreign card: fall back to the empty setup form.
@@ -95,7 +105,7 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
     return () => {
       cancelled = true
     }
-  }, [savedJobId, coachingSessionId, updateContext])
+  }, [savedJobId, coachingSessionId, applySavedJob])
 
   useEffect(() => {
     // Runs once per session id. The whole point is that the student arrives with
@@ -198,6 +208,9 @@ export function InterviewPrepScreen({ onNavigate }: InterviewPrepScreenProps) {
           updateContext={interview.updateContext}
           onNext={() => interview.setStep('persona')}
           initialJobUrl={savedJobUrl}
+          pickedJobId={pickedJobId}
+          linkedJobId={savedJobId}
+          onPickJob={applySavedJob}
         />
       )}
 
@@ -289,13 +302,30 @@ function SetupStep({
   updateContext,
   onNext,
   initialJobUrl,
+  pickedJobId,
+  linkedJobId,
+  onPickJob,
 }: {
   context: ReturnType<typeof useInterview>['context']
   updateContext: ReturnType<typeof useInterview>['updateContext']
   onNext: () => void
   /** A tracked job's link, when its stored JD is too thin to interview against. */
   initialJobUrl?: string | null
+  pickedJobId: string
+  /** The `?savedJob=` card, kept in the picker even once it's offer/rejected. */
+  linkedJobId: string | null
+  onPickJob: (job: SavedJob) => void
 }) {
+  // Same list + terminal-status filter as the Cover Letter picker.
+  const { data: jobsData } = useSavedJobs()
+  const savedJobs = useMemo(
+    () =>
+      (jobsData?.jobs ?? []).filter(
+        (j) => !TERMINAL_SAVED_JOB_STATUSES.includes(j.status) || j.id === linkedJobId,
+      ),
+    [jobsData, linkedJobId],
+  )
+
   const isValid =
     context.cvText.trim().length > 0 &&
     context.jobTitle.trim().length > 0 &&
@@ -375,7 +405,7 @@ function SetupStep({
 
   const [jobUrl, setJobUrl] = useState('')
   useEffect(() => {
-    if (initialJobUrl) setJobUrl(initialJobUrl)
+    setJobUrl(initialJobUrl ?? '')
   }, [initialJobUrl])
   const [extractError, setExtractError] = useState<string | null>(null)
   const [extractInfo, setExtractInfo] = useState<string | null>(null)
@@ -444,10 +474,44 @@ function SetupStep({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <div className="lg:col-span-2">
+      <div className="lg:col-span-2 space-y-4">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+          <label htmlFor="interview-saved-job" className="block text-sm font-semibold text-primary mb-2">
+            Prepare for a job from your tracker
+          </label>
+          {savedJobs.length ? (
+            <select
+              id="interview-saved-job"
+              value={pickedJobId}
+              onChange={(e) => {
+                const job = savedJobs.find((j) => j.id === e.target.value)
+                if (job) onPickJob(job)
+              }}
+              className="w-full p-3 border rounded-xl text-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
+            >
+              <option value="" disabled>
+                — Pick a saved job —
+              </option>
+              {savedJobs.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.title}
+                  {j.companyName ? ` — ${j.companyName}` : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No saved jobs yet — save one from{' '}
+              <Link href="/search" className="underline">
+                Job Search
+              </Link>
+              , or paste a job link below.
+            </p>
+          )}
+        </div>
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
           <label className="block text-sm font-semibold text-primary mb-2">
-            Paste a job posting URL to auto-fill
+            Or paste a job posting URL to auto-fill
           </label>
           <p className="text-xs text-muted-foreground mb-3">
             We use Jina Reader + AI to pull the job title, description, company name, website, and links from a LinkedIn (or similar) job page. Anything we can&apos;t find is left blank for you to fill in.

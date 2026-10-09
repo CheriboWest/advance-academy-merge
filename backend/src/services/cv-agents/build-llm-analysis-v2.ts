@@ -9,9 +9,9 @@
  *
  * Reliability now mirrors the monolith: a no-LLM short-circuit returns
  * buildFallbackAnalysis() before any work, the four agents and the ATS pipeline
- * fan out in PARALLEL via Promise.all (each isolated by its own fallback), then
- * computeCompositeScore (sync) and generateActionPlan run sequentially with the
- * action plan isolated to buildActionPlanFallback(). It never throws. Per-agent
+ * fan out in PARALLEL (each isolated by its own fallback); generateActionPlan
+ * (isolated to buildActionPlanFallback()) starts once every branch but bullets
+ * has landed and runs alongside it, then computeCompositeScore. It never throws. Per-agent
  * model routing is active (every branch → Haiku by default; see
  * models.ts), and it is wired into analyzeCv() behind the CV_OPTIMIZER_USE_V2
  * flag. Temporarily instrumented with per-branch timing logs for latency
@@ -77,36 +77,41 @@ export async function buildLlmAnalysisV2(input: BuildLlmAnalysisV2Input): Promis
   // carries its own fallback (via timed()), so every promise resolves and
   // Promise.all never rejects — per-branch isolation is preserved. timed() logs
   // each branch's duration and any fallback (diagnostic instrumentation).
+  // bullets is the slowest branch, so it isn't awaited with the others: the
+  // action plan doesn't need it and starts as soon as the other four land.
   const startedAt = Date.now();
-  const [structure, keywords, bullets, atsCheck, alignment] = await Promise.all([
+  const bulletsPromise = timed('bullets', () => analyzeBullets({ targetRole, cvText }), fallbackBullets);
+  const [structure, keywords, atsCheck, alignment] = await Promise.all([
     timed('structure', () => analyzeStructure({ targetRole, cvText, jobDescription }), fallbackStructure),
     timed('keywords', () => extractKeywords({ targetRole, cvText, jobDescription }), fallbackKeywords),
-    timed('bullets', () => analyzeBullets({ targetRole, cvText }), fallbackBullets),
     timed('ats', () => buildAtsCheck({ targetRole, currentCvText: cvText, jobDescription }, cvAgentModel('ats')), () => EMPTY_ATS_CHECK),
     jobDescription
       ? timed('alignment', () => analyzeAlignment({ targetRole, cvText, jobDescription }), fallbackAlignment)
       : Promise.resolve(fallbackAlignment()),
   ]);
-  console.log(`⏱️ [v2] fan-out: ${Date.now() - startedAt}ms`);
+  console.log(`⏱️ [v2] fan-out (without bullets): ${Date.now() - startedAt}ms`);
 
-  // 6: composite score from agent + ATS outputs.
+  // 6: action plan, isolated to the monolith's fallback, running alongside
+  // bullets. ponytail: it loses the bullet-impact counts the monolith sends;
+  // the bullets tab and score cover bullet quality.
+  const [bullets, actionPlan] = await Promise.all([
+    bulletsPromise,
+    timed('actionPlan', () => generateActionPlan({
+      targetRole,
+      jobDescription,
+      sections: structure.sections,
+      atsCheck,
+      jdAlignment: alignment.jdAlignment,
+      keywordHighlights: keywords.keywordHighlights,
+    }), buildActionPlanFallback),
+  ]);
+
+  // 7: composite score from agent + ATS outputs.
   const { overallScore, breakdown } = computeCompositeScore(
     structure.sections,
     atsCheck,
     bullets.bulletEvaluations,
   );
-
-  // 7: action plan over the full evaluation context, isolated to the monolith's
-  // fallback (mirrors buildLlmAnalysis()).
-  const actionPlan = await timed('actionPlan', () => generateActionPlan({
-    targetRole,
-    jobDescription,
-    sections: structure.sections,
-    atsCheck,
-    bulletEvaluations: bullets.bulletEvaluations,
-    jdAlignment: alignment.jdAlignment,
-    keywordHighlights: keywords.keywordHighlights,
-  }), buildActionPlanFallback);
 
   console.log(`⏱️ [v2] TOTAL: ${Date.now() - startedAt}ms`);
 
