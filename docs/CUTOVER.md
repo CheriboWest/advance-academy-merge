@@ -32,7 +32,14 @@ set STG_HOST aws-0-eu-west-2.pooler.supabase.com
 
 function prod; psql -h $PROD_HOST -p 5432 -U postgres.$PROD -d postgres -W $argv; end
 function stg;  psql -h $STG_HOST  -p 5432 -U postgres.$STG  -d postgres -W $argv; end
+
+echo "$PROD | $PROD_HOST | $STG | $STG_HOST"   # cả bốn phải có giá trị
 ```
+
+Biến và hàm chỉ sống trong terminal đã chạy khối trên: mở terminal mới thì phải chạy
+lại. Biến chưa set thì fish thay `postgres.$PROD` bằng **rỗng** (không phải
+`postgres.`), các tham số bị lệch, và pg_dump báo `too many command-line arguments
+(first is "postgres")`.
 
 ---
 
