@@ -20,27 +20,27 @@ Tại sao làm được:
 **Không có `--single-transaction`.** `033` có `create index concurrently`, còn
 `040`/`041` tự `begin/commit`. Lưới an toàn là backup ở bước 0 cộng `ON_ERROR_STOP`.
 
-Mọi lệnh dưới đây viết cho **bash** (shell mặc định là fish, nên chạy `bash` trước).
+Mọi lệnh dưới đây viết cho **fish**.
 psql/pg_dump phải từ bản 15 trở lên (máy này đang có 18.6).
 
-```bash
+```fish
 # Supabase → Project Settings → Database → Connection string → Session pooler
-PROD=<ref-project-prod>
-PROD_HOST=aws-0-<region>.pooler.supabase.com
-STG=mfohgcwviupeklfyvzfo
-STG_HOST=aws-0-eu-west-2.pooler.supabase.com
+set PROD REF_CUA_PROD       # thay bằng ref thật
+set PROD_HOST aws-0-REGION.pooler.supabase.com
+set STG mfohgcwviupeklfyvzfo
+set STG_HOST aws-0-eu-west-2.pooler.supabase.com
 
-prod() { psql -h "$PROD_HOST" -p 5432 -U "postgres.$PROD" -d postgres -W "$@"; }
-stg()  { psql -h "$STG_HOST"  -p 5432 -U "postgres.$STG"  -d postgres -W "$@"; }
+function prod; psql -h $PROD_HOST -p 5432 -U postgres.$PROD -d postgres -W $argv; end
+function stg;  psql -h $STG_HOST  -p 5432 -U postgres.$STG  -d postgres -W $argv; end
 ```
 
 ---
 
 ## 0. Backup prod
 
-```bash
-pg_dump -h "$PROD_HOST" -p 5432 -U "postgres.$PROD" -d postgres -W \
-        -Fc -f ~/aatools-prod-$(date +%F).dump
+```fish
+pg_dump -h $PROD_HOST -p 5432 -U postgres.$PROD -d postgres -W \
+        -Fc -f ~/aatools-prod-(date +%F).dump
 ```
 
 File này nằm **ngoài repo**, không commit vì có dữ liệu thật. Định dạng `-Fc` để
@@ -48,7 +48,7 @@ File này nằm **ngoài repo**, không commit vì có dữ liệu thật. Đị
 
 Ghi lại số liệu để so sánh ở bước 7:
 
-```bash
+```fish
 prod -c "select status, tier, count(*) from public.users group by 1,2 order by 1,2;"
 ```
 
@@ -57,8 +57,8 @@ prod -c "select status, tier, count(*) from public.users group by 1,2 order by 1
 Career Hub từng trôi khỏi migration (thêm 17 cột và 7 bảng chỉ có trên DB sống), nên
 phải kiểm tra prod trước khi chạy gì.
 
-```bash
-prod <<'SQL'
+```fish
+echo "
 -- Phải ra 0 dòng: các bảng Tools tới 023 đều có mặt
 select t from unnest(array['saved_jobs','job_events','coaching_sessions','tool_results',
   'admin_actions','trial_usage','candidate_leads','cv_analysis_jobs',
@@ -79,7 +79,7 @@ where to_regclass('public.' || t) is not null;
 -- Phải ra 0 dòng: không có tool nào nằm ngoài check mới của 044
 select distinct tool from public.tool_results
 where tool not in ('cv','dream','interview','coaching','cover_letter');
-SQL
+" | prod
 ```
 
 Nếu kết quả nào sai thì **dừng lại**, chưa sang bước 2.
@@ -87,9 +87,9 @@ Nếu kết quả nào sai thì **dừng lại**, chưa sang bước 2.
 Kiểm tra thêm (tuỳ chọn): diff schema của hai project để soi cột trôi trên các bảng
 Tools. Khác biệt ở các bảng Career Hub là bình thường.
 
-```bash
-pg_dump -h "$PROD_HOST" -U "postgres.$PROD" -d postgres -W --schema-only -n public > /tmp/prod.sql
-pg_dump -h "$STG_HOST"  -U "postgres.$STG"  -d postgres -W --schema-only -n public > /tmp/stg.sql
+```fish
+pg_dump -h $PROD_HOST -U postgres.$PROD -d postgres -W --schema-only -n public > /tmp/prod.sql
+pg_dump -h $STG_HOST  -U postgres.$STG  -d postgres -W --schema-only -n public > /tmp/stg.sql
 diff /tmp/prod.sql /tmp/stg.sql | less
 ```
 
@@ -103,19 +103,20 @@ mọi request tới FastAPI sẽ trả 401.
 Khoá HS256 cũ chuyển thành "previous" và vẫn xác thực được, nên **user đang đăng nhập
 không bị đăng xuất**. Chỉ revoke khoá cũ khi app Tools cũ đã ngừng chạy.
 
-```bash
-curl -s "https://$PROD.supabase.co/auth/v1/.well-known/jwks.json"   # "keys" phải không rỗng
+```fish
+curl -s https://$PROD.supabase.co/auth/v1/.well-known/jwks.json   # "keys" phải không rỗng
 ```
 
 ## 3. Apply `023a`–`045`
 
-```bash
+```fish
 cd supabase/migrations
-{ printf '%s\n\n' '\set ON_ERROR_STOP on'
-  for f in $(LC_ALL=C ls [0-9]*.sql | awk '$0>="023a"'); do
-    printf '%s\n' "\\echo '-- $f'"; cat "$f"; echo
-  done
-} > /tmp/cutover.sql
+begin
+  printf '%s\n\n' '\set ON_ERROR_STOP on'
+  for f in (LC_ALL=C command ls 0*.sql | awk '$0>="023a"')
+    printf '%s\n' "\\echo '-- $f'"; cat $f; echo
+  end
+end > /tmp/cutover.sql
 prod -f /tmp/cutover.sql
 ```
 
@@ -126,7 +127,7 @@ skipping` là bình thường.
 
 ## 4. Kiểm tra RLS
 
-```bash
+```fish
 prod -c "select tablename from pg_tables where schemaname='public' and rowsecurity=false;"
 ```
 
@@ -139,15 +140,15 @@ Staging đã giữ bản sạch: 17 cột trôi đã lọc, `salary_*` đã là 
 backfill. Copy thẳng từ staging, không cần trích lại từ dump của Career Hub. Thứ tự
 `companies` → `jobs` → `contacts` là do pg_dump tự xếp theo khoá ngoại.
 
-```bash
-pg_dump -h "$STG_HOST" -p 5432 -U "postgres.$STG" -d postgres -W --data-only \
+```fish
+pg_dump -h $STG_HOST -p 5432 -U postgres.$STG -d postgres -W --data-only \
         -t public.companies -t public.jobs -t public.contacts \
   | prod -v ON_ERROR_STOP=1
 
-for q in stg prod; do
+for q in stg prod
   $q -c "select (select count(*) from companies) c, (select count(*) from jobs) j,
                 (select count(*) from contacts) ct;"
-done
+end
 ```
 
 Hai dòng phải khớp nhau (khoảng 7.5k / 30.5k / ≥24). Trước khi nạp, liếc qua staging
