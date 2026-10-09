@@ -30,8 +30,8 @@ set PROD_HOST aws-1-ap-northeast-2.pooler.supabase.com
 set STG mfohgcwviupeklfyvzfo
 set STG_HOST aws-0-eu-west-2.pooler.supabase.com
 
-function prod; psql -h $PROD_HOST -p 5432 -U postgres.$PROD -d postgres -W $argv; end
-function stg;  psql -h $STG_HOST  -p 5432 -U postgres.$STG  -d postgres -W $argv; end
+function prod; psql -h $PROD_HOST -p 5432 -U postgres.$PROD -d postgres $argv; end
+function stg;  psql -h $STG_HOST  -p 5432 -U postgres.$STG  -d postgres $argv; end
 
 echo "$PROD | $PROD_HOST | $STG | $STG_HOST"   # cả bốn phải có giá trị
 ```
@@ -41,12 +41,28 @@ lại. Biến chưa set thì fish thay `postgres.$PROD` bằng **rỗng** (khôn
 `postgres.`), các tham số bị lệch, và pg_dump báo `too many command-line arguments
 (first is "postgres")`.
 
+Mật khẩu để trong `~/.pgpass`, nhập một lần cho cả runbook. Không dùng `-W`, vì bước 5
+nối `pg_dump` (staging) với `psql` (prod) bằng pipe: hai lời nhắc mật khẩu sẽ tranh
+nhau cùng một terminal. Mật khẩu lấy ở Project Settings → Database (quên thì bấm
+**Reset database password** — app không dùng mật khẩu này, chỉ dùng API key). Nếu mật
+khẩu chứa `:` hoặc `\` thì thêm `\` phía trước mỗi ký tự đó.
+
+```fish
+read -s -P "Mật khẩu DB prod: " p1; read -s -P "Mật khẩu DB staging: " p2
+printf '%s\n' "$PROD_HOST:5432:postgres:postgres.$PROD:$p1" \
+              "$STG_HOST:5432:postgres:postgres.$STG:$p2" > ~/.pgpass
+chmod 600 ~/.pgpass; set -e p1 p2
+prod -c "select 1"; stg -c "select 1"     # cả hai phải in ra 1
+```
+
+Cutover xong thì `rm ~/.pgpass`.
+
 ---
 
 ## 0. Backup prod
 
 ```fish
-pg_dump -h $PROD_HOST -p 5432 -U postgres.$PROD -d postgres -W \
+pg_dump -h $PROD_HOST -p 5432 -U postgres.$PROD -d postgres \
         -Fc -f ~/aatools-prod-(date +%F).dump
 ```
 
@@ -95,8 +111,8 @@ Kiểm tra thêm (tuỳ chọn): diff schema của hai project để soi cột t
 Tools. Khác biệt ở các bảng Career Hub là bình thường.
 
 ```fish
-pg_dump -h $PROD_HOST -U postgres.$PROD -d postgres -W --schema-only -n public > /tmp/prod.sql
-pg_dump -h $STG_HOST  -U postgres.$STG  -d postgres -W --schema-only -n public > /tmp/stg.sql
+pg_dump -h $PROD_HOST -U postgres.$PROD -d postgres --schema-only -n public > /tmp/prod.sql
+pg_dump -h $STG_HOST  -U postgres.$STG  -d postgres --schema-only -n public > /tmp/stg.sql
 diff /tmp/prod.sql /tmp/stg.sql | less
 ```
 
@@ -148,7 +164,7 @@ backfill. Copy thẳng từ staging, không cần trích lại từ dump của C
 `companies` → `jobs` → `contacts` là do pg_dump tự xếp theo khoá ngoại.
 
 ```fish
-pg_dump -h $STG_HOST -p 5432 -U postgres.$STG -d postgres -W --data-only \
+pg_dump -h $STG_HOST -p 5432 -U postgres.$STG -d postgres --data-only \
         -t public.companies -t public.jobs -t public.contacts \
   | prod -v ON_ERROR_STOP=1
 
