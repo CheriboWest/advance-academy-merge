@@ -25,8 +25,8 @@ psql/pg_dump phải từ bản 15 trở lên (máy này đang có 18.6).
 
 ```fish
 # Supabase → Project Settings → Database → Connection string → Session pooler
-set PROD REF_CUA_PROD       # thay bằng ref thật
-set PROD_HOST aws-0-REGION.pooler.supabase.com
+set PROD tiumnkknbgnqhrvohnxy
+set PROD_HOST aws-1-ap-northeast-2.pooler.supabase.com
 set STG mfohgcwviupeklfyvzfo
 set STG_HOST aws-0-eu-west-2.pooler.supabase.com
 
