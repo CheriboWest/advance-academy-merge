@@ -8,8 +8,9 @@ saved_jobs — vì họ không đi đâu cả.
 
 Tại sao làm được:
 
-- Prod chạy đúng `001`–`023` (+`018a`), và các file đó giống hệt từng byte với repo
-  này. Phần còn thiếu đúng là `023a`–`045`.
+- Repo Tools có `001`–`023` (+`018a`), giống hệt từng byte với repo này. Prod sống đã
+  chạy hết các file đó **trừ `008` và `009`** (xem bước 1). Phần còn thiếu là `008`,
+  `009` và `023a`–`045`.
 - `023a`–`045` gần như chỉ **thêm**: bảng Career Hub, `points_ledger`,
   `reminder_sends`, cột `users.email_reminders` (default `true`), nới check
   `tool_results_tool_check` (`044`), thay hàm `handle_new_auth_user` (`043`, tương
@@ -80,20 +81,29 @@ prod -c "select status, tier, count(*) from public.users group by 1,2 order by 1
 Career Hub từng trôi khỏi migration (thêm 17 cột và 7 bảng chỉ có trên DB sống), nên
 phải kiểm tra prod trước khi chạy gì.
 
+**Kết quả khi soi bản backup 2026-10-09** (so từng migration với
+`pg_restore -s`): prod **chưa chạy `008` và `009`**. Bảng `company_additional_url`
+không tồn tại, `companies.linkedin_url` vẫn còn (cả 5 dòng đều NULL), và index
+`idx_sessions_user_started_at` không có. `039` và `040` tham chiếu tới
+`company_additional_url`, nên bước 3 chạy luôn `008` và `009` (cả hai đều
+idempotent). Mọi migration khác từ `001` tới `023` đều có mặt, mọi bảng đều đã bật
+RLS. `tool_results.tool` chỉ có `cv`, `dream`, `interview`. Bảng `companies` **có
+sẵn** từ `001` (5 dòng, `slug` NULL), không đụng gì với unique index `slug` của `024`.
+
 ```fish
 echo "
 -- Phải ra 0 dòng: các bảng Tools tới 023 đều có mặt
 select t from unnest(array['saved_jobs','job_events','coaching_sessions','tool_results',
-  'admin_actions','trial_usage','candidate_leads','cv_analysis_jobs',
-  'company_additional_url']) t
+  'admin_actions','trial_usage','candidate_leads','cv_analysis_jobs']) t
 where to_regclass('public.' || t) is null;
 
 -- Phải ra 1 dòng: cột của 022 đã có
 select column_name from information_schema.columns
 where table_schema='public' and table_name='users' and column_name='lead_id';
 
--- Phải ra 0 dòng: chưa có tên bảng nào của 023a–045
-select t from unnest(array['companies','jobs','contacts','crawl_runs','discovery_queries',
+-- Phải ra 0 dòng: chưa có bảng nào chỉ 023a–045 tạo ra
+-- (companies thì có sẵn từ 001, không nằm trong danh sách này)
+select t from unnest(array['jobs','contacts','crawl_runs','discovery_queries',
   'sponsor_licences','sponsor_register_imports','company_sponsorship',
   'company_sponsorship_checks','coach_company_meta','outreach_emails',
   'points_ledger','reminder_sends']) t
@@ -130,13 +140,13 @@ không bị đăng xuất**. Chỉ revoke khoá cũ khi app Tools cũ đã ngừ
 curl -s https://$PROD.supabase.co/auth/v1/.well-known/jwks.json   # "keys" phải không rỗng
 ```
 
-## 3. Apply `023a`–`045`
+## 3. Apply `008`, `009`, `023a`–`045`
 
 ```fish
 cd supabase/migrations
 begin
   printf '%s\n\n' '\set ON_ERROR_STOP on'
-  for f in (LC_ALL=C command ls 0*.sql | awk '$0>="023a"')
+  for f in (LC_ALL=C command ls 0*.sql | awk '/^00[89]_/ || $0>="023a"')
     printf '%s\n' "\\echo '-- $f'"; cat $f; echo
   end
 end > /tmp/cutover.sql
