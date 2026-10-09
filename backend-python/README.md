@@ -408,12 +408,15 @@ uvicorn app.main:app --reload --port 8000
 
 ## Deploy to Railway
 
-1. Create a new Railway project from this repo, root directory `apps/api`.
+1. Create a new Railway project from this repo, root directory `backend-python`.
 2. Railway uses `railway.json` / `Procfile` to run
    `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
-3. Set the environment variables above in the Railway dashboard — set
-   `ALLOWED_ORIGINS` to your Vercel frontend URL.
-4. Point the frontend's `NEXT_PUBLIC_API_URL` at the Railway service URL.
+3. Set the environment variables above in the Railway dashboard. `SUPABASE_URL`
+   and `SUPABASE_SERVICE_ROLE_KEY` must be the **merged** project's, or every
+   coach token fails with "Unknown token signing key" / "Invalid token issuer".
+4. Set the frontend's server-only `CAREERHUB_API_URL` to the Railway service URL
+   and **rebuild** — the `/api/careerhub/*` rewrite is fixed at build time and
+   silently disappears when the variable is unset (every call then 404s).
 
 ## Self-checks
 

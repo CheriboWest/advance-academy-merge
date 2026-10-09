@@ -8,7 +8,7 @@
  * wired into buildLlmAnalysis(); nothing calls this yet.
  */
 import { assertLlmConfigured, createAnthropicClient } from '../../lib/llm-anthropic.js';
-import { cvAgentModel } from './models.js';
+import { cvAgentModel, CV_LLM_CLIENT_OPTIONS } from './models.js';
 import { runJsonTask } from '../../lib/run-json-task.js';
 import { CV_ALIGNMENT_PROMPT } from '../../prompts/cv-alignment.prompt.js';
 import { normalizeAlignment } from './normalizers.js';
@@ -26,7 +26,7 @@ export interface AlignmentOut {
 
 export async function analyzeAlignment(input: AlignmentInput): Promise<AlignmentOut> {
   assertLlmConfigured('cvOptimizer');
-  const anthropic = createAnthropicClient('cvOptimizer');
+  const anthropic = createAnthropicClient('cvOptimizer', CV_LLM_CLIENT_OPTIONS);
   const model = cvAgentModel('alignment');
 
   const user = [

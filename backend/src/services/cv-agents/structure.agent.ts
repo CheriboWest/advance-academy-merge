@@ -8,7 +8,7 @@
  * nothing calls this yet.
  */
 import { assertLlmConfigured, createAnthropicClient } from '../../lib/llm-anthropic.js';
-import { cvAgentModel } from './models.js';
+import { cvAgentModel, CV_LLM_CLIENT_OPTIONS } from './models.js';
 import { runJsonTask } from '../../lib/run-json-task.js';
 import { CV_STRUCTURE_PROMPT } from '../../prompts/cv-structure.prompt.js';
 import { todayInstruction } from './today-instruction.js';
@@ -28,7 +28,7 @@ export interface StructureOut {
 
 export async function analyzeStructure(input: StructureInput): Promise<StructureOut> {
   assertLlmConfigured('cvOptimizer');
-  const anthropic = createAnthropicClient('cvOptimizer');
+  const anthropic = createAnthropicClient('cvOptimizer', CV_LLM_CLIENT_OPTIONS);
   const model = cvAgentModel('structure');
 
   const user = [

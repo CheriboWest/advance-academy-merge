@@ -29,3 +29,11 @@ export function cvAgentModel(agent: CvAgent): string {
     ?? envValue('LLM_MODEL_CV_HAIKU')
     ?? DEFAULT_HAIKU_MODEL;
 }
+
+/**
+ * Client options for every CV Optimizer call. The SDK default (10-min timeout,
+ * 2 retries) let one stuck call hold a job for many minutes and run into the
+ * 10-min stale-job reaper; one retry inside 2 minutes fails fast to the
+ * branch's fallback instead.
+ */
+export const CV_LLM_CLIENT_OPTIONS = { timeoutMs: 120_000, maxRetries: 1 };
