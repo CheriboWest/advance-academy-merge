@@ -414,7 +414,7 @@ uvicorn app.main:app --reload --port 8000
 3. Set the environment variables above in the Railway dashboard. `SUPABASE_URL`
    and `SUPABASE_SERVICE_ROLE_KEY` must be the **merged** project's, or every
    coach token fails with "Unknown token signing key" / "Invalid token issuer".
-4. Set the frontend's server-only `CAREERHUB_API_URL` to the Railway service URL
+4. Set the frontend's server-only `BACKEND_PYTHON_URL` to the Railway service URL
    and **rebuild** — the `/api/careerhub/*` rewrite is fixed at build time and
    silently disappears when the variable is unset (every call then 404s).
 

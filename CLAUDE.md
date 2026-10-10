@@ -29,13 +29,13 @@ Nothing here has been cut over.
   route, so a new public page must be added there or it silently redirects to
   `/login`.
 - The browser reaches `backend-python` only via the same-origin rewrite
-  `/api/careerhub/*` → `CAREERHUB_API_URL` in `next.config.mjs`; server code
+  `/api/careerhub/*` → `BACKEND_PYTHON_URL` in `next.config.mjs`; server code
   calls it directly. Both go through `features/career-hub/lib/api-url.ts` —
   don't reintroduce a `NEXT_PUBLIC_` URL for it. The rewrite is fixed at **build
   time** and vanishes when the variable is unset (the build warns), so every
   Career Hub call 404s until it's set *and* the frontend is rebuilt. A 401
   "Unknown token signing key" / "Invalid token issuer" from it means
-  `CAREERHUB_API_URL` points at a backend-python wired to the old career-hub
+  `BACKEND_PYTHON_URL` points at a backend-python wired to the old career-hub
   Supabase project.
 - **Job crawler** (`/coach/crawler` → backend-python `/discover/*`) is not a
   scraper: it calls the Adzuna and Reed APIs over `httpx` (`ADZUNA_APP_ID`,
@@ -80,7 +80,7 @@ Run from the repo root (npm workspaces; `backend` is a workspace):
 - `npm run dev:frontend` — Next.js dev server (port 3000)
 - `npm run dev:backend` — Fastify dev server with `tsx watch` (port 4000)
 - `npm run dev:all` — both concurrently
-- `cd backend-python && .venv/bin/uvicorn app.main:app --reload --port 8000` — Career Hub API (matches `CAREERHUB_API_URL=http://localhost:8000` in `.env.local`)
+- `cd backend-python && .venv/bin/uvicorn app.main:app --reload --port 8000` — Career Hub API (matches `BACKEND_PYTHON_URL=http://localhost:8000` in `.env.local`)
 - `npm run build:all` — `next build` then backend `tsc -p tsconfig.build.json`
 - `npm run lint` — **currently broken**: `eslint` isn't installed and there is no `eslint.config.*`. Rely on the type checks and tests.
 - `npm test` (vitest, frontend) · `npm run test --workspace backend` (node runner, `src/**/*.test.ts`)
