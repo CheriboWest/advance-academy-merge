@@ -184,7 +184,7 @@ export async function deleteCompaniesPermanentlyAction(
   const baseUrl = careerHubApiUrl();
   if (!baseUrl) {
     return failedDelete(
-      "Missing CAREERHUB_API_URL. Set it in .env.local to your API URL."
+      "Missing BACKEND_PYTHON_URL. Set it in .env.local to your API URL."
     );
   }
 

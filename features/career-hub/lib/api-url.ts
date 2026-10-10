@@ -10,5 +10,5 @@ export const CAREERHUB_PROXY = "/api/careerhub";
 
 /** The Python API's base URL, server-side only; null when unconfigured. */
 export function careerHubApiUrl(): string | null {
-  return process.env.CAREERHUB_API_URL?.trim().replace(/\/+$/, "") || null;
+  return process.env.BACKEND_PYTHON_URL?.trim().replace(/\/+$/, "") || null;
 }

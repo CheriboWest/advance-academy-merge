@@ -84,9 +84,9 @@ async function authFetch<T>(path: string, init: RequestInit): Promise<T> {
     } catch {
       // No JSON body: not backend-python's own error, so name the likely setup gap.
       if (response.status === 404) {
-        detail = "Career Hub API not reachable — CAREERHUB_API_URL isn't set on the frontend (rebuild after setting it).";
+        detail = "Job crawler API not reachable — BACKEND_PYTHON_URL isn't set on the frontend (rebuild after setting it).";
       } else if (response.status >= 500) {
-        detail = `Career Hub API error (${response.status}) — check backend-python's logs and that the crawl_runs / discovery_queries migrations are applied.`;
+        detail = `Job crawler API error (${response.status}) — check backend-python's logs and that the crawl_runs / discovery_queries migrations are applied.`;
       }
     }
     throw new Error(detail);
